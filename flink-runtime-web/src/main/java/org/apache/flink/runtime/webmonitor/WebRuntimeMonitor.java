@@ -64,6 +64,7 @@ import org.apache.flink.runtime.webmonitor.handlers.JobVertexAccumulatorsHandler
 import org.apache.flink.runtime.webmonitor.handlers.JobVertexBackPressureHandler;
 import org.apache.flink.runtime.webmonitor.handlers.JobVertexDetailsHandler;
 import org.apache.flink.runtime.webmonitor.handlers.JobVertexTaskManagersHandler;
+import org.apache.flink.runtime.webmonitor.handlers.KvStateLocationLookupHandler;
 import org.apache.flink.runtime.webmonitor.handlers.RequestHandler;
 import org.apache.flink.runtime.webmonitor.handlers.SubtaskCurrentAttemptDetailsHandler;
 import org.apache.flink.runtime.webmonitor.handlers.SubtaskExecutionAttemptAccumulatorsHandler;
@@ -326,6 +327,8 @@ public class WebRuntimeMonitor implements WebMonitor {
 			.GET("/jobs/:jobid/cancel-with-savepoint", triggerHandler)
 			.GET("/jobs/:jobid/cancel-with-savepoint/target-directory/:targetDirectory", triggerHandler)
 			.GET(JobCancellationWithSavepointHandlers.IN_PROGRESS_URL, inProgressHandler)
+
+			.GET("/jobs/:jobid/state-location/:registrationName", handler(new KvStateLocationLookupHandler(DEFAULT_REQUEST_TIMEOUT)))
 
 			// stop a job via GET (for proper integration with YARN this has to be performed via GET)
 			.GET("/jobs/:jobid/yarn-stop", handler(new JobStoppingHandler()))

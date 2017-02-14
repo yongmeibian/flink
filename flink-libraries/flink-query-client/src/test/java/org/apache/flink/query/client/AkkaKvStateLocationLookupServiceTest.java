@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-package org.apache.flink.runtime.query;
+package org.apache.flink.query.client;
 
 import akka.actor.ActorRef;
 import akka.actor.ActorSystem;
@@ -27,9 +27,9 @@ import org.apache.flink.configuration.Configuration;
 import org.apache.flink.runtime.akka.AkkaUtils;
 import org.apache.flink.runtime.akka.FlinkUntypedActor;
 import org.apache.flink.runtime.jobgraph.JobVertexID;
-import org.apache.flink.runtime.leaderelection.TestingLeaderRetrievalService;
-import org.apache.flink.runtime.query.AkkaKvStateLocationLookupService.LookupRetryStrategy;
-import org.apache.flink.runtime.query.AkkaKvStateLocationLookupService.LookupRetryStrategyFactory;
+import org.apache.flink.query.client.AkkaKvStateLocationLookupService.LookupRetryStrategy;
+import org.apache.flink.query.client.AkkaKvStateLocationLookupService.LookupRetryStrategyFactory;
+import org.apache.flink.runtime.query.KvStateLocation;
 import org.apache.flink.runtime.query.KvStateMessage.LookupKvStateLocation;
 import org.apache.flink.util.Preconditions;
 import org.junit.AfterClass;

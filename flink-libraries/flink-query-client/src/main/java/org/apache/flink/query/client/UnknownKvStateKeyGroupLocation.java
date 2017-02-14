@@ -16,7 +16,9 @@
  * limitations under the License.
  */
 
-package org.apache.flink.runtime.query;
+package org.apache.flink.query.client;
+
+import org.apache.flink.runtime.query.KvStateLocation;
 
 /**
  * Exception thrown if there is no location information available for the given

@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-package org.apache.flink.runtime.query;
+package org.apache.flink.query.client;
 
 /**
  * Exception to fail Future with if no JobManager is currently registered at

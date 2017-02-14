@@ -16,9 +16,10 @@
  * limitations under the License.
  */
 
-package org.apache.flink.runtime.query;
+package org.apache.flink.query.client;
 
 import org.apache.flink.api.common.JobID;
+import org.apache.flink.runtime.query.KvStateLocation;
 import scala.concurrent.Future;
 
 /**
