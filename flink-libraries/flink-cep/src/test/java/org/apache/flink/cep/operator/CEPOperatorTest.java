@@ -115,6 +115,158 @@ public class CEPOperatorTest extends TestLogger {
 	}
 
 	@Test
+	public void testKeyedCEPOperatorWithComplexPattern() throws Exception {
+
+		// valid test event for the pattern
+		final Event startEvent = new Event(42, "start", 1.0);
+		final SubEvent fooEvent1 = new SubEvent(42, "foo", 1.0, 10.0);
+		final SubEvent fooEvent2 = new SubEvent(42, "foo", 2.0, 10.0);
+		final SubEvent middleEvent = new SubEvent(42, "middle", 2.0, 10.0);
+		final Event endEvent = new Event(42, "end", 1.0);
+
+		OneInputStreamOperatorTestHarness<Event, Map<String, Event>> harness = getTestOpWithComplexPattern();
+		harness.open();
+
+		harness.processElement(new StreamRecord<Event>(startEvent, 1));
+		harness.processElement(new StreamRecord<Event>(new Event(42, "foobar", 1.0), 2));
+
+		StreamStateHandle snapshot = harness.snapshotLegacy(0, 0);
+		harness.close();
+
+		harness = getTestOpWithComplexPattern();
+		harness.setup();
+		harness.restore(snapshot);
+		harness.open();
+
+		harness.processWatermark(new Watermark(Long.MIN_VALUE));
+
+		harness.processElement(new StreamRecord<Event>(new SubEvent(42, "barfoo", 1.0, 5.0), 3));
+
+		// if element timestamps are not correctly checkpointed/restored this will lead to
+		// a pruning time underflow exception in NFA
+		harness.processWatermark(new Watermark(2));
+
+		StreamStateHandle snapshot2 = harness.snapshotLegacy(1, 1);
+		harness.close();
+
+		harness = getTestOpWithComplexPattern();
+		harness.setup();
+		harness.restore(snapshot2);
+		harness.open();
+
+		harness.processElement(new StreamRecord<Event>(fooEvent1, 3));
+		harness.processElement(new StreamRecord<Event>(middleEvent, 4));
+
+		harness.processElement(new StreamRecord<Event>(fooEvent2, 4));
+
+		harness.processElement(new StreamRecord<Event>(new Event(42, "start", 1.0), 5));
+
+		harness.processElement(new StreamRecord<Event>(endEvent, 6));
+//		harness.processElement(new StreamRecord<Event>(endEvent, 7));
+
+		harness.processWatermark(new Watermark(Long.MAX_VALUE));
+
+		ConcurrentLinkedQueue<Object> result = harness.getOutput();
+
+		for (Object o : result) {
+			System.out.println(o);
+		}
+		// watermark and the result
+//		assertEquals(2, result.size());
+
+		Object resultObject = result.poll();
+		assertTrue(resultObject instanceof StreamRecord);
+		StreamRecord<?> resultRecord = (StreamRecord<?>) resultObject;
+		assertTrue(resultRecord.getValue() instanceof Map);
+
+		@SuppressWarnings("unchecked")
+		Map<String, Event> patternMap = (Map<String, Event>) resultRecord.getValue();
+
+		assertEquals(startEvent, patternMap.get("start"));
+		assertEquals(fooEvent1, patternMap.get("middle-first"));
+		assertEquals(middleEvent, patternMap.get("middle-second"));
+		assertEquals(endEvent, patternMap.get("end"));
+
+		harness.close();
+	}
+
+
+	private OneInputStreamOperatorTestHarness<Event, Map<String, Event>> getTestOpWithComplexPattern() throws Exception {
+
+		KeySelector<Event, Integer> keySelector = new KeySelector<Event, Integer>() {
+			private static final long serialVersionUID = -4873366487571254798L;
+
+			@Override
+			public Integer getKey(Event value) throws Exception {
+				return value.getId();
+			}
+		};
+
+		return new KeyedOneInputStreamOperatorTestHarness<>(
+			new KeyedCEPPatternOperator<>(
+				Event.createTypeSerializer(),
+				false,
+				keySelector,
+				IntSerializer.INSTANCE,
+				new ComplexNFAFactory()),
+			keySelector,
+			BasicTypeInfo.INT_TYPE_INFO);
+	}
+
+	private static class ComplexNFAFactory implements NFACompiler.NFAFactory<Event> {
+
+		private static final long serialVersionUID = 1173020762472766713L;
+
+		private final boolean handleTimeout;
+
+		private ComplexNFAFactory() {
+			this(false);
+		}
+
+		private ComplexNFAFactory(boolean handleTimeout) {
+			this.handleTimeout = handleTimeout;
+		}
+
+		// TODO: 2/16/17 what happens if two elements in the pattern have the same name??? Should we disable specifying such patterns?
+
+		@Override
+		public NFA<Event> createNFA() {
+
+			Pattern<Event, ?> pattern = Pattern.<Event>begin("start").where(new FilterFunction<Event>() {
+				private static final long serialVersionUID = 5726188262756267490L;
+
+				@Override
+				public boolean filter(Event value) throws Exception {
+					return value.getName().equals("start");
+				}
+			}).followedBy("middle-first").subtype(SubEvent.class).where(new FilterFunction<SubEvent>() {
+				private static final long serialVersionUID = 6215754202506583964L;
+
+				@Override
+				public boolean filter(SubEvent value) throws Exception {
+					return value.getVolume() > 5.0;
+				}
+			}).followedBy("middle-second").subtype(SubEvent.class).where(new FilterFunction<SubEvent>() {
+				private static final long serialVersionUID = 6215754202506583964L;
+
+				@Override
+				public boolean filter(SubEvent value) throws Exception {
+					return value.getName().equals("middle");
+				}
+			}).followedBy("end").where(new FilterFunction<Event>() {
+				private static final long serialVersionUID = 7056763917392056548L;
+
+				@Override
+				public boolean filter(Event value) throws Exception {
+					return value.getName().equals("end");
+				}
+			}).within(Time.milliseconds(10L));
+
+			return NFACompiler.compile(pattern, Event.createTypeSerializer(), handleTimeout);
+		}
+	}
+
+	@Test
 	public void testCEPOperatorCheckpointing() throws Exception {
 		KeySelector<Event, Integer> keySelector = new KeySelector<Event, Integer>() {
 			private static final long serialVersionUID = -4873366487571254798L;

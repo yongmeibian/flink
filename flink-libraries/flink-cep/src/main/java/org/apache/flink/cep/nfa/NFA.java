@@ -238,6 +238,7 @@ public class NFA<T> implements Serializable {
 
 		states.push(state);
 
+		boolean branched = false;
 		while (!states.isEmpty()) {
 			State<T> currentState = states.pop();
 			Collection<StateTransition<T>> stateTransitions = currentState.getStateTransitions();
@@ -252,9 +253,18 @@ public class NFA<T> implements Serializable {
 								// simply advance the computation state, but apply the current event to it
 								// PROCEED is equivalent to an epsilon transition
 								states.push(stateTransition.getTargetState());
+								branched = true;
 								break;
 							case IGNORE:
-								resultingComputationStates.add(computationState);
+								if (branched) {
+									resultingComputationStates.add(computationState);
+								} else {
+									resultingComputationStates.add(new ComputationState<T>(computationState.getState(),
+										computationState.getEvent(),
+										computationState.getTimestamp(),
+										computationState.getVersion().increase(),
+										computationState.getStartTimestamp()));
+								}
 
 								// we have a new computation state referring to the same the shared entry
 								// the lock of the current computation is released later on
@@ -279,6 +289,7 @@ public class NFA<T> implements Serializable {
 									startTimestamp = computationState.getStartTimestamp();
 									previousTimestamp = computationState.getTimestamp();
 									oldVersion = computationState.getVersion();
+									branched = true;
 
 									if (newState.equals(computationState.getState())) {
 										newComputationStateVersion = oldVersion.increase();

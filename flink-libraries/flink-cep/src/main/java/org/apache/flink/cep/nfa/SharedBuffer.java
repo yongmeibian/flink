@@ -158,6 +158,10 @@ public class SharedBuffer<K extends Serializable, V> implements Serializable {
 		return pages.containsKey(key) && pages.get(key).contains(new ValueTimeWrapper<>(value, timestamp));
 	}
 
+	public boolean contains(final K key) {
+		return pages.containsKey(key);
+	}
+
 	public boolean isEmpty() {
 		for (SharedBufferPage<K, V> page: pages.values()) {
 			if (!page.isEmpty()) {
