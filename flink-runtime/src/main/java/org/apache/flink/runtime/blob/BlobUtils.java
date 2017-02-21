@@ -21,6 +21,7 @@ package org.apache.flink.runtime.blob;
 import com.google.common.io.BaseEncoding;
 import org.apache.commons.io.FileUtils;
 import org.apache.flink.api.common.JobID;
+import org.apache.flink.configuration.ConfigConstants;
 import org.apache.flink.core.fs.FileSystem;
 import org.apache.flink.core.fs.Path;
 import org.apache.flink.util.IOUtils;
@@ -65,7 +66,7 @@ public class BlobUtils {
 	/**
 	 * The default character set to translate between characters and bytes.
 	 */
-	static final Charset DEFAULT_CHARSET = Charset.forName("utf-8");
+	static final Charset DEFAULT_CHARSET = ConfigConstants.DEFAULT_CHARSET;
 
 	/**
 	 * Creates a storage directory for a blob service.

@@ -25,6 +25,7 @@ import org.apache.flink.streaming.connectors.kafka.internals.ZookeeperOffsetHand
 
 import org.junit.Test;
 
+import java.nio.charset.StandardCharsets;
 import java.util.Properties;
 
 import static org.junit.Assert.assertEquals;

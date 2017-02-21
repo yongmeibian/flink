@@ -26,7 +26,7 @@ import java.util.Random;
 import org.apache.flink.examples.java.relational.WebLogAnalysis;
 
 /**
- * Data generator for the {@link WebLogAnalysis} example program. 
+ * Data generator for the {@link WebLogAnalysis} example program.
  *
  */
 public class WebLogDataGenerator {
@@ -39,9 +39,9 @@ public class WebLogDataGenerator {
 	 * <li><code>{tmp.dir}/documents</code> for the web documents
 	 * <li><code>{tmp.dir}/ranks</code> for the ranks of the web documents
 	 * <li><code>{tmp.dir}/visits</code> for the logged visits of web documents
-	 * </ul> 
-	 * 
-	 * @param args 
+	 * </ul>
+	 *
+	 * @param args
 	 * <ol>
 	 * <li>Int: Number of web documents
 	 * <li>Int: Number of visits
@@ -54,10 +54,10 @@ public class WebLogDataGenerator {
 			System.out.println("WebLogDataGenerator <numberOfDocuments> <numberOfVisits>");
 			System.exit(1);
 		}
-		
+
 		int noDocs = Integer.parseInt(args[0]);
 		int noVisits = Integer.parseInt(args[1]);
-		
+
 		String[] filterKWs = { "editors", "oscillations", "convection" };
 
 		String[] words = { "Lorem", "ipsum", "dolor", "sit", "amet",
@@ -68,7 +68,7 @@ public class WebLogDataGenerator {
 				"ullamcorper", "suscipit", "lobortis", "nisl", "ut", "aliquip",
 				"ex", "ea", "commodo" };
 
-		
+
 		final String outPath = System.getProperty("java.io.tmpdir");
 
 		System.out.println("Generating documents files...");
@@ -85,7 +85,7 @@ public class WebLogDataGenerator {
 	 * Generates the files for the documents relation. The entries apply the
 	 * following format: <br />
 	 * <code>URL | Content</code>
-	 * 
+	 *
 	 * @param noDocs
 	 *            Number of entries for the documents relation
 	 * @param filterKeyWords

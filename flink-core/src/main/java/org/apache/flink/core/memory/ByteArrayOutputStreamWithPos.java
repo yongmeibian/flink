@@ -18,6 +18,7 @@
 
 package org.apache.flink.core.memory;
 
+import org.apache.flink.configuration.ConfigConstants;
 import org.apache.flink.util.Preconditions;
 
 import java.io.IOException;
@@ -95,7 +96,7 @@ public class ByteArrayOutputStreamWithPos extends OutputStream {
 	}
 
 	public String toString() {
-		return new String(buffer, 0, count);
+		return new String(buffer, 0, count, ConfigConstants.DEFAULT_CHARSET);
 	}
 
 	private int getEndPosition() {

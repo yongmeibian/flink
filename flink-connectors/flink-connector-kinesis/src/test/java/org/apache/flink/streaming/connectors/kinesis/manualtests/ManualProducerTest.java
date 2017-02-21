@@ -59,7 +59,7 @@ public class ManualProducerTest {
 				new KinesisSerializationSchema<String>() {
 					@Override
 					public ByteBuffer serialize(String element) {
-						return ByteBuffer.wrap(element.getBytes());
+						return ByteBuffer.wrap(element.getBytes(ConfigConstants.DEFAULT_CHARSET));
 					}
 
 					// every 10th element goes into a different stream

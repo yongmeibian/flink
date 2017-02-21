@@ -80,7 +80,7 @@ public class HDFSTest {
 			hdfs = hdPath.getFileSystem(hdConf);
 			FSDataOutputStream stream = hdfs.create(hdPath);
 			for(int i = 0; i < 10; i++) {
-				stream.write("Hello HDFS\n".getBytes());
+				stream.write("Hello HDFS\n".getBytes(ConfigConstants.DEFAULT_CHARSET));
 			}
 			stream.close();
 
@@ -193,7 +193,7 @@ public class HDFSTest {
 
 		fs.mkdirs(directory);
 
-		byte[] data = "HDFSTest#testDeletePathIfEmpty".getBytes();
+		byte[] data = "HDFSTest#testDeletePathIfEmpty".getBytes(ConfigConstants.DEFAULT_CHARSET);
 
 		for (Path file: Arrays.asList(singleFile, directoryFile)) {
 			org.apache.flink.core.fs.FSDataOutputStream outputStream = fs.create(file, true);
