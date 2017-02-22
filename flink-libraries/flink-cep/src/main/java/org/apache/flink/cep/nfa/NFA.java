@@ -19,6 +19,7 @@
 package org.apache.flink.cep.nfa;
 
 import com.google.common.collect.LinkedHashMultimap;
+import org.apache.flink.api.common.functions.FilterFunction;
 import org.apache.flink.api.common.typeutils.TypeSerializer;
 import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.api.java.typeutils.runtime.DataInputViewStream;
@@ -41,6 +42,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedList;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Queue;
@@ -219,6 +221,52 @@ public class NFA<T> implements Serializable {
 		return Objects.hash(nonDuplicatingTypeSerializer, sharedBuffer, states, windowTime, startEventCounter);
 	}
 
+
+	/**
+	 * Structures to keep decisions based on the transition actions, that counts the number of taken actions.
+ 	 */
+	private static class OutgoingEdges<T> {
+		private List<StateTreeEdge<T>> edges = new ArrayList<>();
+		private Map<StateTransitionAction, Integer> counts = new HashMap<StateTransitionAction, Integer>() {
+			{
+				put(StateTransitionAction.IGNORE, 0);
+				put(StateTransitionAction.TAKE, 0);
+			}
+		};
+
+
+		void add(StateTreeEdge<T> edge) {
+			counts.put(edge.action, counts.get(edge.action) + 1);
+			edges.add(edge);
+		}
+
+		Integer getCount(StateTransitionAction action) {
+			return counts.get(action);
+		}
+
+		List<StateTreeEdge<T>> getEdges() {
+			return edges;
+		}
+	}
+
+	private static class StateTreeEdge<T> {
+		private State<T> targetState;
+		private StateTransitionAction action;
+
+		State<T> getTargetState() {
+			return targetState;
+		}
+
+		StateTransitionAction getAction() {
+			return action;
+		}
+
+		StateTreeEdge(State<T> targetState, StateTransitionAction action) {
+			this.targetState = targetState;
+			this.action = action;
+		}
+	}
+
 	/**
 	 * Computes the next computation states based on the given computation state, the current event,
 	 * its timestamp and the internal state machine.
@@ -229,90 +277,35 @@ public class NFA<T> implements Serializable {
 	 * @return Collection of computation states which result from the current one
 	 */
 	private Collection<ComputationState<T>> computeNextStates(
-			final ComputationState<T> computationState,
-			final T event,
-			final long timestamp) {
-		Stack<State<T>> states = new Stack<>();
-		ArrayList<ComputationState<T>> resultingComputationStates = new ArrayList<>();
-		State<T> state = computationState.getState();
+		final ComputationState<T> computationState,
+		final T event,
+		final long timestamp) {
+		final ArrayList<ComputationState<T>> resultingComputationStates = new ArrayList<>();
 
-		states.push(state);
-
+		final Stack<State<T>> states = new Stack<>();
+		states.push(computationState.getState());
+		final OutgoingEdges<T> outgoingEdges = new OutgoingEdges<>();
+		//First create all outgoing edges, so to be able to reason about the Dewey version
 		while (!states.isEmpty()) {
 			State<T> currentState = states.pop();
 			Collection<StateTransition<T>> stateTransitions = currentState.getStateTransitions();
 
 			// check all state transitions for each state
-			for (StateTransition<T> stateTransition: stateTransitions) {
+			for (StateTransition<T> stateTransition : stateTransitions) {
 				try {
-					if (stateTransition.getCondition() == null || stateTransition.getCondition().filter(event)) {
+					if (checkCondition(stateTransition.getCondition(), event)) {
 						// filter condition is true
 						switch (stateTransition.getAction()) {
 							case PROCEED:
 								// simply advance the computation state, but apply the current event to it
 								// PROCEED is equivalent to an epsilon transition
-								states.push(stateTransition.getTargetState());
+								states.push(currentState);
 								break;
 							case IGNORE:
-								resultingComputationStates.add(computationState);
-
-								// we have a new computation state referring to the same the shared entry
-								// the lock of the current computation is released later on
-								sharedBuffer.lock(computationState.getState(), computationState.getEvent(), computationState.getTimestamp());
-								break;
 							case TAKE:
-								final State<T> newState = stateTransition.getTargetState();
-								final DeweyNumber oldVersion;
-								final DeweyNumber newComputationStateVersion;
-								final State<T> previousState = computationState.getState();
-								final T previousEvent = computationState.getEvent();
-								final long previousTimestamp;
-								final long startTimestamp;
-
-								if (computationState.isStartState()) {
-									oldVersion = new DeweyNumber(startEventCounter++);
-									newComputationStateVersion = oldVersion.addStage();
-									startTimestamp = timestamp;
-									previousTimestamp = -1L;
-
-								} else {
-									startTimestamp = computationState.getStartTimestamp();
-									previousTimestamp = computationState.getTimestamp();
-									oldVersion = computationState.getVersion();
-
-									if (newState.equals(computationState.getState())) {
-										newComputationStateVersion = oldVersion.increase();
-									} else {
-										newComputationStateVersion = oldVersion.addStage();
-									}
-								}
-
-								if (previousState.isStart()) {
-									sharedBuffer.put(
-										newState,
-										event,
-										timestamp,
-										oldVersion);
-								} else {
-									sharedBuffer.put(
-										newState,
-										event,
-										timestamp,
-										previousState,
-										previousEvent,
-										previousTimestamp,
-										oldVersion);
-								}
-
-								// a new computation state is referring to the shared entry
-								sharedBuffer.lock(newState, event, timestamp);
-
-								resultingComputationStates.add(new ComputationState<T>(
-									newState,
-									event,
-									timestamp,
-									newComputationStateVersion,
-									startTimestamp));
+								outgoingEdges.add(new StateTreeEdge<T>(
+									stateTransition.getTargetState(),
+									stateTransition.getAction()));
 								break;
 						}
 					}
@@ -322,18 +315,115 @@ public class NFA<T> implements Serializable {
 			}
 		}
 
+		// Create the computing version based on the previously computed edges
+		// We need to defer the creation of computation states until we know how many edges start
+		// at this computation state so that we can assign proper version
+		final List<StateTreeEdge<T>> edges = outgoingEdges.getEdges();
+		final int totalBranches = outgoingEdges.getCount(StateTransitionAction.TAKE);
+		int branchesToVisit = totalBranches - Math.min(outgoingEdges.getCount(StateTransitionAction.IGNORE), 1);
+		for (StateTreeEdge<T> edge : edges) {
+			switch (edge.getAction()) {
+				case IGNORE:
+					final DeweyNumber version = computationState.getVersion().increase(totalBranches);
+					resultingComputationStates.add(
+						new ComputationState<T>(
+							edge.getTargetState(),
+							computationState.getEvent(),
+							computationState.getTimestamp(),
+							version,
+							computationState.getStartTimestamp())
+					);
+					sharedBuffer.lock(
+						edge.getTargetState(),
+						computationState.getEvent(),
+						computationState.getTimestamp());
+					break;
+				case TAKE:
+					final State<T> newState = edge.getTargetState();
+					final State<T> previousState = computationState.getState();
+					final T previousEvent = computationState.getEvent();
+
+					final long startTimestamp;
+					final DeweyNumber newComputationStateVersion;
+					if (computationState.isStartState()) {
+						final DeweyNumber oldVersion = new DeweyNumber(startEventCounter++);
+						newComputationStateVersion = oldVersion.addStage();
+						startTimestamp = timestamp;
+						sharedBuffer.put(
+							newState,
+							event,
+							timestamp,
+							oldVersion);
+					} else {
+						startTimestamp = computationState.getStartTimestamp();
+						final DeweyNumber oldVersion = computationState.getVersion();
+
+						newComputationStateVersion = createNewDeweyNumberForTakeAction(
+							newState, previousState, oldVersion, branchesToVisit
+						);
+
+						sharedBuffer.put(
+							newState,
+							event,
+							timestamp,
+							previousState,
+							previousEvent,
+							computationState.getTimestamp(),
+							oldVersion);
+					}
+
+
+					// a new computation state is referring to the shared entry
+					sharedBuffer.lock(newState, event, timestamp);
+
+					branchesToVisit--;
+					resultingComputationStates.add(new ComputationState<T>(
+						newState,
+						event,
+						timestamp,
+						newComputationStateVersion,
+						startTimestamp));
+			}
+		}
+
+
 		if (computationState.isStartState()) {
 			// a computation state is always kept if it refers to a starting state because every
 			// new element can start a new pattern
 			resultingComputationStates.add(computationState);
 		} else {
 			// release the shared entry referenced by the current computation state.
-			sharedBuffer.release(computationState.getState(), computationState.getEvent(), computationState.getTimestamp());
+			sharedBuffer.release(
+				computationState.getState(),
+				computationState.getEvent(),
+				computationState.getTimestamp());
 			// try to remove unnecessary shared buffer entries
-			sharedBuffer.remove(computationState.getState(), computationState.getEvent(), computationState.getTimestamp());
+			sharedBuffer.remove(
+				computationState.getState(),
+				computationState.getEvent(),
+				computationState.getTimestamp());
 		}
 
 		return resultingComputationStates;
+	}
+
+	private boolean checkCondition(FilterFunction<T> condition, T event) throws Exception {
+		return condition == null || condition.filter(event);
+	}
+
+	private DeweyNumber createNewDeweyNumberForTakeAction(
+		final State<T> newState,
+		final State<T> previousState,
+		final DeweyNumber oldVersion,
+		final int branchesToVisit) {
+		DeweyNumber newComputationStateVersion = new DeweyNumber(oldVersion);
+
+		if (!newState.equals(previousState)) {
+			newComputationStateVersion = newComputationStateVersion.addStage();
+		}
+
+		newComputationStateVersion = newComputationStateVersion.increase(branchesToVisit);
+		return newComputationStateVersion;
 	}
 
 	/**
