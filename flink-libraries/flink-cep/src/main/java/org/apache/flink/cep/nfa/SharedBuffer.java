@@ -260,6 +260,7 @@ public class SharedBuffer<K extends Serializable, V> implements Serializable {
 						}
 					}
 				}
+
 			}
 		}
 
@@ -803,7 +804,7 @@ public class SharedBuffer<K extends Serializable, V> implements Serializable {
 			if (target != null) {
 				return Objects.hash(target.getKey(), target.getValueTime(), version);
 			} else {
-				return version.hashCode();
+				return -1;
 			}
 		}
 	}

@@ -54,9 +54,8 @@ public class NFATest extends TestLogger {
 		State<Event> startingState = new State<>("", State.StateType.Start);
 		State<Event> startState = new State<>("start", State.StateType.Normal);
 		State<Event> endState = new State<>("end", State.StateType.Final);
-		StateTransition<Event> starting2Start = new StateTransition<>(
-			StateTransitionAction.TAKE,
-			startState,
+
+		startingState.addTake(
 			new FilterFunction<Event>() {
 				private static final long serialVersionUID = -4869589195918650396L;
 
@@ -64,12 +63,8 @@ public class NFATest extends TestLogger {
 				public boolean filter(Event value) throws Exception {
 					return value.getName().equals("start");
 				}
-			}
-		);
-
-		StateTransition<Event> start2End = new StateTransition<>(
-			StateTransitionAction.TAKE,
-			endState,
+			});
+		startState.addTake(
 			new FilterFunction<Event>() {
 				private static final long serialVersionUID = 2979804163709590673L;
 
@@ -77,14 +72,9 @@ public class NFATest extends TestLogger {
 				public boolean filter(Event value) throws Exception {
 					return value.getName().equals("end");
 				}
-			}
-		);
-
-		StateTransition<Event> start2Start = new StateTransition<>(StateTransitionAction.IGNORE, startState, null);
-
-		startingState.addStateTransition(starting2Start);
-		startState.addStateTransition(start2End);
-		startState.addStateTransition(start2Start);
+			});
+		startState.addIgnore(
+			null);
 
 		nfa.addState(startingState);
 		nfa.addState(startState);
@@ -196,8 +186,10 @@ public class NFATest extends TestLogger {
 	public <T> Collection<Map<String, T>> runNFA(NFA<T> nfa, List<StreamRecord<T>> inputs) {
 		Set<Map<String, T>> actualPatterns = new HashSet<>();
 
-		for (StreamRecord<T> streamEvent: inputs) {
-			Collection<Map<String, T>> matchedPatterns = nfa.process(streamEvent.getValue(), streamEvent.getTimestamp()).f0;
+		for (StreamRecord<T> streamEvent : inputs) {
+			Collection<Map<String, T>> matchedPatterns = nfa.process(
+				streamEvent.getValue(),
+				streamEvent.getTimestamp()).f0;
 
 			actualPatterns.addAll(matchedPatterns);
 		}
@@ -213,24 +205,12 @@ public class NFATest extends TestLogger {
 		State<Event> startState = new State<>("start", State.StateType.Normal);
 		State<Event> endState = new State<>("end", State.StateType.Final);
 
-		StateTransition<Event> starting2Start = new StateTransition<>(
-			StateTransitionAction.TAKE,
-			startState,
+
+		startingState.addTake(
 			new NameFilter("start"));
-
-		StateTransition<Event> start2End = new StateTransition<>(
-			StateTransitionAction.TAKE,
-			endState,
+		startState.addTake(
 			new NameFilter("end"));
-
-		StateTransition<Event> start2Start = new StateTransition<>(
-			StateTransitionAction.IGNORE,
-			startState,
-			null);
-
-		startingState.addStateTransition(starting2Start);
-		startState.addStateTransition(start2End);
-		startState.addStateTransition(start2Start);
+		startState.addIgnore(null);
 
 		nfa.addState(startingState);
 		nfa.addState(startState);
@@ -256,9 +236,8 @@ public class NFATest extends TestLogger {
 		State<Event> startingState = new State<>("", State.StateType.Start);
 		State<Event> startState = new State<>("start", State.StateType.Normal);
 		State<Event> endState = new State<>("end", State.StateType.Final);
-		StateTransition<Event> starting2Start = new StateTransition<>(
-			StateTransitionAction.TAKE,
-			startState,
+
+		startingState.addTake(
 			new FilterFunction<Event>() {
 				private static final long serialVersionUID = -4869589195918650396L;
 
@@ -267,10 +246,7 @@ public class NFATest extends TestLogger {
 					return value.getName().equals("start");
 				}
 			});
-
-		StateTransition<Event> start2End = new StateTransition<>(
-			StateTransitionAction.TAKE,
-			endState,
+		startState.addTake(
 			new FilterFunction<Event>() {
 				private static final long serialVersionUID = 2979804163709590673L;
 
@@ -279,15 +255,8 @@ public class NFATest extends TestLogger {
 					return value.getName().equals("end");
 				}
 			});
-
-		StateTransition<Event> start2Start = new StateTransition<>(
-			StateTransitionAction.IGNORE,
-			startState,
+		startState.addIgnore(
 			null);
-
-		startingState.addStateTransition(starting2Start);
-		startState.addStateTransition(start2End);
-		startState.addStateTransition(start2Start);
 
 		nfa.addState(startingState);
 		nfa.addState(startState);

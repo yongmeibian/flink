@@ -116,7 +116,7 @@ public class NFA<T> implements Serializable {
 		states.add(state);
 
 		if (state.isStart()) {
-			computationStates.add(new ComputationState<>(state, null, -1L, null, -1L));
+			computationStates.add(ComputationState.createStartState(state, new DeweyNumber(startEventCounter++)));
 		}
 	}
 
@@ -173,8 +173,8 @@ public class NFA<T> implements Serializable {
 					result.addAll(matches);
 
 					// remove found patterns because they are no longer needed
-					sharedBuffer.release(newComputationState.getState(), newComputationState.getEvent(), newComputationState.getTimestamp());
-					sharedBuffer.remove(newComputationState.getState(), newComputationState.getEvent(), newComputationState.getTimestamp());
+					sharedBuffer.release(newComputationState.getPreviousState(), newComputationState.getEvent(), newComputationState.getTimestamp());
+					sharedBuffer.remove(newComputationState.getPreviousState(), newComputationState.getEvent(), newComputationState.getTimestamp());
 				} else {
 					// add new computation state; it will be processed once the next event arrives
 					computationStates.add(newComputationState);
@@ -226,44 +226,33 @@ public class NFA<T> implements Serializable {
 	 * Structures to keep decisions based on the transition actions, that counts the number of taken actions.
  	 */
 	private static class OutgoingEdges<T> {
-		private List<StateTreeEdge<T>> edges = new ArrayList<>();
-		private Map<StateTransitionAction, Integer> counts = new HashMap<StateTransitionAction, Integer>() {
-			{
-				put(StateTransitionAction.IGNORE, 0);
-				put(StateTransitionAction.TAKE, 0);
+		private List<StateTransition<T>> edges = new ArrayList<>();
+
+		private int branches = 0;
+
+		private ComputationState<T> currentState;
+
+		OutgoingEdges(ComputationState<T> currentState) {
+			this.currentState = currentState;
+		}
+
+		void add(StateTransition<T> edge) {
+			if (edge.getAction() == StateTransitionAction.TAKE &&
+			    currentState.getPreviousState() != null &&
+			    (!currentState.getPreviousState().equals(currentState.getState()) ||
+				!edge.getTargetState().equals(currentState.getState()))) {
+				branches++;
 			}
-		};
 
-
-		void add(StateTreeEdge<T> edge) {
-			counts.put(edge.action, counts.get(edge.action) + 1);
 			edges.add(edge);
 		}
 
-		Integer getCount(StateTransitionAction action) {
-			return counts.get(action);
+		int getBranches() {
+			return branches;
 		}
 
-		List<StateTreeEdge<T>> getEdges() {
+		List<StateTransition<T>> getEdges() {
 			return edges;
-		}
-	}
-
-	private static class StateTreeEdge<T> {
-		private State<T> targetState;
-		private StateTransitionAction action;
-
-		State<T> getTargetState() {
-			return targetState;
-		}
-
-		StateTransitionAction getAction() {
-			return action;
-		}
-
-		StateTreeEdge(State<T> targetState, StateTransitionAction action) {
-			this.targetState = targetState;
-			this.action = action;
 		}
 	}
 
@@ -282,116 +271,124 @@ public class NFA<T> implements Serializable {
 		final long timestamp) {
 		final ArrayList<ComputationState<T>> resultingComputationStates = new ArrayList<>();
 
-		final Stack<State<T>> states = new Stack<>();
-		states.push(computationState.getState());
-		final OutgoingEdges<T> outgoingEdges = new OutgoingEdges<>();
-		//First create all outgoing edges, so to be able to reason about the Dewey version
-		while (!states.isEmpty()) {
-			State<T> currentState = states.pop();
-			Collection<StateTransition<T>> stateTransitions = currentState.getStateTransitions();
-
-			// check all state transitions for each state
-			for (StateTransition<T> stateTransition : stateTransitions) {
-				try {
-					if (checkCondition(stateTransition.getCondition(), event)) {
-						// filter condition is true
-						switch (stateTransition.getAction()) {
-							case PROCEED:
-								// simply advance the computation state, but apply the current event to it
-								// PROCEED is equivalent to an epsilon transition
-								states.push(currentState);
-								break;
-							case IGNORE:
-							case TAKE:
-								outgoingEdges.add(new StateTreeEdge<T>(
-									stateTransition.getTargetState(),
-									stateTransition.getAction()));
-								break;
-						}
-					}
-				} catch (Exception e) {
-					throw new RuntimeException("Failure happened in filter function.", e);
-				}
-			}
-		}
+		final OutgoingEdges<T> outgoingEdges = createDecisionGraph(computationState, event);
 
 		// Create the computing version based on the previously computed edges
 		// We need to defer the creation of computation states until we know how many edges start
 		// at this computation state so that we can assign proper version
-		final List<StateTreeEdge<T>> edges = outgoingEdges.getEdges();
-		final int totalBranches = outgoingEdges.getCount(StateTransitionAction.TAKE);
-		int branchesToVisit = totalBranches - Math.min(outgoingEdges.getCount(StateTransitionAction.IGNORE), 1);
-		for (StateTreeEdge<T> edge : edges) {
+		final List<StateTransition<T>> edges = outgoingEdges.getEdges();
+		final int totalBranches = outgoingEdges.getBranches();
+		int branchesToVisit = Math.max(0, totalBranches - 1);
+		for (StateTransition<T> edge : edges) {
 			switch (edge.getAction()) {
-				case IGNORE:
-					final DeweyNumber version = computationState.getVersion().increase(totalBranches);
-					resultingComputationStates.add(
-						new ComputationState<T>(
+				case IGNORE: {
+					if (edge.getSourceState().equals(computationState.getState()) &&
+					    computationState.getEvent() != null) {
+						final DeweyNumber version = computationState.getVersion()
+						                                            .increase(totalBranches);
+						resultingComputationStates.add(
+							ComputationState.createState(
+								edge.getTargetState(),
+								computationState.getPreviousState(),
+								computationState.getEvent(),
+								computationState.getTimestamp(),
+								version,
+								computationState.getStartTimestamp()
+							)
+						);
+						sharedBuffer.lock(
 							edge.getTargetState(),
 							computationState.getEvent(),
-							computationState.getTimestamp(),
-							version,
-							computationState.getStartTimestamp())
-					);
-					sharedBuffer.lock(
-						edge.getTargetState(),
-						computationState.getEvent(),
-						computationState.getTimestamp());
-					break;
+							computationState.getTimestamp());
+					}
+				}
+				break;
 				case TAKE:
 					final State<T> newState = edge.getTargetState();
-					final State<T> previousState = computationState.getState();
+					final State<T> consumingState = edge.getSourceState();
+					final State<T> previousEventState = computationState.getPreviousState();
+					final State<T> currentState = computationState.getState();
+
 					final T previousEvent = computationState.getEvent();
+					final DeweyNumber currentVersion = computationState.getVersion();
+
+					final DeweyNumber newComputationStateVersion;
+					final DeweyNumber newEdgeVersion;
+
+					//first state of looping state
+					if (previousEventState != null &&
+						!previousEventState.equals(currentState) &&
+					    edge.getSourceState().equals(currentState) &&
+					    edge.getTargetState().equals(currentState)) {
+						newEdgeVersion = currentVersion;
+						newComputationStateVersion = currentVersion.increase(branchesToVisit);
+						branchesToVisit--;
+					// looping state
+					} else if (edge.getSourceState().equals(currentState) &&
+					           edge.getTargetState().equals(currentState)) {
+						newEdgeVersion = currentVersion;
+						newComputationStateVersion = currentVersion;
+					// after proceed
+					} else if (!edge.getSourceState().equals(currentState)) {
+						newEdgeVersion = currentVersion.addStage().increase(branchesToVisit);
+						newComputationStateVersion = new DeweyNumber(newEdgeVersion);
+						branchesToVisit--;
+					} else {
+						newEdgeVersion = currentVersion.increase(branchesToVisit);
+						newComputationStateVersion = new DeweyNumber(newEdgeVersion).addStage();
+						branchesToVisit--;
+					}
 
 					final long startTimestamp;
-					final DeweyNumber newComputationStateVersion;
 					if (computationState.isStartState()) {
-						final DeweyNumber oldVersion = new DeweyNumber(startEventCounter++);
-						newComputationStateVersion = oldVersion.addStage();
 						startTimestamp = timestamp;
 						sharedBuffer.put(
-							newState,
+							consumingState,
 							event,
 							timestamp,
-							oldVersion);
+							computationState.getVersion());
 					} else {
 						startTimestamp = computationState.getStartTimestamp();
-						final DeweyNumber oldVersion = computationState.getVersion();
-
-						newComputationStateVersion = createNewDeweyNumberForTakeAction(
-							newState, previousState, oldVersion, branchesToVisit
-						);
-
 						sharedBuffer.put(
-							newState,
+							consumingState,
 							event,
 							timestamp,
-							previousState,
+							previousEventState,
 							previousEvent,
 							computationState.getTimestamp(),
-							oldVersion);
+							newEdgeVersion);
 					}
 
 
 					// a new computation state is referring to the shared entry
-					sharedBuffer.lock(newState, event, timestamp);
+					sharedBuffer.lock(consumingState, event, timestamp);
 
-					branchesToVisit--;
-					resultingComputationStates.add(new ComputationState<T>(
+					resultingComputationStates.add(ComputationState.createState(
 						newState,
+						consumingState,
 						event,
 						timestamp,
 						newComputationStateVersion,
-						startTimestamp));
+						startTimestamp
+					));
+					break;
 			}
 		}
 
+		if (computationState.isStartState() && computationState.getEvent() == null) {
+			final DeweyNumber startVersion;
+			if (totalBranches > 0) {
+				startVersion = new DeweyNumber(startEventCounter++);
+			} else {
+				startVersion = new DeweyNumber(startEventCounter);
+			}
 
-		if (computationState.isStartState()) {
-			// a computation state is always kept if it refers to a starting state because every
-			// new element can start a new pattern
-			resultingComputationStates.add(computationState);
-		} else {
+			resultingComputationStates.add(ComputationState.createStartState(
+				computationState.getState(),
+				startVersion));
+		}
+
+		if (computationState.getEvent() != null) {
 			// release the shared entry referenced by the current computation state.
 			sharedBuffer.release(
 				computationState.getState(),
@@ -407,23 +404,42 @@ public class NFA<T> implements Serializable {
 		return resultingComputationStates;
 	}
 
-	private boolean checkCondition(FilterFunction<T> condition, T event) throws Exception {
-		return condition == null || condition.filter(event);
+	private OutgoingEdges<T> createDecisionGraph(ComputationState<T> computationState, T event) {
+		final Stack<State<T>> states = new Stack<>();
+		states.push(computationState.getState());
+		final OutgoingEdges<T> outgoingEdges = new OutgoingEdges<>(computationState);
+		//First create all outgoing edges, so to be able to reason about the Dewey version
+		while (!states.isEmpty()) {
+			State<T> currentState = states.pop();
+			Collection<StateTransition<T>> stateTransitions = currentState.getStateTransitions();
+
+			// check all state transitions for each state
+			for (StateTransition<T> stateTransition : stateTransitions) {
+				try {
+					if (checkCondition(stateTransition.getCondition(), event)) {
+						// filter condition is true
+						switch (stateTransition.getAction()) {
+							case PROCEED:
+								// simply advance the computation state, but apply the current event to it
+								// PROCEED is equivalent to an epsilon transition
+								states.push(stateTransition.getTargetState());
+								break;
+							case IGNORE:
+							case TAKE:
+								outgoingEdges.add(stateTransition);
+								break;
+						}
+					}
+				} catch (Exception e) {
+					throw new RuntimeException("Failure happened in filter function.", e);
+				}
+			}
+		}
+		return outgoingEdges;
 	}
 
-	private DeweyNumber createNewDeweyNumberForTakeAction(
-		final State<T> newState,
-		final State<T> previousState,
-		final DeweyNumber oldVersion,
-		final int branchesToVisit) {
-		DeweyNumber newComputationStateVersion = new DeweyNumber(oldVersion);
-
-		if (!newState.equals(previousState)) {
-			newComputationStateVersion = newComputationStateVersion.addStage();
-		}
-
-		newComputationStateVersion = newComputationStateVersion.increase(branchesToVisit);
-		return newComputationStateVersion;
+	private boolean checkCondition(FilterFunction<T> condition, T event) throws Exception {
+		return condition == null || condition.filter(event);
 	}
 
 	/**
@@ -436,7 +452,7 @@ public class NFA<T> implements Serializable {
 	 */
 	private Collection<Map<String, T>> extractPatternMatches(final ComputationState<T> computationState) {
 		Collection<LinkedHashMultimap<State<T>, T>> paths = sharedBuffer.extractPatterns(
-			computationState.getState(),
+			computationState.getPreviousState(),
 			computationState.getEvent(),
 			computationState.getTimestamp(),
 			computationState.getVersion());
@@ -459,6 +475,7 @@ public class NFA<T> implements Serializable {
 						// copy the element so that the user can change it
 						serializer.isImmutableType() ? event : serializer.copy(event)
 					);
+					counter++;
 				}
 			}
 
@@ -498,6 +515,7 @@ public class NFA<T> implements Serializable {
 
 	private void writeComputationState(final ComputationState<T> computationState, final ObjectOutputStream oos) throws IOException {
 		oos.writeObject(computationState.getState());
+		oos.writeObject(computationState.getPreviousState());
 		oos.writeLong(computationState.getTimestamp());
 		oos.writeObject(computationState.getVersion());
 		oos.writeLong(computationState.getStartTimestamp());
@@ -516,6 +534,7 @@ public class NFA<T> implements Serializable {
 	@SuppressWarnings("unchecked")
 	private ComputationState<T> readComputationState(ObjectInputStream ois) throws IOException, ClassNotFoundException {
 		final State<T> state = (State<T>)ois.readObject();
+		final State<T> previousState = (State<T>)ois.readObject();
 		final long timestamp = ois.readLong();
 		final DeweyNumber version = (DeweyNumber)ois.readObject();
 		final long startTimestamp = ois.readLong();
@@ -530,7 +549,7 @@ public class NFA<T> implements Serializable {
 			event = null;
 		}
 
-		return new ComputationState<>(state, event, timestamp, version, startTimestamp);
+		return ComputationState.createState(state, previousState, event, timestamp, version, startTimestamp);
 	}
 
 	/**

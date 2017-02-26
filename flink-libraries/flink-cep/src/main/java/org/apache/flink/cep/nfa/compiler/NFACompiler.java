@@ -22,10 +22,10 @@ import org.apache.flink.api.common.functions.FilterFunction;
 import org.apache.flink.api.common.typeutils.TypeSerializer;
 import org.apache.flink.cep.nfa.NFA;
 import org.apache.flink.cep.nfa.State;
-import org.apache.flink.cep.nfa.StateTransition;
-import org.apache.flink.cep.nfa.StateTransitionAction;
-import org.apache.flink.cep.pattern.FollowedByPattern;
+import org.apache.flink.cep.pattern.FilterFunctions;
+import org.apache.flink.cep.pattern.NotFilterFunction;
 import org.apache.flink.cep.pattern.Pattern;
+import org.apache.flink.cep.pattern.Quantifier;
 import org.apache.flink.streaming.api.windowing.time.Time;
 
 import java.io.Serializable;
@@ -34,7 +34,6 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
-import java.util.Set;
 
 /**
  * Compiler class containing methods to compile a {@link Pattern} into a {@link NFA} or a
@@ -42,7 +41,7 @@ import java.util.Set;
  */
 public class NFACompiler {
 
-	protected final static String BEGINNING_STATE_NAME = "$beginningState$";
+	protected static final String ENDING_STATE_NAME = "$endState$";
 
 	/**
 	 * Compiles the given pattern into a {@link NFA}.
@@ -85,75 +84,59 @@ public class NFACompiler {
 			Map<String, State<T>> states = new HashMap<>();
 			long windowTime;
 
-			// this is used to enforse pattern name uniqueness.
-			Set<String> patternNames = new HashSet<>();
-
-			Pattern<T, ?> succeedingPattern;
-			State<T> succeedingState;
 			Pattern<T, ?> currentPattern = pattern;
 
 			// we're traversing the pattern from the end to the beginning --> the first state is the final state
-			State<T> currentState = new State<>(currentPattern.getName(), State.StateType.Final);
-			patternNames.add(currentPattern.getName());
-
-			states.put(currentPattern.getName(), currentState);
-
+			State<T> sinkState = new State<>(ENDING_STATE_NAME, State.StateType.Final);
 			windowTime = currentPattern.getWindowTime() != null ? currentPattern.getWindowTime().toMilliseconds() : 0L;
-
 			while (currentPattern.getPrevious() != null) {
-				succeedingPattern = currentPattern;
-				succeedingState = currentState;
-				currentPattern = currentPattern.getPrevious();
-
-				if (!patternNames.add(currentPattern.getName())) {
+				final State<T> sourceState;
+				if (states.containsKey(currentPattern.getName())) {
 					throw new MalformedPatternException("Duplicate pattern name: " + currentPattern.getName() + ". " +
 						"Pattern names must be unique.");
+				} else {
+					sourceState = new State<>(currentPattern.getName(), State.StateType.Normal);
+					states.put(sourceState.getName(), sourceState);
 				}
 
-				Time currentWindowTime = currentPattern.getWindowTime();
+				if (currentPattern.getQuantifier() == Quantifier.ZERO_OR_MORE) {
+					sourceState.addProceed(sinkState, FilterFunctions.<T>trueFunction());
+					sourceState.addTake((FilterFunction<T>) currentPattern.getFilterFunction());
+				} else {
+					sourceState.addTake(sinkState, (FilterFunction<T>) currentPattern.getFilterFunction());
+				}
 
+				sourceState.addIgnore(FilterFunctions.<T>trueFunction());
+
+				currentPattern = currentPattern.getPrevious();
+				sinkState = sourceState;
+
+				final Time currentWindowTime = currentPattern.getWindowTime();
 				if (currentWindowTime != null && currentWindowTime.toMilliseconds() < windowTime) {
 					// the window time is the global minimum of all window times of each state
 					windowTime = currentWindowTime.toMilliseconds();
-				}
-
-				if (states.containsKey(currentPattern.getName())) {
-					currentState = states.get(currentPattern.getName());
-				} else {
-					currentState = new State<>(currentPattern.getName(), State.StateType.Normal);
-					states.put(currentState.getName(), currentState);
-				}
-
-				currentState.addStateTransition(new StateTransition<T>(
-					StateTransitionAction.TAKE,
-					succeedingState,
-					(FilterFunction<T>) succeedingPattern.getFilterFunction()));
-
-				if (succeedingPattern instanceof FollowedByPattern) {
-					// the followed by pattern entails a reflexive ignore transition
-					currentState.addStateTransition(new StateTransition<T>(
-						StateTransitionAction.IGNORE,
-						currentState,
-						null
-					));
 				}
 			}
 
 			// add the beginning state
 			final State<T> beginningState;
 
-			if (states.containsKey(BEGINNING_STATE_NAME)) {
-				beginningState = states.get(BEGINNING_STATE_NAME);
+			if (states.containsKey(currentPattern.getName())) {
+				throw new MalformedPatternException("Duplicate pattern name: " + currentPattern.getName() + ". " +
+					"Pattern names must be unique.");
 			} else {
-				beginningState = new State<>(BEGINNING_STATE_NAME, State.StateType.Start);
-				states.put(BEGINNING_STATE_NAME, beginningState);
+				beginningState = new State<>(currentPattern.getName(), State.StateType.Start);
+				states.put(currentPattern.getName(), beginningState);
 			}
 
-			beginningState.addStateTransition(new StateTransition<T>(
-				StateTransitionAction.TAKE,
-				currentState,
-				(FilterFunction<T>) currentPattern.getFilterFunction()
-			));
+			if (currentPattern.getQuantifier() == Quantifier.ZERO_OR_MORE) {
+				beginningState.addProceed(sinkState, FilterFunctions.<T>trueFunction());
+				beginningState.addTake((FilterFunction<T>) currentPattern.getFilterFunction());
+			} else {
+				beginningState.addTake(sinkState, (FilterFunction<T>) currentPattern.getFilterFunction());
+			}
+
+			beginningState.addIgnore(new NotFilterFunction<>((FilterFunction<T>)currentPattern.getFilterFunction()));
 
 			return new NFAFactoryImpl<T>(inputTypeSerializer, windowTime, new HashSet<>(states.values()), timeoutHandling);
 		}

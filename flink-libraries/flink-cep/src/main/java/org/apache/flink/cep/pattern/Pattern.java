@@ -53,6 +53,8 @@ public class Pattern<T, F extends T> {
 	// window length in which the pattern match has to occur
 	private Time windowTime;
 
+	private Quantifier quantifier = Quantifier.ONE;
+
 	protected Pattern(final String name, final Pattern<T, ? extends T> previous) {
 		this.name = name;
 		this.previous = previous;
@@ -72,6 +74,10 @@ public class Pattern<T, F extends T> {
 
 	public Time getWindowTime() {
 		return windowTime;
+	}
+
+	public Quantifier getQuantifier() {
+		return quantifier;
 	}
 
 	/**
@@ -183,4 +189,12 @@ public class Pattern<T, F extends T> {
 		return new Pattern<X, X>(name, null);
 	}
 
+	/**
+	 * Adds kleene star operator to this pattern
+	 * @return The same pattern with applied Kleene star operator
+	 */
+	public Pattern<T, F> zeroOrMore() {
+		this.quantifier = Quantifier.ZERO_OR_MORE;
+		return this;
+	}
 }
