@@ -85,7 +85,7 @@ public class ComputationState<T> {
 	}
 
 	public boolean isStartState() {
-		return state.isStart();
+		return state.isStart() && event == null;
 	}
 
 	public long getTimestamp() {

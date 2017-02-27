@@ -62,9 +62,10 @@ public class State<T> implements Serializable {
 		return stateTransitions;
 	}
 
-	private void addStateTransition(final StateTransitionAction action,
-	                               final State<T> targetState,
-	                               final FilterFunction<T> condition) {
+	private void addStateTransition(
+		final StateTransitionAction action,
+		final State<T> targetState,
+		final FilterFunction<T> condition) {
 		stateTransitions.add(new StateTransition<T>(this, action, targetState, condition));
 	}
 

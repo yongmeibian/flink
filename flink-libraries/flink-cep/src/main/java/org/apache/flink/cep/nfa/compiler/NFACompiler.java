@@ -132,11 +132,11 @@ public class NFACompiler {
 			if (currentPattern.getQuantifier() == Quantifier.ZERO_OR_MORE) {
 				beginningState.addProceed(sinkState, FilterFunctions.<T>trueFunction());
 				beginningState.addTake((FilterFunction<T>) currentPattern.getFilterFunction());
+				beginningState.addIgnore(FilterFunctions.<T>trueFunction());
 			} else {
 				beginningState.addTake(sinkState, (FilterFunction<T>) currentPattern.getFilterFunction());
 			}
 
-			beginningState.addIgnore(new NotFilterFunction<>((FilterFunction<T>)currentPattern.getFilterFunction()));
 
 			return new NFAFactoryImpl<T>(inputTypeSerializer, windowTime, new HashSet<>(states.values()), timeoutHandling);
 		}
