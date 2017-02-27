@@ -228,7 +228,8 @@ public class NFA<T> implements Serializable {
 	private static class OutgoingEdges<T> {
 		private List<StateTransition<T>> edges = new ArrayList<>();
 
-		private int branches = 0;
+		private int takeBranches = 0;
+		private int proceedBranches = 0;
 
 		private ComputationState<T> currentState;
 
@@ -238,17 +239,37 @@ public class NFA<T> implements Serializable {
 
 		void add(StateTransition<T> edge) {
 			if (edge.getAction() == StateTransitionAction.TAKE &&
-			    currentState.getPreviousState() != null &&
-			    (!currentState.getPreviousState().equals(currentState.getState()) ||
-				!edge.getTargetState().equals(currentState.getState()))) {
-				branches++;
+			    isNotFirstConsuming() &&
+			    isNotSelfLoop(edge)) {
+				if (isNotAfterProceed(edge)) {
+					takeBranches++;
+				} else {
+					proceedBranches++;
+				}
 			}
 
 			edges.add(edge);
 		}
 
-		int getBranches() {
-			return branches;
+		private boolean isNotFirstConsuming() {
+			return currentState.getPreviousState() != null;
+		}
+
+		private boolean isNotAfterProceed(StateTransition<T> edge) {
+			return edge.getSourceState().equals(currentState.getState());
+		}
+
+		private boolean isNotSelfLoop(StateTransition<T> edge) {
+			return !currentState.getPreviousState().equals(currentState.getState()) ||
+            !edge.getTargetState().equals(currentState.getState());
+		}
+
+		int getTakeBranches() {
+			return takeBranches;
+		}
+
+		int getProceedBranches() {
+			return proceedBranches;
 		}
 
 		List<StateTransition<T>> getEdges() {
@@ -277,8 +298,8 @@ public class NFA<T> implements Serializable {
 		// We need to defer the creation of computation states until we know how many edges start
 		// at this computation state so that we can assign proper version
 		final List<StateTransition<T>> edges = outgoingEdges.getEdges();
-		final int totalBranches = outgoingEdges.getBranches();
-		int branchesToVisit = Math.max(0, totalBranches - 1);
+		final int totalBranches = outgoingEdges.getTakeBranches();
+		int branchesToVisit = Math.max(0, totalBranches + outgoingEdges.getProceedBranches() - 1);
 		for (StateTransition<T> edge : edges) {
 			switch (edge.getAction()) {
 				case IGNORE: {
