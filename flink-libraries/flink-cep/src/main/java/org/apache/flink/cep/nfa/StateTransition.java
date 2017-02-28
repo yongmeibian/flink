@@ -65,7 +65,8 @@ public class StateTransition<T> implements Serializable {
 			StateTransition<T> other = (StateTransition<T>) obj;
 
 			return action == other.action &&
-				targetState.getName().equals(other.targetState.getName());
+			       sourceState.getName().equals(other.sourceState.getName()) &&
+			       targetState.getName().equals(other.targetState.getName());
 		} else {
 			return false;
 		}

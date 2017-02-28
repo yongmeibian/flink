@@ -46,7 +46,7 @@ public class NFAITCase extends TestLogger {
 	public void testSimplePatternNFA() {
 		List<StreamRecord<Event>> inputEvents = new ArrayList<>();
 
-		Event startEvent = new Event(42, "start", 1.0);
+		Event startEvent = new Event(41, "start", 1.0);
 		SubEvent middleEvent = new SubEvent(42, "foo", 1.0, 10.0);
 		Event endEvent = new Event(43, "end", 1.0);
 
@@ -105,6 +105,96 @@ public class NFAITCase extends TestLogger {
 		assertEquals(startEvent, patternMap.get("start"));
 		assertEquals(middleEvent, patternMap.get("middle"));
 		assertEquals(endEvent, patternMap.get("end"));
+	}
+
+	@Test
+	public void testStrictContinuityWithResults() {
+		List<StreamRecord<Event>> inputEvents = new ArrayList<>();
+
+		Event middleEvent1 = new Event(41, "a", 2.0);
+		Event end = new Event(42, "b", 4.0);
+
+		inputEvents.add(new StreamRecord<>(middleEvent1, 3));
+		inputEvents.add(new StreamRecord<>(end, 5));
+
+		Pattern<Event, ?> pattern = Pattern.<Event>begin("middle").where(new FilterFunction<Event>() {
+			private static final long serialVersionUID = 5726188262756267490L;
+
+			@Override
+			public boolean filter(Event value) throws Exception {
+				return value.getName().equals("a");
+			}
+		}).next("end").where(new FilterFunction<Event>() {
+			private static final long serialVersionUID = 5726188262756267490L;
+
+			@Override
+			public boolean filter(Event value) throws Exception {
+				return value.getName().equals("b");
+			}
+		});
+
+		NFA<Event> nfa = NFACompiler.compile(pattern, Event.createTypeSerializer(), false);
+
+		Set<Set<Event>> resultingPatterns = new HashSet<>();
+
+		for (StreamRecord<Event> inputEvent : inputEvents) {
+			Collection<Map<String, Event>> patterns = nfa.process(
+				inputEvent.getValue(),
+				inputEvent.getTimestamp()).f0;
+
+			for (Map<String, Event> foundPattern : patterns) {
+				resultingPatterns.add(new HashSet<>(foundPattern.values()));
+			}
+		}
+
+		assertEquals(Sets.<Set<Event>>newHashSet(
+			Sets.newHashSet(middleEvent1, end)
+		), resultingPatterns);
+	}
+
+	@Test
+	public void testStrictContinuityNoResults() {
+		List<StreamRecord<Event>> inputEvents = new ArrayList<>();
+
+		Event middleEvent1 = new Event(41, "a", 2.0);
+		Event middleEvent2 = new Event(42, "c", 3.0);
+		Event end = new Event(43, "b", 4.0);
+
+		inputEvents.add(new StreamRecord<>(middleEvent1, 3));
+		inputEvents.add(new StreamRecord<>(middleEvent2, 4));
+		inputEvents.add(new StreamRecord<>(end, 5));
+
+		Pattern<Event, ?> pattern = Pattern.<Event>begin("middle").where(new FilterFunction<Event>() {
+			private static final long serialVersionUID = 5726188262756267490L;
+
+			@Override
+			public boolean filter(Event value) throws Exception {
+				return value.getName().equals("a");
+			}
+		}).next("end").where(new FilterFunction<Event>() {
+			private static final long serialVersionUID = 5726188262756267490L;
+
+			@Override
+			public boolean filter(Event value) throws Exception {
+				return value.getName().equals("b");
+			}
+		});
+
+		NFA<Event> nfa = NFACompiler.compile(pattern, Event.createTypeSerializer(), false);
+
+		Set<Set<Event>> resultingPatterns = new HashSet<>();
+
+		for (StreamRecord<Event> inputEvent : inputEvents) {
+			Collection<Map<String, Event>> patterns = nfa.process(
+				inputEvent.getValue(),
+				inputEvent.getTimestamp()).f0;
+
+			for (Map<String, Event> foundPattern : patterns) {
+				resultingPatterns.add(new HashSet<>(foundPattern.values()));
+			}
+		}
+
+		assertEquals(Sets.newHashSet(), resultingPatterns);
 	}
 
 	/**
@@ -329,15 +419,17 @@ public class NFAITCase extends TestLogger {
 	public void testKleeneStar() {
 		List<StreamRecord<Event>> inputEvents = new ArrayList<>();
 
-		Event startEvent = new Event(42, "c", 1.0);
-		Event middleEvent1 = new Event(42, "a", 2.0);
+		Event startEvent = new Event(40, "c", 1.0);
+//		Event middleEvent1 = new Event(41, "a", 2.0);
 		Event middleEvent2 = new Event(42, "a", 3.0);
-		Event end = new Event(42, "b", 4.0);
+		Event middleEvent3 = new Event(43, "a", 4.0);
+		Event end = new Event(44, "b", 5.0);
 
 		inputEvents.add(new StreamRecord<>(startEvent, 1));
-		inputEvents.add(new StreamRecord<>(middleEvent1, 3));
+//		inputEvents.add(new StreamRecord<>(middleEvent1, 3));
 		inputEvents.add(new StreamRecord<>(middleEvent2, 4));
-		inputEvents.add(new StreamRecord<>(end, 5));
+		inputEvents.add(new StreamRecord<>(middleEvent3, 5));
+		inputEvents.add(new StreamRecord<>(end, 6));
 
 		Pattern<Event, ?> pattern = Pattern.<Event>begin("start").where(new FilterFunction<Event>() {
 			private static final long serialVersionUID = 5726188262756267490L;
@@ -376,21 +468,26 @@ public class NFAITCase extends TestLogger {
 			}
 		}
 
-		assertEquals(4, resultingPatterns.size());
+//		assertEquals(8, resultingPatterns.size());
 		assertEquals(Sets.newHashSet(
-			Sets.newHashSet(startEvent, middleEvent1, middleEvent2, end),
-			Sets.newHashSet(startEvent, middleEvent1, end),
+//			Sets.newHashSet(startEvent, middleEvent1, middleEvent2, middleEvent3, end),
+//			Sets.newHashSet(startEvent, middleEvent1, middleEvent2, end),
+//			Sets.newHashSet(startEvent, middleEvent1, middleEvent3, end),
+			Sets.newHashSet(startEvent, middleEvent2, middleEvent3, end),
+//			Sets.newHashSet(startEvent, middleEvent1, end),
 			Sets.newHashSet(startEvent, middleEvent2, end),
+			Sets.newHashSet(startEvent, middleEvent3, end),
 			Sets.newHashSet(startEvent, end)
 		), resultingPatterns);
 	}
+
 
 	@Test
 	public void testBeginWithKleeneStar() {
 		List<StreamRecord<Event>> inputEvents = new ArrayList<>();
 
-		Event middleEvent1 = new Event(42, "a", 2.0);
-		Event middleEvent2 = new Event(42, "a", 3.0);
+		Event middleEvent1 = new Event(40, "a", 2.0);
+		Event middleEvent2 = new Event(41, "a", 3.0);
 		Event end = new Event(42, "b", 4.0);
 
 		inputEvents.add(new StreamRecord<>(middleEvent1, 3));
@@ -439,11 +536,11 @@ public class NFAITCase extends TestLogger {
 	public void testKleeneStarAfterKleeneStar() {
 		List<StreamRecord<Event>> inputEvents = new ArrayList<>();
 
-		Event startEvent = new Event(42, "c", 1.0);
-		Event middleEvent1 = new Event(42, "a", 2.0);
+		Event startEvent = new Event(40, "c", 1.0);
+		Event middleEvent1 = new Event(41, "a", 2.0);
 		Event middleEvent2 = new Event(42, "d", 3.0);
-		Event middleEvent3 = new Event(42, "d", 4.0);
-		Event end = new Event(42, "e", 4.0);
+		Event middleEvent3 = new Event(43, "d", 4.0);
+		Event end = new Event(44, "e", 4.0);
 
 		inputEvents.add(new StreamRecord<>(startEvent, 1));
 		inputEvents.add(new StreamRecord<>(middleEvent1, 3));
@@ -593,6 +690,121 @@ public class NFAITCase extends TestLogger {
 			Sets.newHashSet(startEvent, middleEvent2, merging, kleene1, end),
 			Sets.newHashSet(startEvent, middleEvent2, merging, kleene2, end),
 			Sets.newHashSet(startEvent, middleEvent2, merging, kleene1, kleene2, end)
+		), resultingPatterns);
+	}
+
+	@Test
+	public void testStrictContinuityNoResultsAfterKleeneStar() {
+		List<StreamRecord<Event>> inputEvents = new ArrayList<>();
+
+		Event start = new Event(40, "d", 2.0);
+		Event middleEvent1 = new Event(41, "a", 2.0);
+		Event middleEvent2 = new Event(42, "a", 2.0);
+		Event middleEvent3 = new Event(43, "c", 3.0);
+		Event end = new Event(44, "b", 4.0);
+
+		inputEvents.add(new StreamRecord<>(start, 1));
+		inputEvents.add(new StreamRecord<>(middleEvent1, 2));
+		inputEvents.add(new StreamRecord<>(middleEvent2, 3));
+		inputEvents.add(new StreamRecord<>(middleEvent3, 4));
+		inputEvents.add(new StreamRecord<>(end, 5));
+
+		Pattern<Event, ?> pattern = Pattern.<Event>begin("start").where(new FilterFunction<Event>() {
+			private static final long serialVersionUID = 5726188262756267490L;
+
+			@Override
+			public boolean filter(Event value) throws Exception {
+				return value.getName().equals("d");
+			}
+		}).followedBy("middle").where(new FilterFunction<Event>() {
+			private static final long serialVersionUID = 5726188262756267490L;
+
+			@Override
+			public boolean filter(Event value) throws Exception {
+				return value.getName().equals("a");
+			}
+		}).zeroOrMore()
+			.next("end").where(new FilterFunction<Event>() {
+			private static final long serialVersionUID = 5726188262756267490L;
+
+			@Override
+			public boolean filter(Event value) throws Exception {
+				return value.getName().equals("b");
+			}
+		});
+
+		NFA<Event> nfa = NFACompiler.compile(pattern, Event.createTypeSerializer(), false);
+
+		Set<Set<Event>> resultingPatterns = new HashSet<>();
+
+		for (StreamRecord<Event> inputEvent : inputEvents) {
+			Collection<Map<String, Event>> patterns = nfa.process(
+				inputEvent.getValue(),
+				inputEvent.getTimestamp()).f0;
+
+			for (Map<String, Event> foundPattern : patterns) {
+				resultingPatterns.add(new HashSet<>(foundPattern.values()));
+			}
+		}
+
+		assertEquals(Sets.newHashSet(), resultingPatterns);
+	}
+
+	@Test
+	public void testStrictContinuityResultsAfterKleeneStar() {
+		List<StreamRecord<Event>> inputEvents = new ArrayList<>();
+
+		Event start = new Event(40, "d", 2.0);
+		Event middleEvent1 = new Event(41, "a", 2.0);
+		Event middleEvent2 = new Event(42, "a", 2.0);
+		Event end = new Event(43, "b", 4.0);
+
+		inputEvents.add(new StreamRecord<>(start, 1));
+		inputEvents.add(new StreamRecord<>(middleEvent1, 2));
+		inputEvents.add(new StreamRecord<>(middleEvent2, 3));
+		inputEvents.add(new StreamRecord<>(end, 5));
+
+		Pattern<Event, ?> pattern = Pattern.<Event>begin("start").where(new FilterFunction<Event>() {
+			private static final long serialVersionUID = 5726188262756267490L;
+
+			@Override
+			public boolean filter(Event value) throws Exception {
+				return value.getName().equals("d");
+			}
+		}).followedBy("middle").where(new FilterFunction<Event>() {
+			private static final long serialVersionUID = 5726188262756267490L;
+
+			@Override
+			public boolean filter(Event value) throws Exception {
+				return value.getName().equals("a");
+			}
+		}).zeroOrMore()
+			.next("end").where(new FilterFunction<Event>() {
+				private static final long serialVersionUID = 5726188262756267490L;
+
+				@Override
+				public boolean filter(Event value) throws Exception {
+					return value.getName().equals("b");
+				}
+			});
+
+		NFA<Event> nfa = NFACompiler.compile(pattern, Event.createTypeSerializer(), false);
+
+		Set<Set<Event>> resultingPatterns = new HashSet<>();
+
+		for (StreamRecord<Event> inputEvent : inputEvents) {
+			Collection<Map<String, Event>> patterns = nfa.process(
+				inputEvent.getValue(),
+				inputEvent.getTimestamp()).f0;
+
+			for (Map<String, Event> foundPattern : patterns) {
+				resultingPatterns.add(new HashSet<>(foundPattern.values()));
+			}
+		}
+
+		assertEquals(Sets.newHashSet(
+			Sets.newHashSet(start, middleEvent1, middleEvent2, end),
+			Sets.newHashSet(start, middleEvent2, end)
 		), resultingPatterns);
 	}
 

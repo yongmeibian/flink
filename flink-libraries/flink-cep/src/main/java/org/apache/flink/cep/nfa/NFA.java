@@ -19,11 +19,13 @@
 package org.apache.flink.cep.nfa;
 
 import com.google.common.collect.LinkedHashMultimap;
+import org.apache.commons.collections.map.HashedMap;
 import org.apache.flink.api.common.functions.FilterFunction;
 import org.apache.flink.api.common.typeutils.TypeSerializer;
 import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.api.java.typeutils.runtime.DataInputViewStream;
 import org.apache.flink.api.java.typeutils.runtime.DataOutputViewStream;
+import org.apache.flink.api.java.utils.Option;
 import org.apache.flink.cep.NonDuplicatingTypeSerializer;
 import org.apache.flink.core.memory.DataInputView;
 import org.apache.flink.core.memory.DataInputViewStreamWrapper;
@@ -228,48 +230,32 @@ public class NFA<T> implements Serializable {
 	private static class OutgoingEdges<T> {
 		private List<StateTransition<T>> edges = new ArrayList<>();
 
-		private int takeBranches = 0;
-		private int proceedBranches = 0;
+		private Map<State<T>, Integer> stateBranches = new HashMap<>();
 
-		private ComputationState<T> currentState;
+		private final State<T> previousState;
 
-		OutgoingEdges(ComputationState<T> currentState) {
-			this.currentState = currentState;
+		OutgoingEdges(final State<T> previousState) {
+			this.previousState = previousState;
 		}
 
 		void add(StateTransition<T> edge) {
+
 			if (edge.getAction() == StateTransitionAction.TAKE &&
-				isNotFirstConsuming() &&
-				isNotSelfLoop(edge)) {
-				if (isNotAfterProceed(edge)) {
-					takeBranches++;
+			    !edge.getTargetState().equals(previousState)) {
+				Integer branchesCount = stateBranches.get(edge.getSourceState());
+				if (branchesCount == null) {
+					branchesCount = 1;
 				} else {
-					proceedBranches++;
+					branchesCount++;
 				}
+				stateBranches.put(edge.getSourceState(), branchesCount);
 			}
 
 			edges.add(edge);
 		}
 
-		private boolean isNotFirstConsuming() {
-			return currentState.getPreviousState() != null;
-		}
-
-		private boolean isNotAfterProceed(StateTransition<T> edge) {
-			return edge.getSourceState().equals(currentState.getState());
-		}
-
-		private boolean isNotSelfLoop(StateTransition<T> edge) {
-			return !currentState.getPreviousState().equals(currentState.getState()) ||
-				!edge.getTargetState().equals(currentState.getState());
-		}
-
-		int getTakeBranches() {
-			return takeBranches;
-		}
-
-		int getProceedBranches() {
-			return proceedBranches;
+		Map<State<T>, Integer> getStateBranches() {
+			return new HashMap<>(stateBranches);
 		}
 
 		List<StateTransition<T>> getEdges() {
@@ -298,18 +284,27 @@ public class NFA<T> implements Serializable {
 		// We need to defer the creation of computation states until we know how many edges start
 		// at this computation state so that we can assign proper version
 		final List<StateTransition<T>> edges = outgoingEdges.getEdges();
-		final int totalBranches = outgoingEdges.getTakeBranches();
-		int branchesToVisit = Math.max(0, totalBranches + outgoingEdges.getProceedBranches() - 1);
+		final Map<State<T>, Integer> branchesToVisit = outgoingEdges.getStateBranches();
+		final Map<State<T>, Integer> totalBranches = outgoingEdges.getStateBranches();
 		for (StateTransition<T> edge : edges) {
 			switch (edge.getAction()) {
 				case IGNORE: {
-					if (edge.getSourceState().equals(computationState.getState()) &&
-						computationState.getEvent() != null) {
-						final DeweyNumber version = computationState.getVersion()
-							.increase(totalBranches);
+					if (!computationState.isStartState()) {
+						Integer totalBranchesCount = totalBranches.get(edge.getTargetState());
+						if (totalBranchesCount == null) {
+							totalBranchesCount = 0;
+						}
+						DeweyNumber version;
+						if (edge.getTargetState() != computationState.getState()) {
+							version = computationState.getVersion().addStage();
+						} else {
+							version = computationState.getVersion();
+						}
+						version = version.increase(totalBranchesCount);
+
 						resultingComputationStates.add(
 							ComputationState.createState(
-								edge.getTargetState(),
+								edge.getTargetState().withoutProceed(),
 								computationState.getPreviousState(),
 								computationState.getEvent(),
 								computationState.getTimestamp(),
@@ -339,21 +334,21 @@ public class NFA<T> implements Serializable {
 					//first state of looping state
 					if (isEnteringLoopingState(edge, previousEventState, currentState)) {
 						newEdgeVersion = currentVersion;
-						newComputationStateVersion = currentVersion.increase(branchesToVisit);
-						branchesToVisit--;
+						final Integer versionsToIncrease = getNextCountToIncrease(branchesToVisit, consumingState);
+						newComputationStateVersion = currentVersion.increase(versionsToIncrease);
 					// looping state
 					} else if (isLooping(edge, currentState)) {
 						newEdgeVersion = currentVersion;
 						newComputationStateVersion = currentVersion;
 					// after proceed
 					} else if (isAfterProceed(edge, currentState)) {
-						newEdgeVersion = currentVersion.addStage().increase(branchesToVisit);
+						final Integer versionsToIncrease = getNextCountToIncrease(branchesToVisit, consumingState);
+						newEdgeVersion = currentVersion.addStage().increase(versionsToIncrease);
 						newComputationStateVersion = new DeweyNumber(newEdgeVersion);
-						branchesToVisit--;
 					} else {
-						newEdgeVersion = currentVersion.increase(branchesToVisit);
+						final Integer versionsToIncrease = getNextCountToIncrease(branchesToVisit, consumingState);
+						newEdgeVersion = currentVersion.increase(versionsToIncrease);
 						newComputationStateVersion = new DeweyNumber(newEdgeVersion).addStage();
-						branchesToVisit--;
 					}
 
 					final long startTimestamp;
@@ -393,7 +388,11 @@ public class NFA<T> implements Serializable {
 		}
 
 		if (computationState.isStartState()) {
-			final boolean isNewRun = totalBranches > 0;
+			Integer totalBranchesCount = totalBranches.get(computationState.getState());
+			if (totalBranchesCount == null) {
+				totalBranchesCount = 0;
+			}
+			final boolean isNewRun = totalBranchesCount > 0;
 			final ComputationState<T> startState = createStartState(computationState, isNewRun);
 			resultingComputationStates.add(startState);
 		}
@@ -412,6 +411,21 @@ public class NFA<T> implements Serializable {
 		}
 
 		return resultingComputationStates;
+	}
+
+	private Integer getNextCountToIncrease(
+		Map<State<T>, Integer> branchesToVisit,
+		State<T> consumingState) {
+		Integer versionsToIncrease = branchesToVisit.get(consumingState);
+		if (versionsToIncrease != null) {
+			// we need to decrease the number of left branches
+			// and the versioning starts with 0
+			versionsToIncrease = versionsToIncrease - 1;
+		    branchesToVisit.put(consumingState, versionsToIncrease);
+		} else {
+			versionsToIncrease = 0;
+		}
+		return versionsToIncrease;
 	}
 
 	private ComputationState<T> createStartState(final ComputationState<T> computationState,
@@ -449,7 +463,7 @@ public class NFA<T> implements Serializable {
 	private OutgoingEdges<T> createDecisionGraph(ComputationState<T> computationState, T event) {
 		final Stack<State<T>> states = new Stack<>();
 		states.push(computationState.getState());
-		final OutgoingEdges<T> outgoingEdges = new OutgoingEdges<>(computationState);
+		final OutgoingEdges<T> outgoingEdges = new OutgoingEdges<>(computationState.getPreviousState());
 		//First create all outgoing edges, so to be able to reason about the Dewey version
 		while (!states.isEmpty()) {
 			State<T> currentState = states.pop();

@@ -41,6 +41,8 @@ public class State<T> implements Serializable {
 	private final StateType stateType;
 	private final Collection<StateTransition<T>> stateTransitions;
 
+	private State<T> withoutProceed;
+
 	public State(final String name, final StateType stateType) {
 		this.name = name;
 		this.stateType = stateType;
@@ -60,6 +62,20 @@ public class State<T> implements Serializable {
 
 	public Collection<StateTransition<T>> getStateTransitions() {
 		return stateTransitions;
+	}
+
+	public State<T> withoutProceed() {
+		if (withoutProceed == null) {
+			withoutProceed = new State<>(name, stateType);
+			for (StateTransition<T> transition : stateTransitions) {
+				if (transition.getAction() != StateTransitionAction.PROCEED) {
+					withoutProceed.stateTransitions.add(transition);
+				}
+			}
+
+			withoutProceed.withoutProceed = withoutProceed;
+		}
+		return withoutProceed;
 	}
 
 	private void addStateTransition(
@@ -92,8 +108,7 @@ public class State<T> implements Serializable {
 			State<T> other = (State<T>)obj;
 
 			return name.equals(other.name) &&
-				stateType == other.stateType &&
-				stateTransitions.equals(other.stateTransitions);
+				stateType == other.stateType;
 		} else {
 			return false;
 		}
@@ -116,7 +131,7 @@ public class State<T> implements Serializable {
 
 	@Override
 	public int hashCode() {
-		return Objects.hash(name, stateType, stateTransitions);
+		return Objects.hash(name, stateType);
 	}
 
 	/**
