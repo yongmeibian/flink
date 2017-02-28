@@ -113,13 +113,9 @@ public class NFACompilerTest extends TestLogger {
 			stateMap.put(state.getName(), state);
 		}
 
-		assertTrue(stateMap.containsKey(NFACompiler.BEGINNING_STATE_NAME));
-		State<Event> beginningState = stateMap.get(NFACompiler.BEGINNING_STATE_NAME);
-
-		assertTrue(beginningState.isStart());
-
 		assertTrue(stateMap.containsKey("start"));
 		State<Event> startState = stateMap.get("start");
+		assertTrue(startState.isStart());
 
 		Collection<StateTransition<Event>> startTransitions = startState.getStateTransitions();
 		Map<String, StateTransition<Event>> startTransitionMap = new HashMap<>();
@@ -128,11 +124,7 @@ public class NFACompilerTest extends TestLogger {
 			startTransitionMap.put(transition.getTargetState().getName(), transition);
 		}
 
-		assertEquals(2, startTransitionMap.size());
-		assertTrue(startTransitionMap.containsKey("start"));
-
-		StateTransition<Event> reflexiveTransition = startTransitionMap.get("start");
-		assertEquals(StateTransitionAction.IGNORE, reflexiveTransition.getAction());
+		assertEquals(1, startTransitionMap.size());
 
 		assertTrue(startTransitionMap.containsKey("middle"));
 		StateTransition<Event> startMiddleTransition = startTransitionMap.get("middle");
@@ -147,7 +139,10 @@ public class NFACompilerTest extends TestLogger {
 			middleTransitionMap.put(transition.getTargetState().getName(), transition);
 		}
 
-		assertEquals(1, middleTransitionMap.size());
+		assertEquals(2, middleTransitionMap.size());
+
+		StateTransition<Event> reflexiveTransition = middleTransitionMap.get("middle");
+		assertEquals(StateTransitionAction.IGNORE, reflexiveTransition.getAction());
 
 		assertTrue(middleTransitionMap.containsKey("end"));
 		StateTransition<Event> middleEndTransition = middleTransitionMap.get("end");
@@ -157,7 +152,40 @@ public class NFACompilerTest extends TestLogger {
 		assertTrue(stateMap.containsKey("end"));
 		State<Event> endState = stateMap.get("end");
 
-		assertTrue(endState.isFinal());
-		assertEquals(0, endState.getStateTransitions().size());
+		Map<String, StateTransition<Event>> endTransitionMap = new HashMap<>();
+		for (StateTransition<Event> transition: endState.getStateTransitions()) {
+			endTransitionMap.put(transition.getTargetState().getName(), transition);
+		}
+
+		assertEquals(1, endTransitionMap.size());
+		StateTransition<Event> endFinalTransition = middleTransitionMap.get("end");
+		assertEquals(StateTransitionAction.TAKE, endFinalTransition.getAction());
+
+		assertTrue(stateMap.containsKey(NFACompiler.ENDING_STATE_NAME));
+		State<Event> endingState = stateMap.get(NFACompiler.ENDING_STATE_NAME);
+		assertTrue(endingState.isFinal());
+
+		assertEquals(0, endingState.getStateTransitions().size());
+	}
+
+	@Test
+	public void testNFACompilerWithKleeneStar() {
+		Pattern<Event, Event> pattern = Pattern.<Event>begin("start").where(new FilterFunction<Event>() {
+			private static final long serialVersionUID = 3314714776170474221L;
+
+			@Override
+			public boolean filter(Event value) throws Exception {
+				return value.getPrice() > 2;
+			}
+		})
+			.followedBy("middle").subtype(SubEvent.class)
+			.next("end").where(new FilterFunction<Event>() {
+				private static final long serialVersionUID = 3990995859716364087L;
+
+				@Override
+				public boolean filter(Event value) throws Exception {
+					return value.getName().equals("end");
+				}
+			});
 	}
 }

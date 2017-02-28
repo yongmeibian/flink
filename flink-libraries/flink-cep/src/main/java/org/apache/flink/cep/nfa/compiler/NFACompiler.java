@@ -23,7 +23,7 @@ import org.apache.flink.api.common.typeutils.TypeSerializer;
 import org.apache.flink.cep.nfa.NFA;
 import org.apache.flink.cep.nfa.State;
 import org.apache.flink.cep.pattern.FilterFunctions;
-import org.apache.flink.cep.pattern.NotFilterFunction;
+import org.apache.flink.cep.pattern.FollowedByPattern;
 import org.apache.flink.cep.pattern.Pattern;
 import org.apache.flink.cep.pattern.Quantifier;
 import org.apache.flink.streaming.api.windowing.time.Time;
@@ -88,6 +88,7 @@ public class NFACompiler {
 
 			// we're traversing the pattern from the end to the beginning --> the first state is the final state
 			State<T> sinkState = new State<>(ENDING_STATE_NAME, State.StateType.Final);
+			states.put(ENDING_STATE_NAME, sinkState);
 			windowTime = currentPattern.getWindowTime() != null ? currentPattern.getWindowTime().toMilliseconds() : 0L;
 			while (currentPattern.getPrevious() != null) {
 				final State<T> sourceState;
@@ -106,7 +107,9 @@ public class NFACompiler {
 					sourceState.addTake(sinkState, (FilterFunction<T>) currentPattern.getFilterFunction());
 				}
 
-				sourceState.addIgnore(FilterFunctions.<T>trueFunction());
+				if (currentPattern instanceof FollowedByPattern) {
+					sourceState.addIgnore(FilterFunctions.<T>trueFunction());
+				}
 
 				currentPattern = currentPattern.getPrevious();
 				sinkState = sourceState;

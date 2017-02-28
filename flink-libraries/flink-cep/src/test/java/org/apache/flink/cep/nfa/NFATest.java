@@ -21,6 +21,7 @@ package org.apache.flink.cep.nfa;
 import org.apache.commons.io.output.ByteArrayOutputStream;
 import org.apache.flink.api.common.functions.FilterFunction;
 import org.apache.flink.cep.Event;
+import org.apache.flink.cep.pattern.FilterFunctions;
 import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
 import org.apache.flink.util.TestLogger;
 import org.junit.Test;
@@ -51,11 +52,12 @@ public class NFATest extends TestLogger {
 		streamEvents.add(new StreamRecord<>(new Event(3, "start", 3.0), 3L));
 		streamEvents.add(new StreamRecord<>(new Event(4, "end", 4.0), 4L));
 
-		State<Event> startingState = new State<>("", State.StateType.Start);
-		State<Event> startState = new State<>("start", State.StateType.Normal);
-		State<Event> endState = new State<>("end", State.StateType.Final);
+		State<Event> startState = new State<>("start", State.StateType.Start);
+		State<Event> endState = new State<>("end", State.StateType.Normal);
+		State<Event> endingState = new State<>("", State.StateType.Final);
 
-		startingState.addTake(
+		startState.addTake(
+			endState,
 			new FilterFunction<Event>() {
 				private static final long serialVersionUID = -4869589195918650396L;
 
@@ -64,7 +66,8 @@ public class NFATest extends TestLogger {
 					return value.getName().equals("start");
 				}
 			});
-		startState.addTake(
+		endState.addTake(
+			endingState,
 			new FilterFunction<Event>() {
 				private static final long serialVersionUID = 2979804163709590673L;
 
@@ -73,12 +76,11 @@ public class NFATest extends TestLogger {
 					return value.getName().equals("end");
 				}
 			});
-		startState.addIgnore(
-			null);
+		endState.addIgnore(FilterFunctions.<Event>trueFunction());
 
-		nfa.addState(startingState);
 		nfa.addState(startState);
 		nfa.addState(endState);
+		nfa.addState(endingState);
 
 		Set<Map<String, Event>> expectedPatterns = new HashSet<>();
 
@@ -233,11 +235,12 @@ public class NFATest extends TestLogger {
 	private NFA<Event> createStartEndNFA(long windowLength) {
 		NFA<Event> nfa = new NFA<>(Event.createTypeSerializer(), windowLength, false);
 
-		State<Event> startingState = new State<>("", State.StateType.Start);
-		State<Event> startState = new State<>("start", State.StateType.Normal);
-		State<Event> endState = new State<>("end", State.StateType.Final);
+		State<Event> startState = new State<>("start", State.StateType.Start);
+		State<Event> endState = new State<>("end", State.StateType.Normal);
+		State<Event> endingState = new State<>("", State.StateType.Final);
 
-		startingState.addTake(
+		startState.addTake(
+			endState,
 			new FilterFunction<Event>() {
 				private static final long serialVersionUID = -4869589195918650396L;
 
@@ -246,7 +249,8 @@ public class NFATest extends TestLogger {
 					return value.getName().equals("start");
 				}
 			});
-		startState.addTake(
+		endState.addTake(
+			endingState,
 			new FilterFunction<Event>() {
 				private static final long serialVersionUID = 2979804163709590673L;
 
@@ -255,12 +259,11 @@ public class NFATest extends TestLogger {
 					return value.getName().equals("end");
 				}
 			});
-		startState.addIgnore(
-			null);
+		endState.addIgnore(FilterFunctions.<Event>trueFunction());
 
-		nfa.addState(startingState);
 		nfa.addState(startState);
 		nfa.addState(endState);
+		nfa.addState(endingState);
 
 		return nfa;
 	}
