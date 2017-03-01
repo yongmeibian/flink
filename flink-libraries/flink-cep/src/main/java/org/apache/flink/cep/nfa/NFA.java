@@ -81,9 +81,6 @@ public class NFA<T> implements Serializable {
 
 	private final boolean handleTimeout;
 
-	// Current starting index for the next dewey version number
-	private int startEventCounter;
-
 	// Current set of computation states within the state machine
 	private transient Queue<ComputationState<T>> computationStates;
 
@@ -208,8 +205,7 @@ public class NFA<T> implements Serializable {
 			return nonDuplicatingTypeSerializer.equals(other.nonDuplicatingTypeSerializer) &&
 				sharedBuffer.equals(other.sharedBuffer) &&
 				states.equals(other.states) &&
-				windowTime == other.windowTime &&
-				startEventCounter == other.startEventCounter;
+				windowTime == other.windowTime;
 		} else {
 			return false;
 		}
@@ -217,7 +213,7 @@ public class NFA<T> implements Serializable {
 
 	@Override
 	public int hashCode() {
-		return Objects.hash(nonDuplicatingTypeSerializer, sharedBuffer, states, windowTime, startEventCounter);
+		return Objects.hash(nonDuplicatingTypeSerializer, sharedBuffer, states, windowTime);
 	}
 
 
