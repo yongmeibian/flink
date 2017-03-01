@@ -295,7 +295,7 @@ public class NFA<T> implements Serializable {
 					if (!computationState.isStartState()) {
 						final DeweyNumber version;
 						if (!edge.getTargetState().equals(computationState.getState())) {
-							version = computationState.getVersion().increase(ignoreBranchesToVisit);
+							version = computationState.getVersion().increase(ignoreBranchesToVisit).addStage();
 							ignoreBranchesToVisit--;
 						} else {
 							final int toIncrease = calculateIncreasingSelfState(outgoingEdges.getTotalIgnoreBranches(),
