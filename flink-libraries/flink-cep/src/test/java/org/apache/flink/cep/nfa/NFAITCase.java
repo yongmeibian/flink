@@ -670,14 +670,7 @@ public class NFAITCase extends TestLogger {
 			public boolean filter(Event value) throws Exception {
 				return value.getName().equals("d");
 			}
-		}).zeroOrMore().followedBy("middle-third").where(new FilterFunction<Event>() {
-			private static final long serialVersionUID = 5726188262756267490L;
-
-			@Override
-			public boolean filter(Event value) throws Exception {
-				return value.getName().equals("d");
-			}
-		}).followedBy("end").where(new FilterFunction<Event>() {
+		}).zeroOrMore().followedBy("end").where(new FilterFunction<Event>() {
 			private static final long serialVersionUID = 5726188262756267490L;
 
 			@Override
@@ -702,14 +695,16 @@ public class NFAITCase extends TestLogger {
 			}
 		}
 
-		assertEquals(6, allPatterns.size());
+		assertEquals(8, allPatterns.size());
 		assertEquals(Sets.newHashSet(
 			Sets.newHashSet(startEvent, middleEvent1, middleEvent2, middleEvent3, end),
 			Sets.newHashSet(startEvent, middleEvent1, middleEvent3, end),
 			Sets.newHashSet(startEvent, middleEvent1, middleEvent2, end),
 			Sets.newHashSet(startEvent, middleEvent2, middleEvent3, end),
 			Sets.newHashSet(startEvent, middleEvent3, end),
-			Sets.newHashSet(startEvent, middleEvent2, end)
+			Sets.newHashSet(startEvent, middleEvent2, end),
+			Sets.newHashSet(startEvent, middleEvent1, end),
+			Sets.newHashSet(startEvent, end)
 		), resultingPatterns);
 	}
 
