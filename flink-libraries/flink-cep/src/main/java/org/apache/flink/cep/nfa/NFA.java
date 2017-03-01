@@ -112,7 +112,7 @@ public class NFA<T> implements Serializable {
 		states.add(state);
 
 		if (state.isStart()) {
-			computationStates.add(ComputationState.createStartState(state, new DeweyNumber(1)));
+			computationStates.add(ComputationState.createStartState(state));
 		}
 	}
 
