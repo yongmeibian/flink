@@ -385,13 +385,11 @@ public class NFA<T> implements Serializable {
 	}
 
 	private int calculateIncreasingSelfState(int ignoreBranches, int takeBranches) {
-		final int totalBranches;
-		if (takeBranches > 0){
-			totalBranches = ignoreBranches + 1;
-		} else {
-			totalBranches = 0;
+		if (takeBranches == 0 && ignoreBranches == 0) {
+			return 0;
 		}
-		return totalBranches;
+
+		return ignoreBranches + 1;
 	}
 
 	private ComputationState<T> createStartState(final ComputationState<T> computationState,
