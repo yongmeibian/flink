@@ -190,8 +190,9 @@ public class Pattern<T, F extends T> {
 	}
 
 	/**
-	 * Adds kleene star operator to this pattern
-	 * @return The same pattern with applied Kleene star operator
+	 * Adds kleene star operator to this pattern. This means any number of events can be matched in this state.
+	 *
+	 * @return The same pattern with applied kleene star operator
 	 */
 	public Pattern<T, F> zeroOrMore() {
 		this.quantifier = Quantifier.ZERO_OR_MORE;

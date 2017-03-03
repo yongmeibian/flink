@@ -160,6 +160,16 @@ class Pattern[T , F <: T](jPattern: JPattern[T, F]) {
     wrapPattern(jPattern.getPrevious())
   }
 
+  /**
+    * Adds kleene star operator to this pattern. This means any number of events can be matched
+    * in this state.
+    *
+    * @return The same pattern with applied kleene star operator
+    */
+  def zeroOrMore: Pattern[T, F] = {
+    wrapPattern(jPattern.zeroOrMore())
+  }
+
 }
 
 object Pattern {
