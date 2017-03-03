@@ -64,19 +64,6 @@ public class State<T> implements Serializable {
 		return stateTransitions;
 	}
 
-	public State<T> withoutProceed() {
-		if (withoutProceed == null) {
-			withoutProceed = new State<>(name, stateType);
-			for (StateTransition<T> transition : stateTransitions) {
-				if (transition.getAction() != StateTransitionAction.PROCEED) {
-					withoutProceed.stateTransitions.add(transition);
-				}
-			}
-
-			withoutProceed.withoutProceed = withoutProceed;
-		}
-		return withoutProceed;
-	}
 
 	private void addStateTransition(
 		final StateTransitionAction action,
@@ -87,6 +74,10 @@ public class State<T> implements Serializable {
 
 	public void addIgnore(final FilterFunction<T> condition) {
 		addStateTransition(StateTransitionAction.IGNORE, this, condition);
+	}
+
+	public void addIgnore(final State<T> targetState,final FilterFunction<T> condition) {
+		addStateTransition(StateTransitionAction.IGNORE, targetState, condition);
 	}
 
 	public void addTake(final State<T> targetState, final FilterFunction<T> condition) {

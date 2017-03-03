@@ -167,7 +167,8 @@ class Pattern[T , F <: T](jPattern: JPattern[T, F]) {
     * @return The same pattern with applied kleene star operator
     */
   def zeroOrMore: Pattern[T, F] = {
-    wrapPattern(jPattern.zeroOrMore())
+    jPattern.zeroOrMore()
+    this
   }
 
 }

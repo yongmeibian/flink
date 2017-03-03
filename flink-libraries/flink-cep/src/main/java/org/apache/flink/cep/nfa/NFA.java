@@ -301,7 +301,7 @@ public class NFA<T> implements Serializable {
 
 						resultingComputationStates.add(
 							ComputationState.createState(
-								edge.getTargetState().withoutProceed(),
+								edge.getTargetState(),
 								computationState.getPreviousState(),
 								computationState.getEvent(),
 								computationState.getTimestamp(),

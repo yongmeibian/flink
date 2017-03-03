@@ -195,7 +195,43 @@ public class Pattern<T, F extends T> {
 	 * @return The same pattern with applied kleene star operator
 	 */
 	public Pattern<T, F> zeroOrMore() {
-		this.quantifier = Quantifier.ZERO_OR_MORE;
+		return zeroOrMore(true);
+	}
+
+	/**
+	 * Adds kleene star operator to this pattern. This means any number of events can be matched in this state.
+	 *
+	 * @return The same pattern with applied kleene star operator
+	 */
+	public Pattern<T, F> zeroOrMore(final boolean eager) {
+		if (eager) {
+			this.quantifier = Quantifier.ZERO_OR_MORE_EAGER;
+		} else {
+			this.quantifier = Quantifier.ZERO_OR_MORE_COMBINATIONS;
+		}
+		return this;
+	}
+
+	/**
+	 * Adds kleene star operator to this pattern. This means any number of events can be matched in this state.
+	 *
+	 * @return The same pattern with applied kleene star operator
+	 */
+	public Pattern<T, F> oneOrMore() {
+		return oneOrMore(true);
+	}
+
+	/**
+	 * Adds kleene star operator to this pattern. This means any number of events can be matched in this state.
+	 *
+	 * @return The same pattern with applied kleene star operator
+	 */
+	public Pattern<T, F> oneOrMore(final boolean eager) {
+		if (eager) {
+			this.quantifier = Quantifier.ONE_OR_MORE_EAGER;
+		} else {
+			this.quantifier = Quantifier.ONE_OR_MORE_COMBINATIONS;
+		}
 		return this;
 	}
 }

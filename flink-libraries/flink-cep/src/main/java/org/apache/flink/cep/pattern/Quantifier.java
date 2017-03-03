@@ -18,5 +18,5 @@
 package org.apache.flink.cep.pattern;
 
 public enum Quantifier {
-	ONE, ZERO_OR_MORE
+	ONE, ZERO_OR_MORE_EAGER, ZERO_OR_MORE_COMBINATIONS, ONE_OR_MORE_EAGER, ONE_OR_MORE_COMBINATIONS
 }
