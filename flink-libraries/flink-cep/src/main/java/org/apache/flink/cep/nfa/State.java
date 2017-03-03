@@ -41,8 +41,6 @@ public class State<T> implements Serializable {
 	private final StateType stateType;
 	private final Collection<StateTransition<T>> stateTransitions;
 
-	private State<T> withoutProceed;
-
 	public State(final String name, final StateType stateType) {
 		this.name = name;
 		this.stateType = stateType;

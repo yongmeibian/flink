@@ -93,31 +93,29 @@ public class NFACompiler {
 			windowTime = currentPattern.getWindowTime() != null ? currentPattern.getWindowTime().toMilliseconds() : 0L;
 			while (currentPattern.getPrevious() != null) {
 				State<T> sourceState;
+
 				if (states.containsKey(currentPattern.getName())) {
 					throw new MalformedPatternException("Duplicate pattern name: " + currentPattern.getName() + ". " +
 						"Pattern names must be unique.");
-				} else {
-					sourceState = new State<>(currentPattern.getName(), State.StateType.Normal);
-					states.put(sourceState.getName(), sourceState);
 				}
 
-				final FilterFunction<T> currentFilterFunction = (FilterFunction<T>) currentPattern.getFilterFunction();
-				final FilterFunction<T> trueFunction = FilterFunctions.<T>trueFunction();
+				sourceState = new State<>(currentPattern.getName(), State.StateType.Normal);
+				states.put(sourceState.getName(), sourceState);
 
 				if (isLooping(currentPattern)) {
 					convertToLooping(currentPattern, sinkState, sourceState);
 				} else {
-					sourceState.addTake(sinkState, currentFilterFunction);
-					if (currentPattern instanceof FollowedByPattern) {
-						sourceState.addIgnore(trueFunction);
-					}
+					convertToSingletonState(
+						currentPattern,
+						sinkState,
+						sourceState);
 				}
 
 				if (isAtLeastOne(currentPattern)) {
-					sourceState = createFirstMandatoryOfLoop(
+					sourceState = createFirstMandatoryStateOfLoop(
 						currentPattern,
 						sourceState,
-						currentFilterFunction
+						State.StateType.Normal
 					);
 				}
 
@@ -131,12 +129,19 @@ public class NFACompiler {
 				}
 			}
 
-			// add the beginning state
-			final State<T> beginningState;
-
 			if (states.containsKey(currentPattern.getName())) {
 				throw new MalformedPatternException("Duplicate pattern name: " + currentPattern.getName() + ". " +
 					"Pattern names must be unique.");
+			}
+
+			// add the beginning state
+			final State<T> beginningState;
+			if (isAtLeastOne(currentPattern)) {
+				beginningState = new State<>(currentPattern.getName(), State.StateType.Normal);
+				states.put(currentPattern.getName(), beginningState);
+
+				final State<T> mandatoryState = createFirstMandatoryStateOfLoop(currentPattern, beginningState, State.StateType.Start);
+				states.put(currentPattern.getName(), mandatoryState);
 			} else {
 				beginningState = new State<>(currentPattern.getName(), State.StateType.Start);
 				states.put(currentPattern.getName(), beginningState);
@@ -153,11 +158,37 @@ public class NFACompiler {
 		}
 	}
 
-	private static <T> State<T> createFirstMandatoryOfLoop(
+	private static <T> void convertToSingletonState(
 		final Pattern<T, ?> currentPattern,
 		final State<T> sinkState,
-		final FilterFunction<T> currentFilterFunction) {
-		final State<T> firstState = new State<>(currentPattern.getName(), State.StateType.Normal);
+		final State<T> sourceState) {
+
+		final FilterFunction<T> currentFilterFunction = (FilterFunction<T>) currentPattern.getFilterFunction();
+		final FilterFunction<T> trueFunction = FilterFunctions.trueFunction();
+		sourceState.addTake(sinkState, currentFilterFunction);
+
+		final State<T> ignoreState;
+		if (currentPattern.getQuantifier() == Quantifier.OPTIONAL) {
+			sourceState.addProceed(sinkState, trueFunction);
+			ignoreState = new State<>(currentPattern.getName(), State.StateType.Normal);
+
+			ignoreState.addTake(sinkState, currentFilterFunction);
+		} else {
+			ignoreState = sourceState;
+		}
+
+		if (currentPattern instanceof FollowedByPattern) {
+			sourceState.addIgnore(ignoreState, trueFunction);
+		}
+	}
+
+	private static <T> State<T> createFirstMandatoryStateOfLoop(
+		final Pattern<T, ?> currentPattern,
+		final State<T> sinkState,
+		final State.StateType stateType) {
+
+		final FilterFunction<T> currentFilterFunction = (FilterFunction<T>) currentPattern.getFilterFunction();
+		final State<T> firstState = new State<>(currentPattern.getName(), stateType);
 
 		firstState.addTake(sinkState, currentFilterFunction);
 		if (currentPattern instanceof FollowedByPattern) {

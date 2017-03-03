@@ -234,4 +234,14 @@ public class Pattern<T, F extends T> {
 		}
 		return this;
 	}
+
+	/**
+	 * Adds kleene star operator to this pattern. This means any number of events can be matched in this state.
+	 *
+	 * @return The same pattern with applied kleene star operator
+	 */
+	public Pattern<T, F> optional() {
+		this.quantifier = Quantifier.OPTIONAL;
+		return this;
+	}
 }

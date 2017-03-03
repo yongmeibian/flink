@@ -71,7 +71,7 @@ public class NFA<T> implements Serializable {
 	private final NonDuplicatingTypeSerializer<T> nonDuplicatingTypeSerializer;
 
 	// Buffer used to store the matched events
-	private final SharedBuffer<State<T>, T> sharedBuffer;
+	private final SharedBuffer<String, T> sharedBuffer;
 
 	// Set of all NFA states
 	private final Set<State<T>> states;
@@ -152,8 +152,8 @@ public class NFA<T> implements Serializable {
 				}
 
 				// remove computation state which has exceeded the window length
-				sharedBuffer.release(computationState.getState(), computationState.getEvent(), computationState.getTimestamp());
-				sharedBuffer.remove(computationState.getState(), computationState.getEvent(), computationState.getTimestamp());
+				sharedBuffer.release(computationState.getState().getName(), computationState.getEvent(), computationState.getTimestamp());
+				sharedBuffer.remove(computationState.getState().getName(), computationState.getEvent(), computationState.getTimestamp());
 
 				newComputationStates = Collections.emptyList();
 			} else if (event != null) {
@@ -169,8 +169,8 @@ public class NFA<T> implements Serializable {
 					result.addAll(matches);
 
 					// remove found patterns because they are no longer needed
-					sharedBuffer.release(newComputationState.getPreviousState(), newComputationState.getEvent(), newComputationState.getTimestamp());
-					sharedBuffer.remove(newComputationState.getPreviousState(), newComputationState.getEvent(), newComputationState.getTimestamp());
+					sharedBuffer.release(newComputationState.getPreviousState().getName(), newComputationState.getEvent(), newComputationState.getTimestamp());
+					sharedBuffer.remove(newComputationState.getPreviousState().getName(), newComputationState.getEvent(), newComputationState.getTimestamp());
 				} else {
 					// add new computation state; it will be processed once the next event arrives
 					computationStates.add(newComputationState);
@@ -310,7 +310,7 @@ public class NFA<T> implements Serializable {
 							)
 						);
 						sharedBuffer.lock(
-							edge.getTargetState(),
+							edge.getTargetState().getName(),
 							computationState.getEvent(),
 							computationState.getTimestamp());
 					}
@@ -331,24 +331,24 @@ public class NFA<T> implements Serializable {
 					if (computationState.isStartState()) {
 						startTimestamp = timestamp;
 						sharedBuffer.put(
-							consumingState,
+							consumingState.getName(),
 							event,
 							timestamp,
 							currentVersion);
 					} else {
 						startTimestamp = computationState.getStartTimestamp();
 						sharedBuffer.put(
-							consumingState,
+							consumingState.getName(),
 							event,
 							timestamp,
-							previousEventState,
+							previousEventState.getName(),
 							previousEvent,
 							computationState.getTimestamp(),
 							currentVersion);
 					}
 
 					// a new computation state is referring to the shared entry
-					sharedBuffer.lock(consumingState, event, timestamp);
+					sharedBuffer.lock(consumingState.getName(), event, timestamp);
 
 					resultingComputationStates.add(ComputationState.createState(
 						newState,
@@ -371,12 +371,12 @@ public class NFA<T> implements Serializable {
 		if (computationState.getEvent() != null) {
 			// release the shared entry referenced by the current computation state.
 			sharedBuffer.release(
-				computationState.getState(),
+				computationState.getState().getName(),
 				computationState.getEvent(),
 				computationState.getTimestamp());
 			// try to remove unnecessary shared buffer entries
 			sharedBuffer.remove(
-				computationState.getState(),
+				computationState.getState().getName(),
 				computationState.getEvent(),
 				computationState.getTimestamp());
 		}
@@ -448,8 +448,8 @@ public class NFA<T> implements Serializable {
 	 * @return Collection of event sequences which end in the given computation state
 	 */
 	private Collection<Map<String, T>> extractPatternMatches(final ComputationState<T> computationState) {
-		Collection<LinkedHashMultimap<State<T>, T>> paths = sharedBuffer.extractPatterns(
-			computationState.getPreviousState(),
+		Collection<LinkedHashMultimap<String, T>> paths = sharedBuffer.extractPatterns(
+			computationState.getPreviousState().getName(),
 			computationState.getEvent(),
 			computationState.getTimestamp(),
 			computationState.getVersion());
@@ -459,16 +459,16 @@ public class NFA<T> implements Serializable {
 		TypeSerializer<T> serializer = nonDuplicatingTypeSerializer.getTypeSerializer();
 
 		// generate the correct names from the collection of LinkedHashMultimaps
-		for (LinkedHashMultimap<State<T>, T> path: paths) {
+		for (LinkedHashMultimap<String, T> path: paths) {
 			Map<String, T> resultPath = new HashMap<>();
-			for (State<T> key: path.keySet()) {
+			for (String key: path.keySet()) {
 				int counter = 0;
 				Set<T> events = path.get(key);
 
 				// we iterate over the elements in insertion order
 				for (T event: events) {
 					resultPath.put(
-						events.size() > 1 ? generateStateName(key.getName(), counter): key.getName(),
+						events.size() > 1 ? generateStateName(key, counter): key,
 						// copy the element so that the user can change it
 						serializer.isImmutableType() ? event : serializer.copy(event)
 					);
