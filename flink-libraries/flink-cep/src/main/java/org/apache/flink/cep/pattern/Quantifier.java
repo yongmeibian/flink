@@ -15,14 +15,13 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+package org.apache.flink.cep.pattern;
 
-package org.apache.flink.cep.nfa;
-
-/**
- * Set of actions when doing a state transition from a {@link State} to another.
- */
-public enum StateTransitionAction {
-	TAKE, // take the current event and assign it to the current state
-	IGNORE, // ignore the current event
-	PROCEED // do the state transition and keep the current event for further processing (epsilon transition)
+public enum Quantifier {
+	ONE,
+	ZERO_OR_MORE_EAGER,
+	ZERO_OR_MORE_COMBINATIONS,
+	ONE_OR_MORE_EAGER,
+	ONE_OR_MORE_COMBINATIONS,
+	OPTIONAL
 }

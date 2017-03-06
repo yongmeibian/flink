@@ -27,12 +27,18 @@ public class StateTransition<T> implements Serializable {
 	private static final long serialVersionUID = -4825345749997891838L;
 
 	private final StateTransitionAction action;
+	private final State<T> sourceState;
 	private final State<T> targetState;
 	private final FilterFunction<T> condition;
 
-	public StateTransition(final StateTransitionAction action, final State<T> targetState, final FilterFunction<T> condition) {
+	public StateTransition(
+		final State<T> sourceState,
+		final StateTransitionAction action,
+		final State<T> targetState,
+		final FilterFunction<T> condition) {
 		this.action = action;
 		this.targetState = targetState;
+		this.sourceState = sourceState;
 		this.condition = condition;
 	}
 
@@ -42,6 +48,10 @@ public class StateTransition<T> implements Serializable {
 
 	public State<T> getTargetState() {
 		return targetState;
+	}
+
+	public State<T> getSourceState() {
+		return sourceState;
 	}
 
 	public FilterFunction<T> getCondition() {
@@ -55,6 +65,7 @@ public class StateTransition<T> implements Serializable {
 			StateTransition<T> other = (StateTransition<T>) obj;
 
 			return action == other.action &&
+				sourceState.getName().equals(other.sourceState.getName()) &&
 				targetState.getName().equals(other.targetState.getName());
 		} else {
 			return false;

@@ -22,18 +22,19 @@ import org.apache.flink.api.common.functions.FilterFunction;
 import org.apache.flink.api.common.typeutils.TypeSerializer;
 import org.apache.flink.cep.nfa.NFA;
 import org.apache.flink.cep.nfa.State;
-import org.apache.flink.cep.nfa.StateTransition;
-import org.apache.flink.cep.nfa.StateTransitionAction;
+import org.apache.flink.cep.pattern.FilterFunctions;
 import org.apache.flink.cep.pattern.FollowedByPattern;
+import org.apache.flink.cep.pattern.NotFilterFunction;
 import org.apache.flink.cep.pattern.Pattern;
+import org.apache.flink.cep.pattern.Quantifier;
 import org.apache.flink.streaming.api.windowing.time.Time;
 
 import java.io.Serializable;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.HashSet;
-import java.util.Map;
+import java.util.List;
 import java.util.Set;
 
 /**
@@ -42,7 +43,7 @@ import java.util.Set;
  */
 public class NFACompiler {
 
-	protected final static String BEGINNING_STATE_NAME = "$beginningState$";
+	protected static final String ENDING_STATE_NAME = "$endState$";
 
 	/**
 	 * Compiles the given pattern into a {@link NFA}.
@@ -82,80 +83,175 @@ public class NFACompiler {
 			return new NFAFactoryImpl<T>(inputTypeSerializer, 0, Collections.<State<T>>emptyList(), timeoutHandling);
 		} else {
 			// set of all generated states
-			Map<String, State<T>> states = new HashMap<>();
+			final List<State<T>> states = new ArrayList<>();
+			final Set<String> usedNames = new HashSet<>();
 			long windowTime;
 
-			// this is used to enforse pattern name uniqueness.
-			Set<String> patternNames = new HashSet<>();
-
-			Pattern<T, ?> succeedingPattern;
-			State<T> succeedingState;
 			Pattern<T, ?> currentPattern = pattern;
 
 			// we're traversing the pattern from the end to the beginning --> the first state is the final state
-			State<T> currentState = new State<>(currentPattern.getName(), State.StateType.Final);
-			patternNames.add(currentPattern.getName());
-
-			states.put(currentPattern.getName(), currentState);
+			State<T> sinkState = new State<>(ENDING_STATE_NAME, State.StateType.Final);
+			states.add(sinkState);
+			usedNames.add(ENDING_STATE_NAME);
 
 			windowTime = currentPattern.getWindowTime() != null ? currentPattern.getWindowTime().toMilliseconds() : 0L;
-
 			while (currentPattern.getPrevious() != null) {
-				succeedingPattern = currentPattern;
-				succeedingState = currentState;
-				currentPattern = currentPattern.getPrevious();
+				State<T> sourceState;
 
-				if (!patternNames.add(currentPattern.getName())) {
+				if (usedNames.contains(currentPattern.getName())) {
 					throw new MalformedPatternException("Duplicate pattern name: " + currentPattern.getName() + ". " +
 						"Pattern names must be unique.");
 				}
 
-				Time currentWindowTime = currentPattern.getWindowTime();
+				sourceState = new State<>(currentPattern.getName(), State.StateType.Normal);
+				states.add(sourceState);
+				usedNames.add(sourceState.getName());
 
+				if (isLooping(currentPattern)) {
+					convertToLooping(currentPattern, sinkState, sourceState, states);
+				} else {
+					convertToSingletonState(
+						currentPattern,
+						sinkState,
+						sourceState);
+				}
+
+				if (isAtLeastOne(currentPattern)) {
+					sourceState = createFirstMandatoryStateOfLoop(
+						currentPattern,
+						sourceState,
+						State.StateType.Normal
+					);
+					states.add(sourceState);
+					usedNames.add(sourceState.getName());
+				}
+
+				currentPattern = currentPattern.getPrevious();
+				sinkState = sourceState;
+
+				final Time currentWindowTime = currentPattern.getWindowTime();
 				if (currentWindowTime != null && currentWindowTime.toMilliseconds() < windowTime) {
 					// the window time is the global minimum of all window times of each state
 					windowTime = currentWindowTime.toMilliseconds();
 				}
+			}
 
-				if (states.containsKey(currentPattern.getName())) {
-					currentState = states.get(currentPattern.getName());
-				} else {
-					currentState = new State<>(currentPattern.getName(), State.StateType.Normal);
-					states.put(currentState.getName(), currentState);
-				}
-
-				currentState.addStateTransition(new StateTransition<T>(
-					StateTransitionAction.TAKE,
-					succeedingState,
-					(FilterFunction<T>) succeedingPattern.getFilterFunction()));
-
-				if (succeedingPattern instanceof FollowedByPattern) {
-					// the followed by pattern entails a reflexive ignore transition
-					currentState.addStateTransition(new StateTransition<T>(
-						StateTransitionAction.IGNORE,
-						currentState,
-						null
-					));
-				}
+			if (usedNames.contains(currentPattern.getName())) {
+				throw new MalformedPatternException("Duplicate pattern name: " + currentPattern.getName() + ". " +
+					"Pattern names must be unique.");
 			}
 
 			// add the beginning state
 			final State<T> beginningState;
+			if (isAtLeastOne(currentPattern)) {
+				beginningState = new State<>(currentPattern.getName(), State.StateType.Normal);
+				states.add(beginningState);
+				usedNames.add(beginningState.getName());
 
-			if (states.containsKey(BEGINNING_STATE_NAME)) {
-				beginningState = states.get(BEGINNING_STATE_NAME);
+				final State<T> mandatoryState = createFirstMandatoryStateOfLoop(currentPattern, beginningState, State.StateType.Start);
+				states.add(mandatoryState);
+				usedNames.add(mandatoryState.getName());
 			} else {
-				beginningState = new State<>(BEGINNING_STATE_NAME, State.StateType.Start);
-				states.put(BEGINNING_STATE_NAME, beginningState);
+				beginningState = new State<>(currentPattern.getName(), State.StateType.Start);
+				states.add(beginningState);
+				usedNames.add(beginningState.getName());
 			}
 
-			beginningState.addStateTransition(new StateTransition<T>(
-				StateTransitionAction.TAKE,
-				currentState,
-				(FilterFunction<T>) currentPattern.getFilterFunction()
-			));
+			if (isLooping(currentPattern)) {
+				convertToLooping(currentPattern, sinkState, beginningState, states);
+			} else {
+				beginningState.addTake(sinkState, (FilterFunction<T>) currentPattern.getFilterFunction());
+			}
 
-			return new NFAFactoryImpl<T>(inputTypeSerializer, windowTime, new HashSet<>(states.values()), timeoutHandling);
+
+			return new NFAFactoryImpl<T>(inputTypeSerializer, windowTime, states, timeoutHandling);
+		}
+	}
+
+	private static <T> void convertToSingletonState(
+		final Pattern<T, ?> currentPattern,
+		final State<T> sinkState,
+		final State<T> sourceState) {
+
+		final FilterFunction<T> currentFilterFunction = (FilterFunction<T>) currentPattern.getFilterFunction();
+		final FilterFunction<T> trueFunction = FilterFunctions.trueFunction();
+		sourceState.addTake(sinkState, currentFilterFunction);
+
+		final State<T> ignoreState;
+		if (currentPattern.getQuantifier() == Quantifier.OPTIONAL) {
+			sourceState.addProceed(sinkState, trueFunction);
+			ignoreState = new State<>(currentPattern.getName(), State.StateType.Normal);
+
+			ignoreState.addTake(sinkState, currentFilterFunction);
+		} else {
+			ignoreState = sourceState;
+		}
+
+		if (currentPattern instanceof FollowedByPattern) {
+			sourceState.addIgnore(ignoreState, trueFunction);
+		}
+	}
+
+	private static <T> State<T> createFirstMandatoryStateOfLoop(
+		final Pattern<T, ?> currentPattern,
+		final State<T> sinkState,
+		final State.StateType stateType) {
+
+		final FilterFunction<T> currentFilterFunction = (FilterFunction<T>) currentPattern.getFilterFunction();
+		final State<T> firstState = new State<>(currentPattern.getName(), stateType);
+
+		firstState.addTake(sinkState, currentFilterFunction);
+		if (currentPattern instanceof FollowedByPattern) {
+			if (currentPattern.getQuantifier() == Quantifier.ONE_OR_MORE_COMBINATIONS) {
+				firstState.addIgnore(FilterFunctions.<T>trueFunction());
+			} else {
+				firstState.addIgnore(new NotFilterFunction<>(currentFilterFunction));
+			}
+		}
+		return firstState;
+	}
+
+	private static <T> boolean isAtLeastOne(Pattern<T, ?> currentPattern) {
+		return currentPattern.getQuantifier() == Quantifier.ONE_OR_MORE_COMBINATIONS ||
+			currentPattern.getQuantifier() == Quantifier.ONE_OR_MORE_EAGER;
+	}
+
+	private static <T> boolean isLooping(Pattern<T, ?> currentPattern) {
+		return currentPattern.getQuantifier() == Quantifier.ZERO_OR_MORE_EAGER ||
+			currentPattern.getQuantifier() == Quantifier.ZERO_OR_MORE_COMBINATIONS ||
+			currentPattern.getQuantifier() == Quantifier.ONE_OR_MORE_COMBINATIONS ||
+			currentPattern.getQuantifier() == Quantifier.ONE_OR_MORE_EAGER;
+	}
+
+	private static <T> void convertToLooping(
+		final Pattern<T, ?> currentPattern,
+		final State<T> sinkState,
+		final State<T> sourceState,
+		final List<State<T>> states) {
+
+		final FilterFunction<T> filterFunction = (FilterFunction<T>) currentPattern.getFilterFunction();
+		final FilterFunction<T> trueFunction = FilterFunctions.<T>trueFunction();
+
+		sourceState.addProceed(sinkState, trueFunction);
+		sourceState.addTake(filterFunction);
+		if (currentPattern instanceof FollowedByPattern) {
+			final State<T> ignoreState = new State<>(
+				currentPattern.getName(),
+				State.StateType.Normal);
+
+
+			final FilterFunction<T> ignoreCondition;
+			if (currentPattern.getQuantifier() == Quantifier.ZERO_OR_MORE_COMBINATIONS ||
+				currentPattern.getQuantifier() == Quantifier.ONE_OR_MORE_COMBINATIONS) {
+				ignoreCondition = trueFunction;
+			} else {
+				ignoreCondition = new NotFilterFunction<>(filterFunction);
+			}
+
+			sourceState.addIgnore(ignoreState, ignoreCondition);
+			ignoreState.addTake(sourceState, filterFunction);
+			ignoreState.addIgnore(ignoreState, ignoreCondition);
+			states.add(ignoreState);
 		}
 	}
 

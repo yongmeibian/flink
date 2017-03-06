@@ -217,23 +217,22 @@ public class SharedBuffer<K extends Serializable, V> implements Serializable {
 			// use a depth first search to reconstruct the previous relations
 			while (!extractionStates.isEmpty()) {
 				ExtractionState<K, V> extractionState = extractionStates.pop();
-				DeweyNumber currentVersion = extractionState.getVersion();
 				// current path of the depth first search
 				Stack<SharedBufferEntry<K, V>> currentPath = extractionState.getPath();
 
 				// termination criterion
-				if (currentVersion.length() == 1) {
-					LinkedHashMultimap<K, V> completePath = LinkedHashMultimap.create();
+				if (extractionState.getEntry() == null) {
+					final LinkedHashMultimap<K, V> completePath = LinkedHashMultimap.create();
 
 					while(!currentPath.isEmpty()) {
-						SharedBufferEntry<K, V> currentEntry = currentPath.pop();
+						final SharedBufferEntry<K, V> currentEntry = currentPath.pop();
 
 						completePath.put(currentEntry.getKey(), currentEntry.getValueTime().getValue());
 					}
 
 					result.add(completePath);
 				} else {
-					SharedBufferEntry<K, V> currentEntry = extractionState.getEntry();
+					final SharedBufferEntry<K, V> currentEntry = extractionState.getEntry();
 
 					// append state to the path
 					currentPath.push(currentEntry);
@@ -242,13 +241,14 @@ public class SharedBuffer<K extends Serializable, V> implements Serializable {
 					for (SharedBufferEdge<K, V> edge : currentEntry.getEdges()) {
 						// we can only proceed if the current version is compatible to the version
 						// of this previous relation
+						final DeweyNumber currentVersion = extractionState.getVersion();
 						if (currentVersion.isCompatibleWith(edge.getVersion())) {
 							if (firstMatch) {
 								// for the first match we don't have to copy the current path
 								extractionStates.push(new ExtractionState<K, V>(edge.getTarget(), edge.getVersion(), currentPath));
 								firstMatch = false;
 							} else {
-								Stack<SharedBufferEntry<K, V>> copy = new Stack<>();
+								final Stack<SharedBufferEntry<K, V>> copy = new Stack<>();
 								copy.addAll(currentPath);
 
 								extractionStates.push(
@@ -260,6 +260,7 @@ public class SharedBuffer<K extends Serializable, V> implements Serializable {
 						}
 					}
 				}
+
 			}
 		}
 
