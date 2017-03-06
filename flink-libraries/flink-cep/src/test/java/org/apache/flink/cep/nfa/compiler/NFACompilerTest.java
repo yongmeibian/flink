@@ -18,11 +18,13 @@
 
 package org.apache.flink.cep.nfa.compiler;
 
+import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 import org.apache.flink.api.common.ExecutionConfig;
 import org.apache.flink.api.common.functions.FilterFunction;
 import org.apache.flink.api.common.typeutils.TypeSerializer;
 import org.apache.flink.api.java.tuple.Tuple2;
+import org.apache.flink.api.java.tuple.Tuple3;
 import org.apache.flink.api.java.typeutils.TypeExtractor;
 import org.apache.flink.cep.Event;
 import org.apache.flink.cep.SubEvent;
@@ -32,15 +34,20 @@ import org.apache.flink.cep.nfa.StateTransition;
 import org.apache.flink.cep.nfa.StateTransitionAction;
 import org.apache.flink.cep.pattern.Pattern;
 import org.apache.flink.util.TestLogger;
+import org.apache.hadoop.fs.Stat;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import static com.google.common.collect.Lists.newArrayList;
+import static com.google.common.collect.Sets.newHashSet;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
@@ -110,7 +117,7 @@ public class NFACompilerTest extends TestLogger {
 
 		NFA<Event> nfa = NFACompiler.compile(pattern, serializer, false);
 
-		Set<State<Event>> states = nfa.getStates();
+		List<State<Event>> states = nfa.getStates();
 		assertEquals(4, states.size());
 
 		Map<String, State<Event>> stateMap = new HashMap<>();
@@ -122,14 +129,14 @@ public class NFACompilerTest extends TestLogger {
 		State<Event> startState = stateMap.get("start");
 		assertTrue(startState.isStart());
 		final Set<Tuple2<String, StateTransitionAction>> startTransitions = unfoldTransitions(startState);
-		assertEquals(Sets.newHashSet(
+		assertEquals(newHashSet(
 			Tuple2.of("middle", StateTransitionAction.TAKE)
 		), startTransitions);
 
 		assertTrue(stateMap.containsKey("middle"));
 		State<Event> middleState = stateMap.get("middle");
 		final Set<Tuple2<String, StateTransitionAction>> middleTransitions = unfoldTransitions(middleState);
-		assertEquals(Sets.newHashSet(
+		assertEquals(newHashSet(
 			Tuple2.of("middle", StateTransitionAction.IGNORE),
 			Tuple2.of("end", StateTransitionAction.TAKE)
 		), middleTransitions);
@@ -137,7 +144,7 @@ public class NFACompilerTest extends TestLogger {
 		assertTrue(stateMap.containsKey("end"));
 		State<Event> endState = stateMap.get("end");
 		final Set<Tuple2<String, StateTransitionAction>> endTransitions = unfoldTransitions(endState);
-		assertEquals(Sets.newHashSet(
+		assertEquals(newHashSet(
 			Tuple2.of(NFACompiler.ENDING_STATE_NAME, StateTransitionAction.TAKE)
 		), endTransitions);
 
@@ -156,44 +163,35 @@ public class NFACompilerTest extends TestLogger {
 
 		NFA<Event> nfa = NFACompiler.compile(pattern, serializer, false);
 
-		Set<State<Event>> states = nfa.getStates();
-		assertEquals(4, states.size());
+		List<State<Event>> states = nfa.getStates();
+		assertEquals(5, states.size());
 
-		Map<String, State<Event>> stateMap = new HashMap<>();
+
+		Set<Tuple2<String, Set<Tuple2<String, StateTransitionAction>>>> stateMap = new HashSet<>();
 		for (State<Event> state : states) {
-			stateMap.put(state.getName(), state);
+			stateMap.add(Tuple2.of(state.getName(), unfoldTransitions(state)));
 		}
 
-		assertTrue(stateMap.containsKey("start"));
-		State<Event> startState = stateMap.get("start");
-		assertTrue(startState.isStart());
-		final Set<Tuple2<String, StateTransitionAction>> startTransitions = unfoldTransitions(startState);
-		assertEquals(Sets.newHashSet(
-			Tuple2.of("middle", StateTransitionAction.TAKE)
-		), startTransitions);
+		assertEquals(stateMap, newHashSet(
+			Tuple2.of("start", newHashSet(Tuple2.of("middle", StateTransitionAction.TAKE))),
+			Tuple2.of("middle", newHashSet(
+				Tuple2.of("middle", StateTransitionAction.IGNORE),
+				Tuple2.of("middle", StateTransitionAction.TAKE)
+			)),
+		    Tuple2.of("middle", newHashSet(
+			    Tuple2.of("middle", StateTransitionAction.IGNORE),
+			    Tuple2.of("middle", StateTransitionAction.TAKE),
+			    Tuple2.of("end", StateTransitionAction.PROCEED)
+		    )),
+			Tuple2.of("end", newHashSet(
+				Tuple2.of(NFACompiler.ENDING_STATE_NAME, StateTransitionAction.TAKE),
+				Tuple2.of("end", StateTransitionAction.IGNORE)
+			)),
+		    Tuple2.of(NFACompiler.ENDING_STATE_NAME, Sets.newHashSet())
+		));
 
-		assertTrue(stateMap.containsKey("middle"));
-		State<Event> middleState = stateMap.get("middle");
-		final Set<Tuple2<String, StateTransitionAction>> middleTransitions = unfoldTransitions(middleState);
-		assertEquals(Sets.newHashSet(
-			Tuple2.of("middle", StateTransitionAction.IGNORE),
-			Tuple2.of("middle", StateTransitionAction.TAKE),
-			Tuple2.of("end", StateTransitionAction.PROCEED)
-		), middleTransitions);
-
-		assertTrue(stateMap.containsKey("end"));
-		State<Event> endState = stateMap.get("end");
-		final Set<Tuple2<String, StateTransitionAction>> endTransitions = unfoldTransitions(endState);
-		assertEquals(Sets.newHashSet(
-			Tuple2.of(NFACompiler.ENDING_STATE_NAME, StateTransitionAction.TAKE),
-			Tuple2.of("end", StateTransitionAction.IGNORE)
-		), endTransitions);
-
-		assertTrue(stateMap.containsKey(NFACompiler.ENDING_STATE_NAME));
-		State<Event> endingState = stateMap.get(NFACompiler.ENDING_STATE_NAME);
-		assertTrue(endingState.isFinal());
-		assertEquals(0, endingState.getStateTransitions().size());
 	}
+
 
 	private <T> Set<Tuple2<String, StateTransitionAction>> unfoldTransitions(final State<T> state) {
 		final Set<Tuple2<String, StateTransitionAction>> transitions = new HashSet<>();

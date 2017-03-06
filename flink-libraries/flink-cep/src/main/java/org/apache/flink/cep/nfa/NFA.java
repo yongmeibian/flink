@@ -40,7 +40,6 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
@@ -74,7 +73,7 @@ public class NFA<T> implements Serializable {
 	private final SharedBuffer<String, T> sharedBuffer;
 
 	// Set of all NFA states
-	private final Set<State<T>> states;
+	private final List<State<T>> states;
 
 	// Length of the window
 	private final long windowTime;
@@ -95,10 +94,10 @@ public class NFA<T> implements Serializable {
 		sharedBuffer = new SharedBuffer<>(nonDuplicatingTypeSerializer);
 		computationStates = new LinkedList<>();
 
-		states = new HashSet<>();
+		states = new ArrayList<>();
 	}
 
-	public Set<State<T>> getStates() {
+	public List<State<T>> getStates() {
 		return states;
 	}
 
@@ -216,6 +215,9 @@ public class NFA<T> implements Serializable {
 		return Objects.hash(nonDuplicatingTypeSerializer, sharedBuffer, states, windowTime);
 	}
 
+	private static <T> boolean isEquivalentState(final State<T> s1, final State<T> s2) {
+		return s1.getName().equals(s2.getName());
+	}
 
 	/**
 	 * Structures to keep decisions based on the transition actions, that counts the number of taken actions.
@@ -257,10 +259,11 @@ public class NFA<T> implements Serializable {
 		}
 
 		private boolean isSelfIgnore(final StateTransition<T> edge) {
-			return edge.getTargetState().equals(currentState) &&
+			return isEquivalentState(edge.getTargetState(), currentState) &&
 				edge.getAction() == StateTransitionAction.IGNORE;
 		}
 	}
+
 
 	/**
 	 * Computes the next computation states based on the given computation state, the current event,
@@ -290,7 +293,7 @@ public class NFA<T> implements Serializable {
 				case IGNORE: {
 					if (!computationState.isStartState()) {
 						final DeweyNumber version;
-						if (!edge.getTargetState().equals(computationState.getState())) {
+						if (!isEquivalentState(edge.getTargetState(), computationState.getState())) {
 							version = computationState.getVersion().increase(ignoreBranchesToVisit).addStage();
 							ignoreBranchesToVisit--;
 						} else {

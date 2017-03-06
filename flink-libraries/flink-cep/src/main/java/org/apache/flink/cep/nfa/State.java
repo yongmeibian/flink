@@ -54,6 +54,10 @@ public class State<T> implements Serializable {
 
 	public boolean isStart() { return stateType == StateType.Start; }
 
+	public StateType getStateType() {
+		return stateType;
+	}
+
 	public String getName() {
 		return name;
 	}
@@ -97,7 +101,8 @@ public class State<T> implements Serializable {
 			State<T> other = (State<T>)obj;
 
 			return name.equals(other.name) &&
-				stateType == other.stateType;
+				stateType == other.stateType &&
+				stateTransitions.equals(other.stateTransitions);
 		} else {
 			return false;
 		}

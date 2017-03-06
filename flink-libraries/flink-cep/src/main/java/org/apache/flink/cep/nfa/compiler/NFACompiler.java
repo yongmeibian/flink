@@ -30,11 +30,12 @@ import org.apache.flink.cep.pattern.Quantifier;
 import org.apache.flink.streaming.api.windowing.time.Time;
 
 import java.io.Serializable;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.HashSet;
-import java.util.Map;
+import java.util.List;
+import java.util.Set;
 
 /**
  * Compiler class containing methods to compile a {@link Pattern} into a {@link NFA} or a
@@ -82,28 +83,32 @@ public class NFACompiler {
 			return new NFAFactoryImpl<T>(inputTypeSerializer, 0, Collections.<State<T>>emptyList(), timeoutHandling);
 		} else {
 			// set of all generated states
-			Map<String, State<T>> states = new HashMap<>();
+			final List<State<T>> states = new ArrayList<>();
+			final Set<String> usedNames = new HashSet<>();
 			long windowTime;
 
 			Pattern<T, ?> currentPattern = pattern;
 
 			// we're traversing the pattern from the end to the beginning --> the first state is the final state
 			State<T> sinkState = new State<>(ENDING_STATE_NAME, State.StateType.Final);
-			states.put(ENDING_STATE_NAME, sinkState);
+			states.add(sinkState);
+			usedNames.add(ENDING_STATE_NAME);
+
 			windowTime = currentPattern.getWindowTime() != null ? currentPattern.getWindowTime().toMilliseconds() : 0L;
 			while (currentPattern.getPrevious() != null) {
 				State<T> sourceState;
 
-				if (states.containsKey(currentPattern.getName())) {
+				if (usedNames.contains(currentPattern.getName())) {
 					throw new MalformedPatternException("Duplicate pattern name: " + currentPattern.getName() + ". " +
 						"Pattern names must be unique.");
 				}
 
 				sourceState = new State<>(currentPattern.getName(), State.StateType.Normal);
-				states.put(sourceState.getName(), sourceState);
+				states.add(sourceState);
+				usedNames.add(sourceState.getName());
 
 				if (isLooping(currentPattern)) {
-					convertToLooping(currentPattern, sinkState, sourceState);
+					convertToLooping(currentPattern, sinkState, sourceState, states);
 				} else {
 					convertToSingletonState(
 						currentPattern,
@@ -117,6 +122,8 @@ public class NFACompiler {
 						sourceState,
 						State.StateType.Normal
 					);
+					states.add(sourceState);
+					usedNames.add(sourceState.getName());
 				}
 
 				currentPattern = currentPattern.getPrevious();
@@ -129,7 +136,7 @@ public class NFACompiler {
 				}
 			}
 
-			if (states.containsKey(currentPattern.getName())) {
+			if (usedNames.contains(currentPattern.getName())) {
 				throw new MalformedPatternException("Duplicate pattern name: " + currentPattern.getName() + ". " +
 					"Pattern names must be unique.");
 			}
@@ -138,23 +145,26 @@ public class NFACompiler {
 			final State<T> beginningState;
 			if (isAtLeastOne(currentPattern)) {
 				beginningState = new State<>(currentPattern.getName(), State.StateType.Normal);
-				states.put(currentPattern.getName(), beginningState);
+				states.add(beginningState);
+				usedNames.add(beginningState.getName());
 
 				final State<T> mandatoryState = createFirstMandatoryStateOfLoop(currentPattern, beginningState, State.StateType.Start);
-				states.put(currentPattern.getName(), mandatoryState);
+				states.add(mandatoryState);
+				usedNames.add(mandatoryState.getName());
 			} else {
 				beginningState = new State<>(currentPattern.getName(), State.StateType.Start);
-				states.put(currentPattern.getName(), beginningState);
+				states.add(beginningState);
+				usedNames.add(beginningState.getName());
 			}
 
 			if (isLooping(currentPattern)) {
-				convertToLooping(currentPattern, sinkState, beginningState);
+				convertToLooping(currentPattern, sinkState, beginningState, states);
 			} else {
 				beginningState.addTake(sinkState, (FilterFunction<T>) currentPattern.getFilterFunction());
 			}
 
 
-			return new NFAFactoryImpl<T>(inputTypeSerializer, windowTime, new HashSet<>(states.values()), timeoutHandling);
+			return new NFAFactoryImpl<T>(inputTypeSerializer, windowTime, states, timeoutHandling);
 		}
 	}
 
@@ -208,15 +218,16 @@ public class NFACompiler {
 
 	private static <T> boolean isLooping(Pattern<T, ?> currentPattern) {
 		return currentPattern.getQuantifier() == Quantifier.ZERO_OR_MORE_EAGER ||
-		    currentPattern.getQuantifier() == Quantifier.ZERO_OR_MORE_COMBINATIONS ||
-		    currentPattern.getQuantifier() == Quantifier.ONE_OR_MORE_COMBINATIONS ||
-		    currentPattern.getQuantifier() == Quantifier.ONE_OR_MORE_EAGER;
+			currentPattern.getQuantifier() == Quantifier.ZERO_OR_MORE_COMBINATIONS ||
+			currentPattern.getQuantifier() == Quantifier.ONE_OR_MORE_COMBINATIONS ||
+			currentPattern.getQuantifier() == Quantifier.ONE_OR_MORE_EAGER;
 	}
 
 	private static <T> void convertToLooping(
 		final Pattern<T, ?> currentPattern,
 		final State<T> sinkState,
-		final State<T> sourceState) {
+		final State<T> sourceState,
+		final List<State<T>> states) {
 
 		final FilterFunction<T> filterFunction = (FilterFunction<T>) currentPattern.getFilterFunction();
 		final FilterFunction<T> trueFunction = FilterFunctions.<T>trueFunction();
@@ -231,7 +242,7 @@ public class NFACompiler {
 
 			final FilterFunction<T> ignoreCondition;
 			if (currentPattern.getQuantifier() == Quantifier.ZERO_OR_MORE_COMBINATIONS ||
-			    currentPattern.getQuantifier() == Quantifier.ONE_OR_MORE_COMBINATIONS) {
+				currentPattern.getQuantifier() == Quantifier.ONE_OR_MORE_COMBINATIONS) {
 				ignoreCondition = trueFunction;
 			} else {
 				ignoreCondition = new NotFilterFunction<>(filterFunction);
@@ -240,6 +251,7 @@ public class NFACompiler {
 			sourceState.addIgnore(ignoreState, ignoreCondition);
 			ignoreState.addTake(sourceState, filterFunction);
 			ignoreState.addIgnore(ignoreState, ignoreCondition);
+			states.add(ignoreState);
 		}
 	}
 
