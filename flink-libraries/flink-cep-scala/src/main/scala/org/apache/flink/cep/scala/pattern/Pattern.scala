@@ -19,7 +19,7 @@ package org.apache.flink.cep.scala.pattern
 
 import org.apache.flink.api.common.functions.FilterFunction
 import org.apache.flink.cep
-import org.apache.flink.cep.pattern.{Pattern => JPattern}
+import org.apache.flink.cep.pattern.{Quantifier, Pattern => JPattern}
 import org.apache.flink.streaming.api.windowing.time.Time
 
 /**
@@ -56,6 +56,12 @@ class Pattern[T , F <: T](jPattern: JPattern[T, F]) {
   def getWindowTime(): Option[Time] = {
     Option(jPattern.getWindowTime())
   }
+
+  /**
+    *
+    * @return currently applied quantifier to this pattern
+    */
+  def getQuantifier: Quantifier = jPattern.getQuantifier
 
   /**
     *
