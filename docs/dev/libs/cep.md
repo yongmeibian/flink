@@ -341,7 +341,36 @@ patternState.subtype(SubEvent.class);
 patternState.within(Time.seconds(10));
 {% endhighlight %}
           </td>
-      </tr>
+       </tr>
+       <tr>
+          <td><strong>ZeroOrMore</strong></td>
+          <td>
+              <p>Specifies that this pattern can occur zero or more times(kleene star). This means any number of events can be matched in this state.</p>
+              <p>If eagerness is enabled(by default) for a pattern A*B and sequence A1 A2 B will generate patterns: B, A1 B and A1 A2 B. If disabled B, A1 B, A2 B and A1 A2 B.</p>
+      {% highlight java %}
+      patternState.zeroOrMore();
+      {% endhighlight %}
+          </td>
+       </tr>
+       <tr>
+          <td><strong>OneOrMore</strong></td>
+          <td>
+              <p>Specifies that this pattern can occur one or more times(kleene star). This means at least one and at most infinite number of events can be matched in this state.</p>
+              <p>If eagerness is enabled (by default) for a pattern A*B and sequence A1 A2 B will generate patterns: A1 B and A1 A2 B. If disabled A1 B, A2 B and A1 A2 B.</p>
+      {% highlight java %}
+      patternState.oneOrMore();
+      {% endhighlight %}
+          </td>
+       </tr>
+       <tr>
+          <td><strong>Optiona</strong></td>
+          <td>
+              <p>Specifies that this pattern can occur zero or once.</p>
+      {% highlight java %}
+      patternState.optional();
+      {% endhighlight %}
+          </td>
+       </tr>
   </tbody>
 </table>
 </div>
@@ -419,6 +448,35 @@ patternState.within(Time.seconds(10))
 {% endhighlight %}
           </td>
       </tr>
+       <tr>
+          <td><strong>ZeroOrMore</strong></td>
+          <td>
+              <p>Specifies that this pattern can occur zero or more times(kleene star). This means any number of events can be matched in this state.</p>
+              <p>If eagerness is enabled(by default) for a pattern A*B and sequence A1 A2 B will generate patterns: B, A1 B and A1 A2 B. If disabled B, A1 B, A2 B and A1 A2 B.</p>
+      {% highlight scala %}
+      patternState.zeroOrMore()
+      {% endhighlight %}
+          </td>
+       </tr>
+       <tr>
+          <td><strong>OneOrMore</strong></td>
+          <td>
+              <p>Specifies that this pattern can occur one or more times(kleene star). This means at least one and at most infinite number of events can be matched in this state.</p>
+              <p>If eagerness is enabled (by default) for a pattern A*B and sequence A1 A2 B will generate patterns: A1 B and A1 A2 B. If disabled A1 B, A2 B and A1 A2 B.</p>
+      {% highlight scala %}
+      patternState.oneOrMore()
+      {% endhighlight %}
+          </td>
+       </tr>
+       <tr>
+          <td><strong>Optiona</strong></td>
+          <td>
+              <p>Specifies that this pattern can occur zero or once.</p>
+      {% highlight scala %}
+      patternState.optional()
+      {% endhighlight %}
+          </td>
+       </tr>
   </tbody>
 </table>
 </div>
