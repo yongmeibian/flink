@@ -363,11 +363,20 @@ patternState.within(Time.seconds(10));
           </td>
        </tr>
        <tr>
-          <td><strong>Optiona</strong></td>
+          <td><strong>Optional</strong></td>
           <td>
               <p>Specifies that this pattern can occur zero or once.</p>
       {% highlight java %}
       patternState.optional();
+      {% endhighlight %}
+          </td>
+       </tr>
+       <tr>
+          <td><strong>Times</strong></td>
+          <td>
+              <p>Specifies exact number of times that this pattern should be matched.</p>
+      {% highlight java %}
+      patternState.times(2);
       {% endhighlight %}
           </td>
        </tr>
@@ -469,11 +478,20 @@ patternState.within(Time.seconds(10))
           </td>
        </tr>
        <tr>
-          <td><strong>Optiona</strong></td>
+          <td><strong>Optional</strong></td>
           <td>
               <p>Specifies that this pattern can occur zero or once.</p>
       {% highlight scala %}
       patternState.optional()
+      {% endhighlight %}
+          </td>
+       </tr>
+       <tr>
+          <td><strong>Times</strong></td>
+          <td>
+              <p>Specifies exact number of times that this pattern should be matched.</p>
+      {% highlight scala %}
+      patternState.times(2)
       {% endhighlight %}
           </td>
        </tr>

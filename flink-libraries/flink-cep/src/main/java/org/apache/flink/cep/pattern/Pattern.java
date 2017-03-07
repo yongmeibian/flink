@@ -22,6 +22,7 @@ import org.apache.flink.api.common.functions.FilterFunction;
 import org.apache.flink.api.java.ClosureCleaner;
 import org.apache.flink.cep.nfa.NFA;
 import org.apache.flink.streaming.api.windowing.time.Time;
+import org.apache.flink.util.Preconditions;
 
 /**
  * Base class for a pattern definition.
@@ -55,6 +56,8 @@ public class Pattern<T, F extends T> {
 
 	private Quantifier quantifier = Quantifier.ONE;
 
+	private int times;
+
 	protected Pattern(final String name, final Pattern<T, ? extends T> previous) {
 		this.name = name;
 		this.previous = previous;
@@ -78,6 +81,10 @@ public class Pattern<T, F extends T> {
 
 	public Quantifier getQuantifier() {
 		return quantifier;
+	}
+
+	public int getTimes() {
+		return times;
 	}
 
 	/**
@@ -254,6 +261,19 @@ public class Pattern<T, F extends T> {
 	 */
 	public Pattern<T, F> optional() {
 		this.quantifier = Quantifier.OPTIONAL;
+		return this;
+	}
+
+	/**
+	 * Specifies exact number of times that this pattern should be matched.
+	 *
+	 * @param times number of times matching event must appear
+	 * @return The same pattern with number of times applied
+	 */
+	public Pattern<T, F> times(int times) {
+		Preconditions.checkArgument(times > 0, "You should give a positive number greater than 0.");
+		this.quantifier = Quantifier.TIMES;
+		this.times = times;
 		return this;
 	}
 }

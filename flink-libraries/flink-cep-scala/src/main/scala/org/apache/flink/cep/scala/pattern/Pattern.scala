@@ -228,6 +228,17 @@ class Pattern[T , F <: T](jPattern: JPattern[T, F]) {
     this
   }
 
+  /**
+    * Specifies exact number of times that this pattern should be matched.
+    *
+    * @param times number of times matching event must appear
+    * @return The same pattern with number of times applied
+    */
+  def times(times: Int): Pattern[T, F] = {
+    jPattern.times(times)
+    this
+  }
+
 }
 
 object Pattern {
