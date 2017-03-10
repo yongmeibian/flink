@@ -19,9 +19,12 @@ package org.apache.flink.cep.scala.pattern
 
 import org.apache.flink.api.common.functions.FilterFunction
 import org.apache.flink.cep
-import org.apache.flink.cep.pattern.{Quantifier, Pattern => JPattern}
+import org.apache.flink.cep.pattern.{Quantifier, Pattern => JPattern, QuantifiedPattern => JQuantifiedPattern, IPattern => JIPattern}
 import org.apache.flink.streaming.api.windowing.time.Time
 
+sealed trait IPattern {
+  def wrappedPattern : I
+}
 /**
   * Base class for a pattern definition.
   *
@@ -239,6 +242,98 @@ class Pattern[T , F <: T](jPattern: JPattern[T, F]) {
     this
   }
 
+}
+
+class QuantifiedPattern[T , F <: T](jPattern: JQuantifiedPattern[T, F])  {
+
+  private[flink] def wrappedPattern = jPattern
+
+  /**
+    * Applies a subtype constraint on the current pattern operator. This means that an event has
+    * to be of the given subtype in order to be matched.
+    *
+    * @param clazz Class of the subtype
+    * @tparam S Type of the subtype
+    * @return The same pattern operator with the new subtype constraint
+    */
+  def subtype[S <: F](clazz: Class[S]): Pattern[T, S] = {
+    jPattern.subtype(clazz)
+    this.asInstanceOf[Pattern[T, S]]
+  }
+
+  /**
+    * Defines the maximum time interval for a matching pattern. This means that the time gap
+    * between first and the last event must not be longer than the window time.
+    *
+    * @param windowTime Time of the matching window
+    * @return The same pattern operator with the new window length
+    */
+  def within(windowTime: Time): Pattern[T, F] = {
+    jPattern.within(windowTime)
+    this
+  }
+
+  /**
+    * Appends a new pattern operator to the existing one. The new pattern operator enforces strict
+    * temporal contiguity. This means that the whole pattern only matches if an event which matches
+    * this operator directly follows the preceding matching event. Thus, there cannot be any
+    * events in between two matching events.
+    *
+    * @param name Name of the new pattern operator
+    * @return A new pattern operator which is appended to this pattern operator
+    */
+  def next(name: String): Pattern[T, T] = {
+    Pattern[T, T](jPattern.next(name))
+  }
+
+  /**
+    * Appends a new pattern operator to the existing one. The new pattern operator enforces
+    * non-strict temporal contiguity. This means that a matching event of this operator and the
+    * preceding matching event might be interleaved with other events which are ignored.
+    *
+    * @param name Name of the new pattern operator
+    * @return A new pattern operator which is appended to this pattern operator
+    */
+  def followedBy(name: String): FollowedByPattern[T, T] = {
+    FollowedByPattern(jPattern.followedBy(name))
+  }
+
+  /**
+    * Specifies a filter condition which has to be fulfilled by an event in order to be matched.
+    *
+    * @param filter Filter condition
+    * @return The same pattern operator where the new filter condition is set
+    */
+  def where(filter: FilterFunction[F]): Pattern[T, F] = {
+    jPattern.where(filter)
+    this
+  }
+
+  /**
+    * Specifies a filter condition which is ORed with an existing filter function.
+    *
+    * @param filter Or filter function
+    * @return The same pattern operator where the new filter condition is set
+    */
+  def or(filter: FilterFunction[F]): Pattern[T, F] = {
+    jPattern.or(filter)
+    this
+  }
+
+  /**
+    * Specifies a filter condition which has to be fulfilled by an event in order to be matched.
+    *
+    * @param filterFun Filter condition
+    * @return The same pattern operator where the new filter condition is set
+    */
+  def where(filterFun: F => Boolean): Pattern[T, F] = {
+    val filter = new FilterFunction[F] {
+      val cleanFilter = cep.scala.cleanClosure(filterFun)
+
+      override def filter(value: F): Boolean = cleanFilter(value)
+    }
+    where(filter)
+  }
 }
 
 object Pattern {

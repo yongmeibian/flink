@@ -15,24 +15,23 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package org.apache.flink.cep.pattern;
 
-/**
- * Pattern operator which signifies that the there is a non-strict temporal contiguity between
- * itself and its preceding pattern operator. This means that there might be events in between
- * two matching events. These events are then simply ignored.
- *
- * @param <T> Base type of the events
- * @param <F> Subtype of T to which the operator is currently constrained
- */
-public class FollowedByPattern<T, F extends T> extends Pattern<T, F> {
-	FollowedByPattern(final String name, Pattern<T, ?> previous) {
-		super(name, previous);
-	}
+import org.apache.flink.api.common.functions.FilterFunction;
+import org.apache.flink.streaming.api.windowing.time.Time;
 
-	@Override
-	public boolean isFollowedBy() {
-		return true;
-	}
+public interface IPattern<T, F extends T> {
+	String getName();
+
+	Pattern<T, ? extends T> getPrevious();
+
+	FilterFunction<F> getFilterFunction();
+
+	Time getWindowTime();
+
+	Quantifier getQuantifier();
+
+	int getTimes();
+
+	boolean isFollowedBy();
 }

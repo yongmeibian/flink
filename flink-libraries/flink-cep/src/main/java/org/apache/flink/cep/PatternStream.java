@@ -25,7 +25,7 @@ import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.api.java.typeutils.EitherTypeInfo;
 import org.apache.flink.api.java.typeutils.TypeExtractor;
 import org.apache.flink.cep.operator.CEPOperatorUtils;
-import org.apache.flink.cep.pattern.Pattern;
+import org.apache.flink.cep.pattern.IPattern;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.types.Either;
 import org.apache.flink.util.Collector;
@@ -48,14 +48,14 @@ public class PatternStream<T> {
 	// underlying data stream
 	private final DataStream<T> inputStream;
 
-	private final Pattern<T, ?> pattern;
+	private final IPattern<T, ?> pattern;
 
-	PatternStream(final DataStream<T> inputStream, final Pattern<T, ?> pattern) {
+	PatternStream(final DataStream<T> inputStream, final IPattern<T, ?> pattern) {
 		this.inputStream = inputStream;
 		this.pattern = pattern;
 	}
 
-	public Pattern<T, ?> getPattern() {
+	public IPattern<T, ?> getPattern() {
 		return pattern;
 	}
 

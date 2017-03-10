@@ -23,7 +23,7 @@ import org.apache.flink.api.common.typeutils.TypeSerializer;
 import org.apache.flink.cep.nfa.NFA;
 import org.apache.flink.cep.nfa.State;
 import org.apache.flink.cep.pattern.FilterFunctions;
-import org.apache.flink.cep.pattern.FollowedByPattern;
+import org.apache.flink.cep.pattern.IPattern;
 import org.apache.flink.cep.pattern.NotFilterFunction;
 import org.apache.flink.cep.pattern.Pattern;
 import org.apache.flink.cep.pattern.Quantifier;
@@ -55,7 +55,7 @@ public class NFACompiler {
 	 * @return Non-deterministic finite automaton representing the given pattern
 	 */
 	public static <T> NFA<T> compile(
-		Pattern<T, ?> pattern,
+		IPattern<T, ?> pattern,
 		TypeSerializer<T> inputTypeSerializer,
 		boolean timeoutHandling) {
 		NFAFactory<T> factory = compileFactory(pattern, inputTypeSerializer, timeoutHandling);
@@ -75,7 +75,7 @@ public class NFACompiler {
 	 */
 	@SuppressWarnings("unchecked")
 	public static <T> NFAFactory<T> compileFactory(
-		final Pattern<T, ?> pattern,
+		final IPattern<T, ?> pattern,
 		final TypeSerializer<T> inputTypeSerializer,
 		boolean timeoutHandling) {
 		if (pattern == null) {
@@ -94,9 +94,9 @@ public class NFACompiler {
 		private final List<State<T>> states = new ArrayList<>();
 
 		private long windowTime = 0;
-		private Pattern<T, ?> currentPattern;
+		private IPattern<T, ?> currentPattern;
 
-		NFAFactoryCompiler(final Pattern<T, ?> pattern) {
+		NFAFactoryCompiler(final IPattern<T, ?> pattern) {
 			this.currentPattern = pattern;
 		}
 
@@ -265,7 +265,7 @@ public class NFACompiler {
 				ignoreState = sourceState;
 			}
 
-			if (currentPattern instanceof FollowedByPattern) {
+			if (currentPattern.isFollowedBy()) {
 				sourceState.addIgnore(ignoreState, trueFunction);
 			}
 		}
@@ -279,7 +279,7 @@ public class NFACompiler {
 			final State<T> firstState = new State<>(currentPattern.getName(), stateType);
 
 			firstState.addTake(sinkState, currentFilterFunction);
-			if (currentPattern instanceof FollowedByPattern) {
+			if (currentPattern.isFollowedBy()) {
 				if (currentPattern.getQuantifier() == Quantifier.ONE_OR_MORE_COMBINATIONS) {
 					firstState.addIgnore(FilterFunctions.<T>trueFunction());
 				} else {
@@ -299,7 +299,7 @@ public class NFACompiler {
 
 			sourceState.addProceed(sinkState, trueFunction);
 			sourceState.addTake(filterFunction);
-			if (currentPattern instanceof FollowedByPattern) {
+			if (currentPattern.isFollowedBy()) {
 				final State<T> ignoreState = new State<>(
 					currentPattern.getName(),
 					State.StateType.Normal);

@@ -275,7 +275,6 @@ public class NFAITCase extends TestLogger {
 		Set<Tuple2<Map<String, Event>, Long>> resultingTimeoutPatterns = new HashSet<>();
 		Set<Tuple2<Map<String, Event>, Long>> expectedTimeoutPatterns = new HashSet<>();
 
-
 		events.add(new StreamRecord<Event>(new Event(1, "start", 1.0), 1));
 		events.add(new StreamRecord<Event>(new Event(2, "start", 1.0), 2));
 		events.add(new StreamRecord<Event>(new Event(3, "middle", 1.0), 3));
@@ -1301,6 +1300,7 @@ public class NFAITCase extends TestLogger {
 				return value.getName().equals("b");
 			}
 		});
+
 
 		NFA<Event> nfa = NFACompiler.compile(pattern, Event.createTypeSerializer(), false);
 

@@ -40,7 +40,7 @@ import org.apache.flink.util.Preconditions;
  * @param <T> Base type of the elements appearing in the pattern
  * @param <F> Subtype of T to which the current pattern operator is constrained
  */
-public class Pattern<T, F extends T> {
+public class Pattern<T, F extends T> implements IPattern<T, F> {
 
 	// name of the pattern operator
 	private final String name;
@@ -56,35 +56,47 @@ public class Pattern<T, F extends T> {
 
 	private Quantifier quantifier = Quantifier.ONE;
 
-	private int times;
+	private int times = 0;
+
 
 	protected Pattern(final String name, final Pattern<T, ? extends T> previous) {
 		this.name = name;
 		this.previous = previous;
 	}
 
+	@Override
 	public String getName() {
 		return name;
 	}
 
+	@Override
 	public Pattern<T, ? extends T> getPrevious() {
 		return previous;
 	}
 
+	@Override
 	public FilterFunction<F> getFilterFunction() {
 		return filterFunction;
 	}
 
+	@Override
 	public Time getWindowTime() {
 		return windowTime;
 	}
 
+	@Override
 	public Quantifier getQuantifier() {
 		return quantifier;
 	}
 
+	@Override
 	public int getTimes() {
 		return times;
+	}
+
+	@Override
+	public boolean isFollowedBy() {
+		return false;
 	}
 
 	/**
@@ -202,7 +214,7 @@ public class Pattern<T, F extends T> {
 	 *
 	 * @return The same pattern with applied Kleene star operator
 	 */
-	public Pattern<T, F> zeroOrMore() {
+	public QuantifiedPattern<T, F> zeroOrMore() {
 		return zeroOrMore(true);
 	}
 
@@ -216,13 +228,13 @@ public class Pattern<T, F extends T> {
 	 * @param eager if true the pattern always consumes earlier events
 	 * @return The same pattern with applied Kleene star operator
 	 */
-	public Pattern<T, F> zeroOrMore(final boolean eager) {
+	public QuantifiedPattern<T, F> zeroOrMore(final boolean eager) {
 		if (eager) {
 			this.quantifier = Quantifier.ZERO_OR_MORE_EAGER;
 		} else {
 			this.quantifier = Quantifier.ZERO_OR_MORE_COMBINATIONS;
 		}
-		return this;
+		return new QuantifiedPattern<>(this);
 	}
 
 	/**
@@ -231,7 +243,7 @@ public class Pattern<T, F extends T> {
 	 *
 	 * @return The same pattern with applied Kleene plus operator
 	 */
-	public Pattern<T, F> oneOrMore() {
+	public QuantifiedPattern<T, F> oneOrMore() {
 		return oneOrMore(true);
 	}
 
@@ -245,13 +257,13 @@ public class Pattern<T, F extends T> {
 	 * @param eager if true the pattern always consumes earlier events
 	 * @return The same pattern with applied Kleene plus operator
 	 */
-	public Pattern<T, F> oneOrMore(final boolean eager) {
+	public QuantifiedPattern<T, F> oneOrMore(final boolean eager) {
 		if (eager) {
 			this.quantifier = Quantifier.ONE_OR_MORE_EAGER;
 		} else {
 			this.quantifier = Quantifier.ONE_OR_MORE_COMBINATIONS;
 		}
-		return this;
+		return new QuantifiedPattern<>(this);
 	}
 
 	/**
@@ -259,9 +271,9 @@ public class Pattern<T, F extends T> {
 	 *
 	 * @return The same pattern with applied Kleene ? operator
 	 */
-	public Pattern<T, F> optional() {
+	public QuantifiedPattern<T, F> optional() {
 		this.quantifier = Quantifier.OPTIONAL;
-		return this;
+		return new QuantifiedPattern<>(this);
 	}
 
 	/**
@@ -270,10 +282,12 @@ public class Pattern<T, F extends T> {
 	 * @param times number of times matching event must appear
 	 * @return The same pattern with number of times applied
 	 */
-	public Pattern<T, F> times(int times) {
+	public QuantifiedPattern<T, F> times(int times) {
 		Preconditions.checkArgument(times > 0, "You should give a positive number greater than 0.");
 		this.quantifier = Quantifier.TIMES;
 		this.times = times;
-		return this;
+		return new QuantifiedPattern<>(this);
 	}
+
+
 }

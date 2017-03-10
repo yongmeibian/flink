@@ -18,7 +18,7 @@
 
 package org.apache.flink.cep;
 
-import org.apache.flink.cep.pattern.Pattern;
+import org.apache.flink.cep.pattern.IPattern;
 import org.apache.flink.streaming.api.datastream.DataStream;
 
 /**
@@ -35,7 +35,7 @@ public class CEP {
 	 * @param <T> Type of the input events
 	 * @return Resulting pattern stream
 	 */
-	public static <T> PatternStream<T> pattern(DataStream<T> input, Pattern<T, ?> pattern) {
+	public static <T> PatternStream<T> pattern(DataStream<T> input, IPattern<T, ?> pattern) {
 		return new PatternStream<>(input, pattern);
 	}
 }
