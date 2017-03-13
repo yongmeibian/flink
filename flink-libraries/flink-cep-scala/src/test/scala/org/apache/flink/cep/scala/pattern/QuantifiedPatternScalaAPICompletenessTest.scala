@@ -20,26 +20,36 @@ package org.apache.flink.cep.scala.pattern
 import java.lang.reflect.Method
 
 import org.apache.flink.api.scala.completeness.ScalaAPICompletenessTestBase
-import org.apache.flink.cep.pattern.{Pattern => JPattern}
+import org.apache.flink.cep.pattern.{QuantifiedPattern => JQuantifiedPattern}
 import org.junit.Test
 
 import scala.language.existentials
 
 /**
- * This checks whether the CEP Scala API is up to feature parity with the Java API.
- * Implements the [[ScalaAPICompletenessTestBase]] for CEP.
- */
-class PatternScalaAPICompletenessTest extends ScalaAPICompletenessTestBase {
+  * This checks whether the CEP Scala API is up to feature parity with the Java API.
+  * Implements the [[ScalaAPICompletenessTestBase]] for CEP.
+  */
+class QuantifiedPatternScalaAPICompletenessTest extends ScalaAPICompletenessTestBase {
+
+  val excludedMethods = Seq(
+    classOf[JQuantifiedPattern[_, _]].getMethod("getPrevious"),
+    classOf[JQuantifiedPattern[_, _]].getMethod("getFilterFunction"),
+    classOf[JQuantifiedPattern[_, _]].getMethod("isFollowedBy"),
+    classOf[JQuantifiedPattern[_, _]].getMethod("getName"),
+    classOf[JQuantifiedPattern[_, _]].getMethod("getWindowTime"),
+    classOf[JQuantifiedPattern[_, _]].getMethod("getQuantifier"),
+    classOf[JQuantifiedPattern[_, _]].getMethod("getTimes")
+  )
 
   override def isExcludedByName(method: Method): Boolean = {
-    val name = method.getDeclaringClass.getName + "." + method.getName
-    val excludedNames = Seq()
-    excludedNames.contains(name)
+    excludedMethods.contains(method)
   }
 
   @Test
   override def testCompleteness(): Unit = {
-    checkMethods("Pattern", "Pattern", classOf[JPattern[_, _]], classOf[Pattern[_, _]])
+    checkMethods("QuantifiedPattern", "QuantifiedPattern",
+      classOf[JQuantifiedPattern[_, _]],
+      classOf[QuantifiedPattern[_, _]])
   }
 
 }

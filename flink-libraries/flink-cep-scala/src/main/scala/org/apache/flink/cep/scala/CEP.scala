@@ -17,7 +17,7 @@
  */
 package org.apache.flink.cep.scala
 
-import org.apache.flink.cep.scala.pattern.Pattern
+import org.apache.flink.cep.scala.pattern.IPattern
 import org.apache.flink.cep.{CEP => JCEP}
 import org.apache.flink.streaming.api.scala.DataStream
 
@@ -37,7 +37,7 @@ object CEP {
     * @return Resulting pattern stream
     */
   def pattern[T](input: DataStream[T],
-                                  pattern: Pattern[T, _]): PatternStream[T] = {
+                                  pattern: IPattern[T, _]): PatternStream[T] = {
     wrapPatternStream(JCEP.pattern(input.javaStream, pattern.wrappedPattern))
   }
 }

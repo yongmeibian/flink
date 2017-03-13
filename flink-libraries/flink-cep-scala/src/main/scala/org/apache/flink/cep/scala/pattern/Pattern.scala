@@ -22,8 +22,8 @@ import org.apache.flink.cep
 import org.apache.flink.cep.pattern.{Quantifier, Pattern => JPattern, QuantifiedPattern => JQuantifiedPattern, IPattern => JIPattern}
 import org.apache.flink.streaming.api.windowing.time.Time
 
-sealed trait IPattern {
-  def wrappedPattern : I
+sealed trait IPattern[T, F<:T] {
+  private[flink] def wrappedPattern : JIPattern[T, F]
 }
 /**
   * Base class for a pattern definition.
@@ -42,7 +42,7 @@ sealed trait IPattern {
   * @tparam T Base type of the elements appearing in the pattern
   * @tparam F Subtype of T to which the current pattern operator is constrained
   */
-class Pattern[T , F <: T](jPattern: JPattern[T, F]) {
+class Pattern[T , F <: T](jPattern: JPattern[T, F]) extends IPattern[T, F] {
 
   private[flink] def wrappedPattern = jPattern
 
@@ -72,6 +72,10 @@ class Pattern[T , F <: T](jPattern: JPattern[T, F]) {
     */
   def getFilterFunction(): Option[FilterFunction[F]] = {
     Option(jPattern.getFilterFunction())
+  }
+
+  def isFollowedBy(): Boolean = {
+    jPattern.isFollowedBy
   }
 
   /**
@@ -120,8 +124,8 @@ class Pattern[T , F <: T](jPattern: JPattern[T, F]) {
     * @param name Name of the new pattern operator
     * @return A new pattern operator which is appended to this pattern operator
     */
-  def followedBy(name: String): FollowedByPattern[T, T] = {
-    FollowedByPattern(jPattern.followedBy(name))
+  def followedBy(name: String): Pattern[T, T] = {
+    new Pattern(jPattern.followedBy(name))
   }
 
   /**
@@ -175,9 +179,8 @@ class Pattern[T , F <: T](jPattern: JPattern[T, F]) {
     *
     * @return The same pattern with applied Kleene star operator
     */
-  def zeroOrMore: Pattern[T, F] = {
-    jPattern.zeroOrMore()
-    this
+  def zeroOrMore: QuantifiedPattern[T, F] = {
+    new QuantifiedPattern(jPattern.zeroOrMore())
   }
 
   /**
@@ -190,9 +193,8 @@ class Pattern[T , F <: T](jPattern: JPattern[T, F]) {
     * @param eager if true the pattern always consumes earlier events
     * @return The same pattern with applied Kleene star operator
     */
-  def zeroOrMore(eager: Boolean): Pattern[T, F] = {
-    jPattern.zeroOrMore(eager)
-    this
+  def zeroOrMore(eager: Boolean): QuantifiedPattern[T, F] = {
+    new QuantifiedPattern(jPattern.zeroOrMore(eager))
   }
 
   /**
@@ -201,9 +203,8 @@ class Pattern[T , F <: T](jPattern: JPattern[T, F]) {
     *
     * @return The same pattern with applied Kleene plus operator
     */
-  def oneOrMore: Pattern[T, F] = {
-    jPattern.oneOrMore()
-    this
+  def oneOrMore: QuantifiedPattern[T, F] = {
+    new QuantifiedPattern(jPattern.oneOrMore())
   }
 
   /**
@@ -216,9 +217,8 @@ class Pattern[T , F <: T](jPattern: JPattern[T, F]) {
     * @param eager if true the pattern always consumes earlier events
     * @return The same pattern with applied Kleene plus operator
     */
-  def oneOrMore(eager: Boolean): Pattern[T, F] = {
-    jPattern.oneOrMore(eager)
-    this
+  def oneOrMore(eager: Boolean): QuantifiedPattern[T, F] = {
+    new QuantifiedPattern(jPattern.oneOrMore(eager))
   }
 
   /**
@@ -226,9 +226,8 @@ class Pattern[T , F <: T](jPattern: JPattern[T, F]) {
     *
     * @return The same pattern with applied Kleene ? operator
     */
-  def optional: Pattern[T, F] = {
-    jPattern.optional()
-    this
+  def optional: QuantifiedPattern[T, F] = {
+    new QuantifiedPattern(jPattern.optional())
   }
 
   /**
@@ -237,14 +236,13 @@ class Pattern[T , F <: T](jPattern: JPattern[T, F]) {
     * @param times number of times matching event must appear
     * @return The same pattern with number of times applied
     */
-  def times(times: Int): Pattern[T, F] = {
-    jPattern.times(times)
-    this
+  def times(times: Int): QuantifiedPattern[T, F] = {
+    new QuantifiedPattern(jPattern.times(times))
   }
 
 }
 
-class QuantifiedPattern[T , F <: T](jPattern: JQuantifiedPattern[T, F])  {
+class QuantifiedPattern[T , F <: T](jPattern: JQuantifiedPattern[T, F]) extends IPattern[T, F] {
 
   private[flink] def wrappedPattern = jPattern
 
@@ -268,7 +266,7 @@ class QuantifiedPattern[T , F <: T](jPattern: JQuantifiedPattern[T, F])  {
     * @param windowTime Time of the matching window
     * @return The same pattern operator with the new window length
     */
-  def within(windowTime: Time): Pattern[T, F] = {
+  def within(windowTime: Time): QuantifiedPattern[T, F] = {
     jPattern.within(windowTime)
     this
   }
@@ -294,8 +292,8 @@ class QuantifiedPattern[T , F <: T](jPattern: JQuantifiedPattern[T, F])  {
     * @param name Name of the new pattern operator
     * @return A new pattern operator which is appended to this pattern operator
     */
-  def followedBy(name: String): FollowedByPattern[T, T] = {
-    FollowedByPattern(jPattern.followedBy(name))
+  def followedBy(name: String): Pattern[T, T] = {
+    new Pattern(jPattern.followedBy(name))
   }
 
   /**
@@ -304,7 +302,7 @@ class QuantifiedPattern[T , F <: T](jPattern: JQuantifiedPattern[T, F])  {
     * @param filter Filter condition
     * @return The same pattern operator where the new filter condition is set
     */
-  def where(filter: FilterFunction[F]): Pattern[T, F] = {
+  def where(filter: FilterFunction[F]): QuantifiedPattern[T, F] = {
     jPattern.where(filter)
     this
   }
@@ -315,7 +313,7 @@ class QuantifiedPattern[T , F <: T](jPattern: JQuantifiedPattern[T, F])  {
     * @param filter Or filter function
     * @return The same pattern operator where the new filter condition is set
     */
-  def or(filter: FilterFunction[F]): Pattern[T, F] = {
+  def or(filter: FilterFunction[F]): QuantifiedPattern[T, F] = {
     jPattern.or(filter)
     this
   }
@@ -326,7 +324,7 @@ class QuantifiedPattern[T , F <: T](jPattern: JQuantifiedPattern[T, F])  {
     * @param filterFun Filter condition
     * @return The same pattern operator where the new filter condition is set
     */
-  def where(filterFun: F => Boolean): Pattern[T, F] = {
+  def where(filterFun: F => Boolean): QuantifiedPattern[T, F] = {
     val filter = new FilterFunction[F] {
       val cleanFilter = cep.scala.cleanClosure(filterFun)
 

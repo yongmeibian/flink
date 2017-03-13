@@ -68,8 +68,6 @@ class PatternTest {
     assertTrue(previous.getPrevious.isDefined)
     assertFalse(preprevious.getPrevious.isDefined)
 
-    assertTrue(pattern.isInstanceOf[FollowedByPattern[_, _]])
-    assertTrue(previous.isInstanceOf[FollowedByPattern[_, _]])
 
     assertEquals(pattern.getName, "end")
     assertEquals(previous.getName, "next")
@@ -177,7 +175,6 @@ class PatternTest {
     assertTrue(previous.getPrevious.isDefined)
     assertFalse(preprevious.getPrevious.isDefined)
 
-    assertTrue(pattern.isInstanceOf[FollowedByPattern[_, _]])
     assertTrue(previous.getFilterFunction.isDefined)
 
     assertEquals(pattern.getName, "end")
@@ -200,10 +197,9 @@ class PatternTest {
       pattern.wrappedPattern.getWindowTime,
       jPattern.getWindowTime())
       //check congruent class names / types
-      && threeWayEquals(
-      pattern.getClass.getSimpleName,
-      pattern.wrappedPattern.getClass.getSimpleName,
-      jPattern.getClass().getSimpleName())
+      &&
+      pattern.wrappedPattern.getClass.getSimpleName ==
+      jPattern.getClass().getSimpleName()
       //best effort to confirm congruent filter functions
       && compareFilterFunctions(
       pattern.getFilterFunction.orNull,
