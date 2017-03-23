@@ -25,5 +25,5 @@ public enum StateTransitionAction {
 	TAKE, // take the current event and assign it to the current state
 	IGNORE, // ignore the current event
 	PROCEED, // do the state transition and keep the current event for further processing (epsilon transition)
-	NOT_FOLLOW
+	NOT_FOLLOW // marker when to start checking for violations due to NotPattern
 }
