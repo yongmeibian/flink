@@ -92,6 +92,10 @@ public class State<T> implements Serializable {
 		addStateTransition(StateTransitionAction.TAKE, this, condition);
 	}
 
+	public void addNotFollow(final FilterFunction<T> condition) {
+		stateTransitions.add(new StateTransition<T>(this, StateTransitionAction.NOT_FOLLOW, this, condition));
+	}
+
 	@Override
 	public boolean equals(Object obj) {
 		if (obj instanceof State) {

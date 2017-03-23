@@ -31,6 +31,7 @@ import org.apache.flink.cep.pattern.FilterFunctions;
 import org.apache.flink.cep.pattern.FollowedByPattern;
 import org.apache.flink.cep.pattern.MalformedPatternException;
 import org.apache.flink.cep.pattern.NotFilterFunction;
+import org.apache.flink.cep.pattern.NotFollowedByPattern;
 import org.apache.flink.cep.pattern.Pattern;
 import org.apache.flink.cep.pattern.Quantifier;
 import org.apache.flink.cep.pattern.Quantifier.QuantifierProperty;
@@ -111,6 +112,7 @@ public class NFACompiler {
 
 		private long windowTime = 0;
 		private Pattern<T, ?> currentPattern;
+		private NotFollowedByPattern<T, ?> succeedingNotPattern = null;
 
 		NFAFactoryCompiler(final Pattern<T, ?> pattern) {
 			this.currentPattern = pattern;
@@ -155,32 +157,40 @@ public class NFACompiler {
 		 * @param sinkState the state that last state should point to (always the Final state)
 		 * @return the next state after Start in the resulting graph
 		 */
+		@SuppressWarnings("unchecked")
 		private State<T> createMiddleStates(final State<T> sinkState) {
 
 			State<T> lastSink = sinkState;
 			while (currentPattern.getPrevious() != null) {
+
 				checkPatternNameUniqueness();
 
-				State<T> sourceState = new State<>(currentPattern.getName(), State.StateType.Normal);
-				states.add(sourceState);
-				usedNames.add(sourceState.getName());
-
-				if (currentPattern.getQuantifier().hasProperty(QuantifierProperty.LOOPING)) {
-					convertToLooping(sourceState, lastSink);
-
-					if (currentPattern.getQuantifier().hasProperty(QuantifierProperty.AT_LEAST_ONE)) {
-						sourceState = createFirstMandatoryStateOfLoop(sourceState, State.StateType.Normal);
-						states.add(sourceState);
-						usedNames.add(sourceState.getName());
-					}
-				} else if (currentPattern.getQuantifier() == Quantifier.TIMES) {
-					sourceState = convertToTimesState(sourceState, lastSink, currentPattern.getTimes());
+				if (currentPattern instanceof NotFollowedByPattern) {
+					lastSink.addNotFollow((FilterFunction<T>) currentPattern.getFilterFunction());
 				} else {
-					convertToSingletonState(sourceState, lastSink);
-				}
+					State<T> sourceState = new State<>(currentPattern.getName(), State.StateType.Normal);
+					states.add(sourceState);
+					usedNames.add(sourceState.getName());
 
+					if (currentPattern.getQuantifier().hasProperty(QuantifierProperty.LOOPING)) {
+						convertToLooping(sourceState, lastSink);
+
+						if (currentPattern.getQuantifier().hasProperty(QuantifierProperty.AT_LEAST_ONE)) {
+							sourceState = createFirstMandatoryStateOfLoop(sourceState, State.StateType.Normal);
+							states.add(sourceState);
+							usedNames.add(sourceState.getName());
+						}
+					} else if (currentPattern.getQuantifier() == Quantifier.TIMES) {
+						sourceState = convertToTimesState(sourceState, lastSink, currentPattern.getTimes());
+					} else {
+						convertToSingletonState(sourceState, lastSink);
+					}
+
+
+					lastSink = sourceState;
+				}
 				currentPattern = currentPattern.getPrevious();
-				lastSink = sourceState;
+
 
 				final Time currentWindowTime = currentPattern.getWindowTime();
 				if (currentWindowTime != null && currentWindowTime.toMilliseconds() < windowTime) {
@@ -279,6 +289,10 @@ public class NFACompiler {
 				sourceState.addProceed(sinkState, trueFunction);
 			}
 
+			if (succeedingNotPattern != null) {
+				sourceState.addNotFollow((FilterFunction<T>) succeedingNotPattern.getFilterFunction());
+			}
+
 			if (currentPattern instanceof FollowedByPattern) {
 				final State<T> ignoreState;
 				if (currentPattern.getQuantifier() == Quantifier.OPTIONAL) {
@@ -290,6 +304,8 @@ public class NFACompiler {
 				}
 				sourceState.addIgnore(ignoreState, trueFunction);
 			}
+
+
 		}
 
 		/**

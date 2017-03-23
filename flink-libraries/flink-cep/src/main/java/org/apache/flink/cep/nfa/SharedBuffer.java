@@ -199,12 +199,12 @@ public class SharedBuffer<K extends Serializable, V> implements Serializable {
 	 * @param version Version of the previous relation which shall be extracted
 	 * @return Collection of previous relations starting with the given value
 	 */
-	public Collection<LinkedHashMultimap<K, V>> extractPatterns(
+	public Collection<LinkedHashMultimap<K, ValueTimeWrapper<V>>> extractPatterns(
 		final K key,
 		final V value,
 		final long timestamp,
 		final DeweyNumber version) {
-		Collection<LinkedHashMultimap<K, V>> result = new ArrayList<>();
+		Collection<LinkedHashMultimap<K, ValueTimeWrapper<V>>> result = new ArrayList<>();
 
 		// stack to remember the current extraction states
 		Stack<ExtractionState<K, V>> extractionStates = new Stack<>();
@@ -224,12 +224,12 @@ public class SharedBuffer<K extends Serializable, V> implements Serializable {
 
 				// termination criterion
 				if (currentEntry == null) {
-					final LinkedHashMultimap<K, V> completePath = LinkedHashMultimap.create();
+					final LinkedHashMultimap<K, ValueTimeWrapper<V>> completePath = LinkedHashMultimap.create();
 
 					while(!currentPath.isEmpty()) {
 						final SharedBufferEntry<K, V> currentPathEntry = currentPath.pop();
 
-						completePath.put(currentPathEntry.getKey(), currentPathEntry.getValueTime().getValue());
+						completePath.put(currentPathEntry.getKey(), currentPathEntry.getValueTime());
 					}
 
 					result.add(completePath);

@@ -1664,6 +1664,63 @@ public class NFAITCase extends TestLogger {
 		), resultingPatterns);
 	}
 
+	@Test
+	public void testNotFollowedBy() {
+		List<StreamRecord<Event>> inputEvents = new ArrayList<>();
+
+		Event startEvent = new Event(40, "c", 1.0);
+		Event middleEvent1 = new Event(41, "a", 2.0);
+		Event notEvent = new Event(42, "b", 3.0);
+		Event middleEvent3 = new Event(43, "a", 4.0);
+
+		inputEvents.add(new StreamRecord<>(startEvent, 1));
+		inputEvents.add(new StreamRecord<>(middleEvent1, 3));
+		inputEvents.add(new StreamRecord<>(notEvent, 4));
+		inputEvents.add(new StreamRecord<>(middleEvent3, 5));
+
+		Pattern<Event, ?> pattern = Pattern.<Event>begin("start").where(new FilterFunction<Event>() {
+			private static final long serialVersionUID = 5726188262756267490L;
+
+			@Override
+			public boolean filter(Event value) throws Exception {
+				return value.getName().equals("c");
+			}
+		}).notFollowedBy("notPattern").where(new FilterFunction<Event>() {
+			@Override
+			public boolean filter(Event value) throws Exception {
+				return value.getName().equals("b");
+			}
+		}).followedBy("middle").where(new FilterFunction<Event>() {
+			private static final long serialVersionUID = 5726188262756267490L;
+
+			@Override
+			public boolean filter(Event value) throws Exception {
+				return value.getName().equals("a");
+			}
+		});
+
+		NFA<Event> nfa = NFACompiler.compile(pattern, Event.createTypeSerializer(), false);
+
+		Set<Set<Event>> resultingPatterns = new HashSet<>();
+		List<Collection<Event>> allPatterns = new ArrayList<>();
+
+		for (StreamRecord<Event> inputEvent : inputEvents) {
+			Collection<Map<String, Event>> patterns = nfa.process(
+				inputEvent.getValue(),
+				inputEvent.getTimestamp()).f0;
+
+			for (Map<String, Event> foundPattern : patterns) {
+				resultingPatterns.add(new HashSet<>(foundPattern.values()));
+				allPatterns.add(foundPattern.values());
+			}
+		}
+
+		assertEquals(1, allPatterns.size());
+		assertEquals(Sets.<Set<Event>>newHashSet(
+			Sets.newHashSet(startEvent,  middleEvent1)
+		), resultingPatterns);
+	}
+
 	/**
 	 * Clearing SharedBuffer
 	 */

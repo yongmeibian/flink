@@ -132,6 +132,9 @@ public class NFA<T> implements Serializable {
 	 */
 	private final SharedBuffer<String, T> stringSharedBuffer;
 
+	private final NotBuffer<String, T> notBuffer;
+
+
 	public NFA(
 			final TypeSerializer<T> eventSerializer,
 			final long windowTime,
@@ -142,6 +145,7 @@ public class NFA<T> implements Serializable {
 		this.handleTimeout = handleTimeout;
 		stringSharedBuffer = new SharedBuffer<>(nonDuplicatingTypeSerializer);
 		computationStates = new LinkedList<>();
+		notBuffer = new NotBuffer<>();
 
 		states = new HashSet<>();
 	}
@@ -470,6 +474,7 @@ public class NFA<T> implements Serializable {
 		}
 
 		if (computationState.getEvent() != null) {
+			notBuffer.putValueIfViolates(computationState.getPreviousState().getName(), event, timestamp);
 			// release the shared entry referenced by the current computation state.
 			stringSharedBuffer.release(
 				computationState.getPreviousState().getName(),
@@ -481,6 +486,7 @@ public class NFA<T> implements Serializable {
 				computationState.getEvent(),
 				computationState.getTimestamp());
 		}
+		notBuffer.removeActiveState(computationState.getState().getName());
 
 		return resultingComputationStates;
 	}
@@ -531,7 +537,11 @@ public class NFA<T> implements Serializable {
 			// check all state transitions for each state
 			for (StateTransition<T> stateTransition : stateTransitions) {
 				try {
-					if (checkFilterCondition(stateTransition.getCondition(), event)) {
+					if (stateTransition.getAction() == StateTransitionAction.NOT_FOLLOW) {
+						notBuffer.putActiveState(
+							computationState.getPreviousState().getName(),
+							stateTransition.getCondition());
+					} else if (checkFilterCondition(stateTransition.getCondition(), event)) {
 						// filter condition is true
 						switch (stateTransition.getAction()) {
 							case PROCEED:
@@ -539,6 +549,8 @@ public class NFA<T> implements Serializable {
 								// PROCEED is equivalent to an epsilon transition
 								states.push(stateTransition.getTargetState());
 								break;
+							case NOT_FOLLOW:
+								throw new IllegalStateException("NOT FOLLOW should already be handled.");
 							case IGNORE:
 							case TAKE:
 								outgoingEdges.add(stateTransition);
@@ -567,7 +579,7 @@ public class NFA<T> implements Serializable {
 	 * @return Collection of event sequences which end in the given computation state
 	 */
 	private Collection<Map<String, T>> extractPatternMatches(final ComputationState<T> computationState) {
-		Collection<LinkedHashMultimap<String, T>> paths = stringSharedBuffer.extractPatterns(
+		Collection<LinkedHashMultimap<String, SharedBuffer.ValueTimeWrapper<T>>> paths = stringSharedBuffer.extractPatterns(
 			computationState.getPreviousState().getName(),
 			computationState.getEvent(),
 			computationState.getTimestamp(),
@@ -578,24 +590,42 @@ public class NFA<T> implements Serializable {
 		TypeSerializer<T> serializer = nonDuplicatingTypeSerializer.getTypeSerializer();
 
 		// generate the correct names from the collection of LinkedHashMultimaps
-		for (LinkedHashMultimap<String, T> path: paths) {
+		for (LinkedHashMultimap<String, SharedBuffer.ValueTimeWrapper<T>> path: paths) {
 			Map<String, T> resultPath = new HashMap<>();
+			List<SharedBuffer.ValueTimeWrapper<T>> potentialViolations = null;
+			boolean discard = false;
 			for (String key: path.keySet()) {
 				int counter = 0;
-				Set<T> events = path.get(key);
+				Set<SharedBuffer.ValueTimeWrapper<T>> events = path.get(key);
 
 				// we iterate over the elements in insertion order
-				for (T event: events) {
+				for (final SharedBuffer.ValueTimeWrapper<T> event: events) {
+					if (potentialViolations!= null && Iterators.tryFind(
+						potentialViolations.iterator(),
+						new Predicate<SharedBuffer.ValueTimeWrapper<T>>() {
+							@Override
+							public boolean apply(@Nullable SharedBuffer.ValueTimeWrapper<T> tValueTimeWrapper) {
+								return tValueTimeWrapper != null &&
+								       tValueTimeWrapper.getTimestamp() < event.getTimestamp();
+							}
+						}).isPresent()) {
+						discard = true;
+					}
 					resultPath.put(
 						events.size() > 1 ? generateStateName(key, counter): key,
 						// copy the element so that the user can change it
-						serializer.isImmutableType() ? event : serializer.copy(event)
+						serializer.isImmutableType() ? event.getValue() : serializer.copy(event.getValue())
 					);
 					counter++;
 				}
+
+				//TODO lower bound timestamp limit
+				potentialViolations = notBuffer.getPotentialViolations(key);
 			}
 
-			result.add(resultPath);
+			if (!discard) {
+				result.add(resultPath);
+			}
 		}
 
 		return result;

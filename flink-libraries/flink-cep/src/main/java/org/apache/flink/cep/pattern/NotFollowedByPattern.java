@@ -15,15 +15,11 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+package org.apache.flink.cep.pattern;
 
-package org.apache.flink.cep.nfa;
 
-/**
- * Set of actions when doing a state transition from a {@link State} to another.
- */
-public enum StateTransitionAction {
-	TAKE, // take the current event and assign it to the current state
-	IGNORE, // ignore the current event
-	PROCEED, // do the state transition and keep the current event for further processing (epsilon transition)
-	NOT_FOLLOW
+public class NotFollowedByPattern<T, F extends T> extends Pattern<T, F> {
+	NotFollowedByPattern(final String name, Pattern<T, ?> previous) {
+		super(name, previous);
+	}
 }

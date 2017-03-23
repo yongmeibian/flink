@@ -184,6 +184,9 @@ public class Pattern<T, F extends T> {
 		return new FollowedByPattern<T, T>(name, this);
 	}
 
+	public NotFollowedByPattern<T, T> notFollowedBy(final String name) {
+		return new NotFollowedByPattern<T, T>(name, this);
+	}
 	/**
 	 * Starts a new pattern with the initial pattern operator whose name is provided. Furthermore,
 	 * the base type of the event sequence is set.
