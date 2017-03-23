@@ -112,7 +112,6 @@ public class NFACompiler {
 
 		private long windowTime = 0;
 		private Pattern<T, ?> currentPattern;
-		private NotFollowedByPattern<T, ?> succeedingNotPattern = null;
 
 		NFAFactoryCompiler(final Pattern<T, ?> pattern) {
 			this.currentPattern = pattern;
@@ -287,10 +286,6 @@ public class NFACompiler {
 
 			if (currentPattern.getQuantifier() == Quantifier.OPTIONAL) {
 				sourceState.addProceed(sinkState, trueFunction);
-			}
-
-			if (succeedingNotPattern != null) {
-				sourceState.addNotFollow((FilterFunction<T>) succeedingNotPattern.getFilterFunction());
 			}
 
 			if (currentPattern instanceof FollowedByPattern) {
