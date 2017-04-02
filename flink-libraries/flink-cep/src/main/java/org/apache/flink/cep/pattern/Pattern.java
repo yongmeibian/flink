@@ -171,7 +171,11 @@ public class Pattern<T, F extends T> {
 	 * @return A new pattern operator which is appended to this pattern operator
 	 */
 	public Pattern<T, T> next(final String name) {
-		return new Pattern<T, T>(name, this);
+		return new Pattern<>(name, this);
+	}
+
+	public Pattern<T, T> notNext(final String name) {
+		return new NotNextPattern<>(name, this);
 	}
 
 	/**
@@ -183,7 +187,19 @@ public class Pattern<T, F extends T> {
 	 * @return A new pattern operator which is appended to this pattern operator
 	 */
 	public FollowedByPattern<T, T> followedBy(final String name) {
-		return new FollowedByPattern<T, T>(name, this);
+		return new FollowedByPattern<>(name, this);
+	}
+
+	/**
+	 * Appends a new pattern operator to the existing one. The new pattern operator enforces
+	 * non-strict temporal contiguity. This means that a matching event of this operator and the
+	 * preceding matching event might be interleaved with other events which are ignored.
+	 *
+	 * @param name Name of the new pattern operator
+	 * @return A new pattern operator which is appended to this pattern operator
+	 */
+	public NotFollowedByPattern<T, T> notFollowedBy(final String name) {
+		return new NotFollowedByPattern<>(name, this);
 	}
 
 	/**

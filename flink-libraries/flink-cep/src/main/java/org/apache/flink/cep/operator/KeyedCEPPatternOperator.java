@@ -21,6 +21,7 @@ package org.apache.flink.cep.operator;
 import org.apache.flink.api.common.typeutils.TypeSerializer;
 import org.apache.flink.api.java.functions.KeySelector;
 import org.apache.flink.api.java.tuple.Tuple2;
+import org.apache.flink.api.java.tuple.Tuple3;
 import org.apache.flink.cep.nfa.NFA;
 import org.apache.flink.cep.nfa.compiler.NFACompiler;
 import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
@@ -53,14 +54,14 @@ public class KeyedCEPPatternOperator<IN, KEY> extends AbstractKeyedCEPPatternOpe
 
 	@Override
 	protected void processEvent(NFA<IN> nfa, IN event, long timestamp) {
-		Tuple2<Collection<Map<String, IN>>, Collection<Tuple2<Map<String, IN>, Long>>> patterns =
+		Tuple3<Collection<Map<String, IN>>, Collection<Tuple2<Map<String, IN>, Long>>, Collection<Map<String, IN>>> patterns =
 			nfa.process(event, timestamp);
 		emitMatchedSequences(patterns.f0, timestamp);
 	}
 
 	@Override
 	protected void advanceTime(NFA<IN> nfa, long timestamp) {
-		Tuple2<Collection<Map<String, IN>>, Collection<Tuple2<Map<String, IN>, Long>>> patterns =
+		Tuple3<Collection<Map<String, IN>>, Collection<Tuple2<Map<String, IN>, Long>>, Collection<Map<String, IN>>> patterns =
 			nfa.process(null, timestamp);
 		emitMatchedSequences(patterns.f0, timestamp);
 	}
