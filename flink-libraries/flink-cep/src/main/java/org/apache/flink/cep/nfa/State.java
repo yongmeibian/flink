@@ -130,13 +130,18 @@ public class State<T> implements Serializable {
 		return Objects.hash(name, stateType, stateTransitions);
 	}
 
+	public boolean isStop() {
+		return stateType == StateType.Stop;
+	}
+
 	/**
 	 * Set of valid state types.
 	 */
 	public enum StateType {
 		Start, // the state is a starting state for the NFA
 		Final, // the state is a final state for the NFA
-		Normal // the state is neither a start nor a final state
+		Normal, // the state is neither a start nor a final state
+		Stop
 	}
 
 	private void readObject(ObjectInputStream ois) throws IOException, ClassNotFoundException {

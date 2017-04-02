@@ -19,10 +19,12 @@
 package org.apache.flink.cep.nfa;
 
 import com.google.common.base.Predicate;
+import com.google.common.collect.Iterables;
 import com.google.common.collect.Iterators;
 import com.google.common.collect.LinkedHashMultimap;
 import org.apache.flink.api.common.typeutils.TypeSerializer;
 import org.apache.flink.api.java.tuple.Tuple2;
+import org.apache.flink.api.java.tuple.Tuple3;
 import org.apache.flink.api.java.typeutils.runtime.DataInputViewStream;
 import org.apache.flink.api.java.typeutils.runtime.DataOutputViewStream;
 import org.apache.flink.cep.NonDuplicatingTypeSerializer;
@@ -186,15 +188,15 @@ public class NFA<T> implements Serializable {
 	 * reached a final state) and the collection of timed out patterns (if timeout handling is
 	 * activated)
 	 */
-	public Tuple2<Collection<Map<String, T>>, Collection<Tuple2<Map<String, T>, Long>>> process(final T event, final long timestamp) {
-		final int numberComputationStates = computationStates.size();
+	public Tuple3<Collection<Map<String, T>>, Collection<Tuple2<Map<String, T>, Long>>, Collection<Map<String, T>>> process(final T event, final long timestamp) {
 		final Collection<Map<String, T>> result = new ArrayList<>();
 		final Collection<Tuple2<Map<String, T>, Long>> timeoutResult = new ArrayList<>();
+		final Collection<Map<String, T>> discardedResult = new ArrayList<>();
 
 		// iterate over all current computations
-		for (int i = 0; i < numberComputationStates; i++) {
-			ComputationState<T> computationState = computationStates.poll();
-
+		final Collection<ComputationState<T>> statesToRetain = new ArrayList<>();
+		ComputationState<T> computationState = computationStates.poll();
+		while(computationState != null) {
 			final Collection<ComputationState<T>> newComputationStates;
 
 			if (!computationState.isStartState() &&
@@ -222,7 +224,8 @@ public class NFA<T> implements Serializable {
 				newComputationStates = Collections.singleton(computationState);
 			}
 
-			for (ComputationState<T> newComputationState: newComputationStates) {
+
+			for (final ComputationState<T> newComputationState: newComputationStates) {
 				if (newComputationState.isFinalState()) {
 					// we've reached a final state and can thus retrieve the matching event sequence
 					Collection<Map<String, T>> matches = extractPatternMatches(newComputationState);
@@ -233,12 +236,39 @@ public class NFA<T> implements Serializable {
 							newComputationState.getPreviousState().getName(),
 							newComputationState.getEvent(),
 							newComputationState.getTimestamp());
+				} else if (newComputationState.isStopState()) {
+					//
+					Collection<Map<String, T>> matches = extractPatternMatches(newComputationState);
+					discardedResult.addAll(matches);
+					final List<ComputationState<T>> otherRuns = new ArrayList<>();
+					ComputationState<T> state;
+					while ((state = this.computationStates.poll()) != null) {
+						if (state.getVersion().getRun() == newComputationState.getVersion().getRun()) {
+							stringSharedBuffer.release(
+								state.getPreviousState().getName(),
+								state.getEvent(),
+								state.getTimestamp());
+						} else {
+							otherRuns.add(state);
+						}
+					}
+					computationStates.addAll(otherRuns);
+					Iterables.removeIf(statesToRetain, new Predicate<ComputationState<T>>() {
+						@Override
+						public boolean apply(@Nullable ComputationState<T> input) {
+							return input.getVersion().getRun() == newComputationState.getVersion().getRun();
+						}
+					});
 				} else {
 					// add new computation state; it will be processed once the next event arrives
-					computationStates.add(newComputationState);
+					statesToRetain.add(newComputationState);
 				}
 			}
+
+			computationState = computationStates.poll();
 		}
+
+		computationStates.addAll(statesToRetain);
 
 		// prune shared buffer based on window length
 		if(windowTime > 0L) {
@@ -253,7 +283,7 @@ public class NFA<T> implements Serializable {
 			}
 		}
 
-		return Tuple2.of(result, timeoutResult);
+		return Tuple3.of(result, timeoutResult, discardedResult);
 	}
 
 	@Override

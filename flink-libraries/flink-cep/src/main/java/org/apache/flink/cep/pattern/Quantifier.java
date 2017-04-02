@@ -21,27 +21,35 @@ import java.util.EnumSet;
 
 public enum Quantifier {
 	ONE,
-	ZERO_OR_MORE_EAGER(QuantifierProperty.LOOPING, QuantifierProperty.EAGER),
-	ZERO_OR_MORE_COMBINATIONS(QuantifierProperty.LOOPING),
-	ZERO_OR_MORE_EAGER_STRICT(QuantifierProperty.EAGER, QuantifierProperty.STRICT, QuantifierProperty.LOOPING),
-	ZERO_OR_MORE_COMBINATIONS_STRICT(QuantifierProperty.STRICT, QuantifierProperty.LOOPING),
+	ZERO_OR_MORE_EAGER(QuantifierProperty.LOOPING, QuantifierProperty.EAGER, QuantifierProperty.OPTIONAL),
+	ZERO_OR_MORE_COMBINATIONS(QuantifierProperty.LOOPING, QuantifierProperty.OPTIONAL),
+	ZERO_OR_MORE_EAGER_STRICT(
+		QuantifierProperty.EAGER,
+		QuantifierProperty.STRICT,
+		QuantifierProperty.LOOPING,
+		QuantifierProperty.OPTIONAL),
+	ZERO_OR_MORE_COMBINATIONS_STRICT(
+		QuantifierProperty.STRICT,
+		QuantifierProperty.LOOPING,
+		QuantifierProperty.OPTIONAL),
 	ONE_OR_MORE_EAGER(
 		QuantifierProperty.LOOPING,
 		QuantifierProperty.EAGER,
-		QuantifierProperty.AT_LEAST_ONE),
+		QuantifierProperty.AT_LEAST_ONE, QuantifierProperty.OPTIONAL),
 	ONE_OR_MORE_EAGER_STRICT(
 		QuantifierProperty.STRICT,
 		QuantifierProperty.LOOPING,
 		QuantifierProperty.EAGER,
-		QuantifierProperty.AT_LEAST_ONE),
-	ONE_OR_MORE_COMBINATIONS(QuantifierProperty.LOOPING, QuantifierProperty.AT_LEAST_ONE),
+		QuantifierProperty.AT_LEAST_ONE, QuantifierProperty.OPTIONAL),
+	ONE_OR_MORE_COMBINATIONS(QuantifierProperty.LOOPING, QuantifierProperty.AT_LEAST_ONE, QuantifierProperty.OPTIONAL),
 	ONE_OR_MORE_COMBINATIONS_STRICT(
 		QuantifierProperty.STRICT,
 		QuantifierProperty.LOOPING,
-		QuantifierProperty.AT_LEAST_ONE),
+		QuantifierProperty.AT_LEAST_ONE,
+		QuantifierProperty.OPTIONAL),
 	TIMES(QuantifierProperty.TIMES),
 	TIMES_STRICT(QuantifierProperty.TIMES, QuantifierProperty.STRICT),
-	OPTIONAL;
+	OPTIONAL(QuantifierProperty.OPTIONAL);
 
 	private final EnumSet<QuantifierProperty> properties;
 
@@ -62,7 +70,9 @@ public enum Quantifier {
 		EAGER,
 		AT_LEAST_ONE,
 		STRICT,
-		TIMES
+		TIMES,
+		OPTIONAL,
+		NEGATIVE
 	}
 
 }

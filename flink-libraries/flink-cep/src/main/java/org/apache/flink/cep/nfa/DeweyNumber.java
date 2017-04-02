@@ -87,6 +87,10 @@ public class DeweyNumber implements Serializable {
 		return deweyNumber.length;
 	}
 
+	public int getRun() {
+		return deweyNumber[0];
+	}
+
 	/**
 	 * Creates a new dewey number from this such that its last digit is increased by
 	 * one.
