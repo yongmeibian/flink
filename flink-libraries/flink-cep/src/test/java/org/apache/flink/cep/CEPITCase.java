@@ -18,6 +18,7 @@
 
 package org.apache.flink.cep;
 
+import com.google.common.base.Strings;
 import org.apache.flink.api.common.functions.MapFunction;
 import org.apache.flink.api.java.functions.KeySelector;
 import org.apache.flink.api.java.tuple.Tuple2;
@@ -51,6 +52,9 @@ public class CEPITCase extends StreamingMultipleProgramsTestBase {
 	private String lateEventPath;
 	private String expectedLateEvents;
 
+	private String discardedPatternsPath;
+	private String expectedDiscardedPatterns;
+
 	@Rule
 	public TemporaryFolder tempFolder = new TemporaryFolder();
 
@@ -61,12 +65,16 @@ public class CEPITCase extends StreamingMultipleProgramsTestBase {
 
 		lateEventPath = tempFolder.newFile().toURI().toString();
 		expectedLateEvents = "";
+
+		discardedPatternsPath = tempFolder.newFile().toURI().toString();
+		expectedDiscardedPatterns = "";
 	}
 
 	@After
 	public void after() throws Exception {
 		compareResultsByLinesInMemory(expected, resultPath);
 		compareResultsByLinesInMemory(expectedLateEvents, lateEventPath);
+		compareResultsByLinesInMemory(expectedDiscardedPatterns, discardedPatternsPath);
 	}
 
 	/**
@@ -675,4 +683,129 @@ public class CEPITCase extends StreamingMultipleProgramsTestBase {
 		expected = "1,2,3\n1,2,8\n1,7,8\n6,7,8";
 		env.execute();
 	}
+
+
+	@Test
+	public void testDiscardedPatternsSideOutput() throws Exception {
+		final StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
+		env.setStreamTimeCharacteristic(TimeCharacteristic.EventTime);
+		env.setParallelism(1);
+
+		// (Event, timestamp)
+		DataStream<Event> input = env.fromElements(
+				Tuple2.of(new Event(1, "a", 1.0), 1L),
+				Tuple2.of(new Event(2, "f", 2.0), 2L),
+				Tuple2.of(new Event(3, "c",3.0), 3L),
+				Tuple2.of(new Event(4, "c", 4.0), 4L),
+				Tuple2.of(new Event(5, "e",5.0), 5L),
+				Tuple2.of(new Event(6, "d",6.0), 6L),
+				Tuple2.of(new Event(7, "e",7.0), 7L),
+				Tuple2.of(new Event(8, "f",8.0), 8L)
+		).assignTimestampsAndWatermarks(new AssignerWithPunctuatedWatermarks<Tuple2<Event,Long>>() {
+
+			@Override
+			public long extractTimestamp(Tuple2<Event, Long> element, long previousTimestamp) {
+				return element.f1;
+			}
+
+			@Override
+			public Watermark checkAndGetNextWatermark(Tuple2<Event, Long> lastElement, long extractedTimestamp) {
+				return lastElement.f0.getName().equals("f") ? new Watermark(extractedTimestamp) : null;
+			}
+
+		}).map(new MapFunction<Tuple2<Event, Long>, Event>() {
+
+			@Override
+			public Event map(Tuple2<Event, Long> value) throws Exception {
+				return value.f0;
+			}
+		});
+
+		Pattern<Event, ?> pattern = Pattern.<Event>begin("a").where(new SimpleCondition<Event>() {
+			private static final long serialVersionUID = 5726188262756267490L;
+
+			@Override
+			public boolean filter(Event value) throws Exception {
+				return value.getName().equals("a");
+			}
+		}).notFollowedBy("not b").where(new SimpleCondition<Event>() {
+			@Override
+			public boolean filter(Event value) throws Exception {
+				return value.getName().equals("b");
+			}
+		}).followedBy("c*").where(new SimpleCondition<Event>() {
+			private static final long serialVersionUID = 5726188262756267490L;
+
+			@Override
+			public boolean filter(Event value) throws Exception {
+				return value.getName().equals("c");
+			}
+		}).zeroOrMore()
+			.notFollowedBy("not d").where(new SimpleCondition<Event>() {
+				private static final long serialVersionUID = 5726188262756267490L;
+
+				@Override
+				public boolean filter(Event value) throws Exception {
+					return value.getName().equals("d");
+				}
+			}).followedBy("e*").where(new SimpleCondition<Event>() {
+				private static final long serialVersionUID = 5726188262756267490L;
+
+				@Override
+				public boolean filter(Event value) throws Exception {
+					return value.getName().equals("e");
+				}
+			}).zeroOrMore().followedBy("f").where(new SimpleCondition<Event>() {
+				private static final long serialVersionUID = 5726188262756267490L;
+
+				@Override
+				public boolean filter(Event value) throws Exception {
+					return value.getName().equals("f");
+				}
+			});
+
+		final OutputTag<Map<String,Event>> discardedTag = new OutputTag<Map<String, Event>>("discarded-data"){};
+
+		PatternStream<Event> patternStream = CEP.pattern(input, pattern).withDiscardedPatternOutputTag(discardedTag);
+		DataStream<String> result = patternStream.select(
+				new PatternSelectFunction<Event, String>() {
+
+					@Override
+					public String select(Map<String, Event> pattern) {
+						final StringBuilder stringBuilder = new StringBuilder("{");
+						for (Event event : pattern.values()) {
+							stringBuilder.append(event.getId()).append(",");
+						}
+						stringBuilder.append("}");
+						return stringBuilder.toString();
+					}
+				}
+		);
+
+		final DataStream<Map<String, Event>> discardedPatterns = patternStream.getSideOutput(discardedTag);
+
+		// we just care for the late events in this test.
+		discardedPatterns.map(
+			new MapFunction<Map<String,Event>, String>() {
+				@Override
+				public String map(Map<String, Event> value) throws Exception {
+					final StringBuilder stringBuilder = new StringBuilder("{");
+					for (Event event : value.values()) {
+						stringBuilder.append(event.getId()).append(",");
+					}
+					stringBuilder.append("}");
+					return stringBuilder.toString();
+				}
+			}
+		).writeAsText(discardedPatternsPath, FileSystem.WriteMode.OVERWRITE);
+
+		// the expected sequence of late event ids
+		expectedDiscardedPatterns = "{1,4,3,5,6,}\n{1,4,3,6,}\n{1,5,6,3,}\n{1,5,6,}\n{1,6,3,}\n{1,6,}";
+
+		result.writeAsText(resultPath, FileSystem.WriteMode.OVERWRITE);
+		expected = "{1,2,}";
+		env.execute();
+	}
+
+
 }

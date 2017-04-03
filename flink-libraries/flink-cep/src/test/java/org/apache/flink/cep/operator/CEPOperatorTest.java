@@ -485,6 +485,7 @@ public class CEPOperatorTest extends TestLogger {
 			IntSerializer.INSTANCE,
 			new NFAFactory(),
 			null,
+			null,
 			true);
 	}
 

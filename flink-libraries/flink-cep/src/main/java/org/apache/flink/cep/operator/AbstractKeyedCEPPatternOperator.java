@@ -18,6 +18,7 @@
 
 package org.apache.flink.cep.operator;
 
+import java.util.Map;
 import org.apache.flink.annotation.VisibleForTesting;
 import org.apache.flink.api.common.state.ValueState;
 import org.apache.flink.api.common.state.ValueStateDescriptor;
@@ -40,6 +41,7 @@ import org.apache.flink.streaming.api.watermark.Watermark;
 import org.apache.flink.streaming.runtime.streamrecord.StreamElement;
 import org.apache.flink.streaming.runtime.streamrecord.StreamElementSerializer;
 import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
+import org.apache.flink.types.Either;
 import org.apache.flink.util.OutputTag;
 import org.apache.flink.util.Preconditions;
 
@@ -96,6 +98,8 @@ public abstract class AbstractKeyedCEPPatternOperator<IN, KEY, OUT>
 	 */
 	private final OutputTag<IN> lateDataOutputTag;
 
+	protected final OutputTag<Map<String, IN>> discardedPatternsOutputTag;
+
 	/**
 	 * The last seen watermark. This will be used to
 	 * decide if an incoming element is late or not.
@@ -115,6 +119,7 @@ public abstract class AbstractKeyedCEPPatternOperator<IN, KEY, OUT>
 			final TypeSerializer<KEY> keySerializer,
 			final NFACompiler.NFAFactory<IN> nfaFactory,
 			final OutputTag<IN> lateDataOutputTag,
+			final OutputTag<Map<String, IN>> discardedPatternsOutputTag,
 			final boolean migratingFromOldKeyedOperator) {
 
 		this.inputSerializer = Preconditions.checkNotNull(inputSerializer);
@@ -125,6 +130,7 @@ public abstract class AbstractKeyedCEPPatternOperator<IN, KEY, OUT>
 
 		this.lateDataOutputTag = lateDataOutputTag;
 		this.migratingFromOldKeyedOperator = migratingFromOldKeyedOperator;
+		this.discardedPatternsOutputTag = discardedPatternsOutputTag;
 	}
 
 	@Override
@@ -299,6 +305,19 @@ public abstract class AbstractKeyedCEPPatternOperator<IN, KEY, OUT>
 	 * @param timestamp to advance the time to
 	 */
 	protected abstract void advanceTime(NFA<IN> nfa, long timestamp);
+
+	protected void emitDiscardedSequences(Iterable<Map<String, IN>> matchedSequences, long timestamp) {
+		if (this.discardedPatternsOutputTag == null) {
+			return;
+		}
+
+		StreamRecord<Map<String, IN>> streamRecord = new StreamRecord<>(null, timestamp);
+
+		for (Map<String, IN> matchedPattern : matchedSequences) {
+			streamRecord.replace(matchedPattern);
+			output.collect(discardedPatternsOutputTag, streamRecord);
+		}
+	}
 
 	//////////////////////			Backwards Compatibility			//////////////////////
 

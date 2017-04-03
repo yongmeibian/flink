@@ -67,7 +67,7 @@ public class PatternStream<T> {
 	 */
 	private OutputTag<T> lateDataOutputTag;
 
-	private OutputTag<T> discardedPatternOutputTag;
+	private OutputTag<Map<String, T>> discardedPatternOutputTag;
 
 	PatternStream(final DataStream<T> inputStream, final Pattern<T, ?> pattern) {
 		this.inputStream = inputStream;
@@ -98,7 +98,7 @@ public class PatternStream<T> {
 		return this;
 	}
 
-	public PatternStream<T> withDiscardedPatternOutputTag(OutputTag<T> outputTag) {
+	public PatternStream<T> withDiscardedPatternOutputTag(OutputTag<Map<String, T>> outputTag) {
 		Preconditions.checkNotNull(outputTag, "Side output tag must not be null.");
 		Preconditions.checkArgument(discardedPatternOutputTag == null,
 			"The late side output tag has already been initialized to " + discardedPatternOutputTag + ".");
@@ -150,7 +150,7 @@ public class PatternStream<T> {
 	 */
 	public <R> SingleOutputStreamOperator<R> select(final PatternSelectFunction<T, R> patternSelectFunction, TypeInformation<R> outTypeInfo) {
 		SingleOutputStreamOperator<Map<String, T>> patternStream =
-				CEPOperatorUtils.createPatternStream(inputStream, pattern, lateDataOutputTag);
+				CEPOperatorUtils.createPatternStream(inputStream, pattern, lateDataOutputTag, discardedPatternOutputTag);
 		this.patternStream = patternStream;
 
 		return patternStream.map(
@@ -253,7 +253,7 @@ public class PatternStream<T> {
 	 */
 	public <R> SingleOutputStreamOperator<R> flatSelect(final PatternFlatSelectFunction<T, R> patternFlatSelectFunction, TypeInformation<R> outTypeInfo) {
 		SingleOutputStreamOperator<Map<String, T>> patternStream =
-				CEPOperatorUtils.createPatternStream(inputStream, pattern, lateDataOutputTag);
+				CEPOperatorUtils.createPatternStream(inputStream, pattern, lateDataOutputTag, discardedPatternOutputTag);
 		this.patternStream = patternStream;
 
 		return patternStream.flatMap(

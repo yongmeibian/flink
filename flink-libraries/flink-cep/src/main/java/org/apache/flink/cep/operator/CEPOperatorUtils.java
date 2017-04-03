@@ -48,7 +48,7 @@ public class CEPOperatorUtils {
 	 * @return Data stream containing fully matched event sequences stored in a {@link Map}. The
 	 * events are indexed by their associated names of the pattern.
 	 */
-	public static <K, T> SingleOutputStreamOperator<Map<String, T>> createPatternStream(DataStream<T> inputStream, Pattern<T, ?> pattern, OutputTag<T> lateDataOutputTag) {
+	public static <K, T> SingleOutputStreamOperator<Map<String, T>> createPatternStream(DataStream<T> inputStream, Pattern<T, ?> pattern, OutputTag<T> lateDataOutputTag, OutputTag<Map<String, T>> discardedPatternsOutputTag) {
 		final TypeSerializer<T> inputSerializer = inputStream.getType().createSerializer(inputStream.getExecutionConfig());
 
 		// check whether we use processing time
@@ -76,6 +76,7 @@ public class CEPOperatorUtils {
 					keySerializer,
 					nfaFactory,
 					lateDataOutputTag,
+					discardedPatternsOutputTag,
 					true));
 		} else {
 
@@ -92,6 +93,7 @@ public class CEPOperatorUtils {
 					keySerializer,
 					nfaFactory,
 					lateDataOutputTag,
+					discardedPatternsOutputTag,
 					false
 				)).forceNonParallel();
 		}
@@ -109,7 +111,7 @@ public class CEPOperatorUtils {
 	 * a {@link Either} instance.
 	 */
 	public static <K, T> SingleOutputStreamOperator<Either<Tuple2<Map<String, T>, Long>, Map<String, T>>> createTimeoutPatternStream(
-			DataStream<T> inputStream, Pattern<T, ?> pattern, OutputTag<T> lateDataOutputTag, OutputTag<T> discardedPatternsOutputTag) {
+			DataStream<T> inputStream, Pattern<T, ?> pattern, OutputTag<T> lateDataOutputTag, OutputTag<Map<String, T>> discardedPatternsOutputTag) {
 
 		final TypeSerializer<T> inputSerializer = inputStream.getType().createSerializer(inputStream.getExecutionConfig());
 

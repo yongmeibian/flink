@@ -44,8 +44,6 @@ import java.util.Map;
 public class TimeoutKeyedCEPPatternOperator<IN, KEY> extends AbstractKeyedCEPPatternOperator<IN, KEY, Either<Tuple2<Map<String, IN>, Long>, Map<String, IN>>> {
 	private static final long serialVersionUID = 3570542177814518158L;
 
-	private final OutputTag<IN> discardedPatternsOutputTag;
-
 	public TimeoutKeyedCEPPatternOperator(
 			TypeSerializer<IN> inputSerializer,
 			boolean isProcessingTime,
@@ -53,11 +51,18 @@ public class TimeoutKeyedCEPPatternOperator<IN, KEY> extends AbstractKeyedCEPPat
 			TypeSerializer<KEY> keySerializer,
 			NFACompiler.NFAFactory<IN> nfaFactory,
 			OutputTag<IN> lateDataOutputTag,
-			OutputTag<IN> discardedPatternsOutputTag,
+			OutputTag<Map<String, IN>> discardedPatternsOutputTag,
 			boolean migratingFromOldKeyedOperator) {
 
-		super(inputSerializer, isProcessingTime, keySelector, keySerializer, nfaFactory, lateDataOutputTag, migratingFromOldKeyedOperator);
-		this.discardedPatternsOutputTag = discardedPatternsOutputTag;
+		super(
+			inputSerializer,
+			isProcessingTime,
+			keySelector,
+			keySerializer,
+			nfaFactory,
+			lateDataOutputTag,
+			discardedPatternsOutputTag,
+			migratingFromOldKeyedOperator);
 	}
 
 	@Override
@@ -77,9 +82,7 @@ public class TimeoutKeyedCEPPatternOperator<IN, KEY> extends AbstractKeyedCEPPat
 	private void emitMatches(final NFAMatches<IN> patterns, long timestamp) {
 		emitMatchedSequences(patterns.getMatches(), timestamp);
 		emitTimedOutSequences(patterns.getTimeoutedMatches(), timestamp);
-		if (discardedPatternsOutputTag != null) {
-			emitDiscardedSequences(patterns.getDiscardedMatches(), timestamp);
-		}
+		emitDiscardedSequences(patterns.getDiscardedMatches(), timestamp);
 	}
 
 
@@ -103,13 +106,5 @@ public class TimeoutKeyedCEPPatternOperator<IN, KEY> extends AbstractKeyedCEPPat
 		}
 	}
 
-	private void emitDiscardedSequences(Iterable<Map<String, IN>> matchedSequences, long timestamp) {
-		StreamRecord<Map<String, IN>> streamRecord =
-			new StreamRecord<>(null, timestamp);
 
-		for (Map<String, IN> matchedPattern : matchedSequences) {
-			streamRecord.replace(Either.Right(matchedPattern));
-			output.collect(discardedPatternsOutputTag, streamRecord);
-		}
-	}
 }

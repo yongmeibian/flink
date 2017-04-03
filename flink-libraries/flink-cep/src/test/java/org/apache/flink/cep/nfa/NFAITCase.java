@@ -2529,7 +2529,7 @@ public class NFAITCase extends TestLogger {
 	}
 
 	@Test
-	public void testNotNextNotEvent() {
+	public void testNotNextNoMatches() {
 		List<StreamRecord<Event>> inputEvents = new ArrayList<>();
 
 		Event a1 = new Event(40, "a", 1.0);
@@ -2574,9 +2574,12 @@ public class NFAITCase extends TestLogger {
 
 		NFA<Event> nfa = NFACompiler.compile(pattern, Event.createTypeSerializer(), false);
 
-		List<List<Event>> resultingPatterns = feedNFA(inputEvents, nfa);
+		final Tuple2<List<List<Event>>, List<List<Event>>> matches = feedNFAWithDiscarded(inputEvents, nfa);
 
-		compareMaps(resultingPatterns, Collections.<List<Event>>emptyList());
+		assertEquals(0, matches.f0.size());
+		compareMaps(matches.f1, Lists.<List<Event>>newArrayList(
+			Lists.newArrayList(a1, b1)
+		));
 	}
 
 	@Test

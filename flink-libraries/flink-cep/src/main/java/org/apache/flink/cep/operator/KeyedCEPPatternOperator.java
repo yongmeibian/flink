@@ -50,21 +50,32 @@ public class KeyedCEPPatternOperator<IN, KEY> extends AbstractKeyedCEPPatternOpe
 			TypeSerializer<KEY> keySerializer,
 			NFACompiler.NFAFactory<IN> nfaFactory,
 			OutputTag<IN> lateDataOutputTag,
+			OutputTag<Map<String,IN>> discardedPatternsOutputTag,
 			boolean migratingFromOldKeyedOperator) {
 
-		super(inputSerializer, isProcessingTime, keySelector, keySerializer, nfaFactory, lateDataOutputTag, migratingFromOldKeyedOperator);
+		super(
+			inputSerializer,
+			isProcessingTime,
+			keySelector,
+			keySerializer,
+			nfaFactory,
+			lateDataOutputTag,
+			discardedPatternsOutputTag,
+			migratingFromOldKeyedOperator);
 	}
 
 	@Override
 	protected void processEvent(NFA<IN> nfa, IN event, long timestamp) {
 		final NFAMatches<IN> patterns = nfa.process(event, timestamp);
 		emitMatchedSequences(patterns.getMatches(), timestamp);
+		emitDiscardedSequences(patterns.getDiscardedMatches(), timestamp);
 	}
 
 	@Override
 	protected void advanceTime(NFA<IN> nfa, long timestamp) {
 		final NFAMatches<IN> patterns = nfa.process(null, timestamp);
 		emitMatchedSequences(patterns.getMatches(), timestamp);
+		emitDiscardedSequences(patterns.getDiscardedMatches(), timestamp);
 	}
 
 	private void emitMatchedSequences(Iterable<Map<String, IN>> matchedSequences, long timestamp) {
