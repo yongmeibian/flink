@@ -190,13 +190,13 @@ public class NFA<T> implements Serializable {
 	 * activated)
 	 */
 	public NFAMatches<T> process(final T event, final long timestamp) {
+		final int numberComputationStates = computationStates.size();
 		final NFAMatches<T> result = new NFAMatches<>();
 
 		// iterate over all current computations
-		final Set<DeweyNumber> runsToRemove = new HashSet<>();
-		final Collection<ComputationState<T>> statesToRetain = new ArrayList<>();
-		ComputationState<T> computationState = computationStates.poll();
-		while(computationState != null) {
+		for (int i = 0; i < numberComputationStates; i++) {
+			ComputationState<T> computationState = computationStates.poll();
+
 			final Collection<ComputationState<T>> newComputationStates;
 
 			if (!computationState.isStartState() &&
@@ -222,6 +222,8 @@ public class NFA<T> implements Serializable {
 			}
 
 
+			final Collection<ComputationState<T>> statesToRetain = new ArrayList<>();
+			boolean shouldDiscardPath = false;
 			for (final ComputationState<T> newComputationState: newComputationStates) {
 				if (newComputationState.isFinalState()) {
 					// we've reached a final state and can thus retrieve the matching event sequence
@@ -235,31 +237,29 @@ public class NFA<T> implements Serializable {
 							newComputationState.getTimestamp());
 				} else if (newComputationState.isStopState()) {
 					result.addDiscardedMatch(extractPatternMatches(newComputationState));
-					runsToRemove.add(newComputationState.getVersion().getParent());
+					shouldDiscardPath = true;
+					stringSharedBuffer.release(
+						newComputationState.getPreviousState().getName(),
+						newComputationState.getEvent(),
+						newComputationState.getTimestamp());
+//					runsToRemove.add(newComputationState.getVersion().getParent());
 				} else {
 					// add new computation state; it will be processed once the next event arrives
 					statesToRetain.add(newComputationState);
 				}
 			}
 
-			computationState = computationStates.poll();
-		}
-
-		for (final ComputationState<T> state : statesToRetain) {
-			final Optional<DeweyNumber> shouldBeRemoved = Iterables.tryFind(runsToRemove, new Predicate<DeweyNumber>() {
-					@Override
-					public boolean apply(@Nullable DeweyNumber input) {
-						return state.getVersion().isCompatibleWith(input);
-					}
-				});
-			if (shouldBeRemoved.isPresent()) {
-				stringSharedBuffer.release(
-					state.getPreviousState().getName(),
-					state.getEvent(),
-					state.getTimestamp());
+			if (shouldDiscardPath) {
+				for (final ComputationState<T> state : statesToRetain) {
+					stringSharedBuffer.release(
+						state.getPreviousState().getName(),
+						state.getEvent(),
+						state.getTimestamp());
+				}
 			} else {
-				computationStates.add(state);
+				computationStates.addAll(statesToRetain);
 			}
+
 		}
 
 		// prune shared buffer based on window length

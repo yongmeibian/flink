@@ -184,9 +184,6 @@ public class NFACompiler {
 			while (currentPattern.getPrevious() != null) {
 				if (currentPattern instanceof NotFollowedByPattern) {
 					//skip not patterns, they are converted into edge conditions
-//					final IterativeCondition<T> notCondition = (IterativeCondition<T>)currentPattern.getCondition();
-//					final State<T> stopState = createStopState(notCondition);
-//					lastSink.addProceed(stopState, notCondition);
 
 					currentPattern = currentPattern.getPrevious();
 				} else if (currentPattern instanceof NotNextPattern) {
@@ -210,6 +207,7 @@ public class NFACompiler {
 
 						if (currentPattern.getQuantifier().hasProperty(QuantifierProperty.AT_LEAST_ONE)) {
 							lastSink = createFirstMandatoryStateOfLoop(looping);
+							addStopStates(lastSink);
 						} else if (currentPattern instanceof FollowedByPattern &&
 									currentPattern.getQuantifier().hasProperty(QuantifierProperty.STRICT)) {
 							lastSink = createWaitingStateForZeroOrMore(looping, lastSink);
@@ -219,8 +217,10 @@ public class NFACompiler {
 
 					} else if (currentPattern.getQuantifier().hasProperty(QuantifierProperty.TIMES)) {
 						lastSink = createTimesState(lastSink, currentPattern.getTimes());
+						addStopStates(lastSink);
 					} else {
 						lastSink = createSingletonState(lastSink);
+						addStopStates(lastSink);
 					}
 					currentPattern = currentPattern.getPrevious();
 
@@ -438,7 +438,6 @@ public class NFACompiler {
 		 */
 		private State<T> createNormalState() {
 			final State<T> state = new State<>(currentPattern.getName(), State.StateType.Normal);
-			addStopStates(state);
 			states.add(state);
 			return state;
 		}

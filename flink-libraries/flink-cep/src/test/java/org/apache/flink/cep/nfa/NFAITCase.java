@@ -2521,11 +2521,11 @@ public class NFAITCase extends TestLogger {
 
 		final Tuple2<List<List<Event>>, List<List<Event>>> matches = feedNFAWithDiscarded(inputEvents, nfa);
 
-		assertEquals(0, matches.f1.size());
-		compareMaps(matches.f1, Lists.<List<Event>>newArrayList(
+		compareMaps(matches.f0, Lists.<List<Event>>newArrayList(
 			Lists.newArrayList(a1, c1, d),
 			Lists.newArrayList(a1, c2, d)
 		));
+		assertEquals(0, matches.f1.size());
 	}
 
 	@Test
@@ -2767,16 +2767,15 @@ public class NFAITCase extends TestLogger {
 		final Tuple2<List<List<Event>>, List<List<Event>>> matches = feedNFAWithDiscarded(inputEvents, nfa);
 
 		compareMaps(matches.f0,Lists.<List<Event>>newArrayList(
-			Lists.newArrayList(a1, f1),
-			Lists.newArrayList(a1, c1, c2, e1, f2),
-			Lists.newArrayList(a1, c1, c2, f2),
-			Lists.newArrayList(a1, c1, e1, f2),
-			Lists.newArrayList(a1, e1, f2)
+			Lists.newArrayList(a1, f1)
 		));
 		compareMaps(matches.f1, Lists.<List<Event>>newArrayList(
 			Lists.newArrayList(a1, c1, c2, e1, d1),
 			Lists.newArrayList(a1, c1, e1, d1),
-			Lists.newArrayList(a1, e1, d1)
+			Lists.newArrayList(a1, c1, c2, d1),
+			Lists.newArrayList(a1, e1, d1),
+			Lists.newArrayList(a1, c1, d1),
+			Lists.newArrayList(a1, d1)
 		));
 	}
 
@@ -2789,7 +2788,6 @@ public class NFAITCase extends TestLogger {
 		Event c1 = new Event(41, "c", p++);
 		Event b1 = new Event(41, "b", p++);
 		Event c2 = new Event(42, "c", p++);
-		Event b2 = new Event(41, "b", p++);
 		Event f = new Event(43, "f", p);
 
 		int i = 0;
@@ -2797,7 +2795,6 @@ public class NFAITCase extends TestLogger {
 		inputEvents.add(new StreamRecord<>(c1, i++));
 		inputEvents.add(new StreamRecord<>(b1, i++));
 		inputEvents.add(new StreamRecord<>(c2, i++));
-		inputEvents.add(new StreamRecord<>(b2, i++));
 		inputEvents.add(new StreamRecord<>(f, i));
 
 		Pattern<Event, ?> pattern = Pattern.<Event>begin("a").where(new SimpleCondition<Event>() {
@@ -2814,7 +2811,8 @@ public class NFAITCase extends TestLogger {
 			public boolean filter(Event value) throws Exception {
 				return value.getName().equals("c");
 			}
-		}).oneOrMore().notFollowedBy("not b").where(new SimpleCondition<Event>() {
+		}).oneOrMore(false)
+		.notFollowedBy("not b").where(new SimpleCondition<Event>() {
 			@Override
 			public boolean filter(Event value) throws Exception {
 				return value.getName().equals("b");
@@ -2834,10 +2832,11 @@ public class NFAITCase extends TestLogger {
 
 
 		compareMaps(matches.f0, Lists.<List<Event>>newArrayList(
-			Lists.newArrayList(a1, c1, c2, f),
-			Lists.newArrayList(a1, c1, f)
+			Lists.newArrayList(a1, c2, f)
 		));
-		assertEquals(0, matches.f1.size());
+		assertEquals(matches.f1, Lists.<List<Event>>newArrayList(
+			Lists.newArrayList(a1, c1, b1)
+		));
 	}
 
 	@Test
@@ -2874,7 +2873,7 @@ public class NFAITCase extends TestLogger {
 			public boolean filter(Event value) throws Exception {
 				return value.getName().equals("b");
 			}
-		}).zeroOrMore().notNext("not c").where(new SimpleCondition<Event>() {
+		}).zeroOrMore(false).notNext("not c").where(new SimpleCondition<Event>() {
 			private static final long serialVersionUID = 5726188262756267490L;
 
 			@Override
@@ -2894,7 +2893,13 @@ public class NFAITCase extends TestLogger {
 
 		final Tuple2<List<List<Event>>, List<List<Event>>> matches = feedNFAWithDiscarded(inputEvents, nfa);
 
-		assertEquals(0, matches.f0.size());
+//		assertEquals(0, matches.f0.size());
+		compareMaps(matches.f0, Lists.<List<Event>>newArrayList(
+			Lists.newArrayList(a1, b2, b3, d1),
+			Lists.newArrayList(a1, b2, d1),
+			Lists.newArrayList(a1, b3, d1),
+			Lists.newArrayList(a1, d1)
+		));
 		compareMaps(matches.f1, Lists.<List<Event>>newArrayList(
 			Lists.newArrayList(a1, b1, c1)
 		));
