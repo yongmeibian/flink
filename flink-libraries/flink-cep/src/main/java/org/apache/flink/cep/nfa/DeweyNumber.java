@@ -87,8 +87,15 @@ public class DeweyNumber implements Serializable {
 		return deweyNumber.length;
 	}
 
-	public int getRun() {
-		return deweyNumber[0];
+	public DeweyNumber getParent() {
+		int[] newDeweyNumber;
+		if (deweyNumber.length > 1) {
+			newDeweyNumber = Arrays.copyOf(deweyNumber, deweyNumber.length - 1);
+		} else {
+			newDeweyNumber = Arrays.copyOf(deweyNumber, deweyNumber.length);
+		}
+
+		return new DeweyNumber(newDeweyNumber);
 	}
 
 	/**

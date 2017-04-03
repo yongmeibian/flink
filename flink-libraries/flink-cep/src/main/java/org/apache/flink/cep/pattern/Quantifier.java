@@ -35,18 +35,17 @@ public enum Quantifier {
 	ONE_OR_MORE_EAGER(
 		QuantifierProperty.LOOPING,
 		QuantifierProperty.EAGER,
-		QuantifierProperty.AT_LEAST_ONE, QuantifierProperty.OPTIONAL),
+		QuantifierProperty.AT_LEAST_ONE),
 	ONE_OR_MORE_EAGER_STRICT(
 		QuantifierProperty.STRICT,
 		QuantifierProperty.LOOPING,
 		QuantifierProperty.EAGER,
-		QuantifierProperty.AT_LEAST_ONE, QuantifierProperty.OPTIONAL),
-	ONE_OR_MORE_COMBINATIONS(QuantifierProperty.LOOPING, QuantifierProperty.AT_LEAST_ONE, QuantifierProperty.OPTIONAL),
+		QuantifierProperty.AT_LEAST_ONE),
+	ONE_OR_MORE_COMBINATIONS(QuantifierProperty.LOOPING, QuantifierProperty.AT_LEAST_ONE),
 	ONE_OR_MORE_COMBINATIONS_STRICT(
 		QuantifierProperty.STRICT,
 		QuantifierProperty.LOOPING,
-		QuantifierProperty.AT_LEAST_ONE,
-		QuantifierProperty.OPTIONAL),
+		QuantifierProperty.AT_LEAST_ONE),
 	TIMES(QuantifierProperty.TIMES),
 	TIMES_STRICT(QuantifierProperty.TIMES, QuantifierProperty.STRICT),
 	OPTIONAL(QuantifierProperty.OPTIONAL);
@@ -71,8 +70,7 @@ public enum Quantifier {
 		AT_LEAST_ONE,
 		STRICT,
 		TIMES,
-		OPTIONAL,
-		NEGATIVE
+		OPTIONAL
 	}
 
 }

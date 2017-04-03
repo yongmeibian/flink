@@ -22,6 +22,7 @@ import com.google.common.base.Predicate;
 import com.google.common.collect.Iterators;
 import org.apache.flink.annotation.Internal;
 import org.apache.flink.api.common.typeutils.TypeSerializer;
+import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.cep.nfa.NFA;
 import org.apache.flink.cep.nfa.State;
 import org.apache.flink.cep.nfa.StateTransition;
@@ -140,8 +141,8 @@ public class NFACompiler {
 			return windowTime;
 		}
 
-		private IterativeCondition<T> extendWithNotCurrentNotCondition(IterativeCondition<T> condition) {
-			IterativeCondition<T> notCondition = condition;
+		private List<Tuple2<IterativeCondition<T>, String>>  getCurrentNotCondition() {
+			final List<Tuple2<IterativeCondition<T>, String>> notConditions = new ArrayList<>();
 			Pattern<T, ? extends T> previousPattern = currentPattern;
 			while (previousPattern.getPrevious() != null && (
 				previousPattern.getPrevious().getQuantifier().hasProperty(QuantifierProperty.OPTIONAL) ||
@@ -150,13 +151,12 @@ public class NFACompiler {
 				previousPattern = previousPattern.getPrevious();
 
 				if (previousPattern instanceof NotFollowedByPattern) {
-					notCondition = new AndCondition<>(
-						notCondition,
-						new NotCondition<>((IterativeCondition<T>) previousPattern.getCondition()));
+					final IterativeCondition<T> notCondition = (IterativeCondition<T>) previousPattern.getCondition();
+					notConditions.add(Tuple2.of(notCondition, previousPattern.getName()));
 				}
 			}
 
-			return notCondition;
+			return notConditions;
 		}
 
 		/**
@@ -184,11 +184,9 @@ public class NFACompiler {
 			while (currentPattern.getPrevious() != null) {
 				if (currentPattern instanceof NotFollowedByPattern) {
 					//skip not patterns, they are converted into edge conditions
-					final State<T> stopState = new State<>(currentPattern.getName(), State.StateType.Stop);
-					states.add(stopState);
-					final IterativeCondition<T> notCondition = (IterativeCondition<T>)currentPattern.getCondition();
-					stopState.addTake(notCondition);
-					lastSink.addProceed(stopState, notCondition);
+//					final IterativeCondition<T> notCondition = (IterativeCondition<T>)currentPattern.getCondition();
+//					final State<T> stopState = createStopState(notCondition);
+//					lastSink.addProceed(stopState, notCondition);
 
 					currentPattern = currentPattern.getPrevious();
 				} else if (currentPattern instanceof NotNextPattern) {
@@ -206,17 +204,19 @@ public class NFACompiler {
 					checkPatternNameUniqueness();
 					usedNames.add(currentPattern.getName());
 
+
 					if (currentPattern.getQuantifier().hasProperty(QuantifierProperty.LOOPING)) {
 						final State<T> looping = createLooping(lastSink);
 
 						if (currentPattern.getQuantifier().hasProperty(QuantifierProperty.AT_LEAST_ONE)) {
 							lastSink = createFirstMandatoryStateOfLoop(looping);
 						} else if (currentPattern instanceof FollowedByPattern &&
-						           currentPattern.getQuantifier().hasProperty(QuantifierProperty.STRICT)) {
+									currentPattern.getQuantifier().hasProperty(QuantifierProperty.STRICT)) {
 							lastSink = createWaitingStateForZeroOrMore(looping, lastSink);
 						} else {
 							lastSink = looping;
 						}
+
 					} else if (currentPattern.getQuantifier().hasProperty(QuantifierProperty.TIMES)) {
 						lastSink = createTimesState(lastSink, currentPattern.getTimes());
 					} else {
@@ -233,6 +233,21 @@ public class NFACompiler {
 			}
 
 			return lastSink;
+		}
+
+		private void addStopStates(final State<T> state) {
+			final List<Tuple2<IterativeCondition<T>, String>> currentNotConditions = getCurrentNotCondition();
+			for (Tuple2<IterativeCondition<T>, String> notCondition: currentNotConditions) {
+				final State<T> stopState = createStopState(notCondition.f0, notCondition.f1);
+				state.addProceed(stopState, notCondition.f0);
+			}
+		}
+
+		private State<T> createStopState(final IterativeCondition<T> notCondition, final String name) {
+			final State<T> stopState = new State<>(name, State.StateType.Stop);
+			states.add(stopState);
+			stopState.addTake(notCondition);
+			return stopState;
 		}
 
 		/**
@@ -341,8 +356,8 @@ public class NFACompiler {
 		@SuppressWarnings("unchecked")
 		private State<T> createSingletonState(final State<T> sinkState, boolean addIgnore) {
 			final IterativeCondition<T> currentFilterFunction =
-				extendWithNotCurrentNotCondition((IterativeCondition<T>) currentPattern.getCondition());
-			final IterativeCondition<T> trueFunction = extendWithNotCurrentNotCondition(BooleanConditions.<T>trueFunction());
+				(IterativeCondition<T>) currentPattern.getCondition();
+			final IterativeCondition<T> trueFunction = BooleanConditions.<T>trueFunction();
 
 			final State<T> singletonState = createNormalState();
 			singletonState.addTake(sinkState, currentFilterFunction);
@@ -374,12 +389,12 @@ public class NFACompiler {
 		@SuppressWarnings("unchecked")
 		private State<T> createFirstMandatoryStateOfLoop(final State<T> sinkState) {
 
-			final IterativeCondition<T> currentFilterFunction = extendWithNotCurrentNotCondition((IterativeCondition<T>) currentPattern.getCondition());
+			final IterativeCondition<T> currentFilterFunction = (IterativeCondition<T>) currentPattern.getCondition();
 			final State<T> firstState = createNormalState();
 
 			firstState.addTake(sinkState, currentFilterFunction);
 			if (currentPattern instanceof FollowedByPattern) {
-				final IterativeCondition<T> ignoreCondition = extendWithNotCurrentNotCondition(getIgnoreCondition(currentPattern));
+				final IterativeCondition<T> ignoreCondition = getIgnoreCondition(currentPattern);
 				firstState.addIgnore(ignoreCondition);
 			}
 			return firstState;
@@ -397,15 +412,15 @@ public class NFACompiler {
 		private State<T> createLooping(final State<T> sinkState) {
 
 			final State<T> loopingState = createNormalState();
-			final IterativeCondition<T> filterFunction = extendWithNotCurrentNotCondition((IterativeCondition<T>) currentPattern.getCondition());
-			final IterativeCondition<T> trueFunction = extendWithNotCurrentNotCondition(BooleanConditions.<T>trueFunction());
+			final IterativeCondition<T> filterFunction = (IterativeCondition<T>) currentPattern.getCondition();
+			final IterativeCondition<T> trueFunction = BooleanConditions.<T>trueFunction();
 
 			loopingState.addProceed(sinkState, trueFunction);
 			loopingState.addTake(filterFunction);
 			if (!currentPattern.getQuantifier().hasProperty(QuantifierProperty.STRICT)) {
 				final State<T> ignoreState = createNormalState();
 
-				final IterativeCondition<T> ignoreCondition = extendWithNotCurrentNotCondition(getIgnoreCondition(currentPattern));
+				final IterativeCondition<T> ignoreCondition = getIgnoreCondition(currentPattern);
 
 				ignoreState.addTake(loopingState, filterFunction);
 				ignoreState.addIgnore(ignoreCondition);
@@ -423,6 +438,7 @@ public class NFACompiler {
 		 */
 		private State<T> createNormalState() {
 			final State<T> state = new State<>(currentPattern.getName(), State.StateType.Normal);
+			addStopStates(state);
 			states.add(state);
 			return state;
 		}

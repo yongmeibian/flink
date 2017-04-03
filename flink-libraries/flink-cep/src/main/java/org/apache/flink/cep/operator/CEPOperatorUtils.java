@@ -109,7 +109,7 @@ public class CEPOperatorUtils {
 	 * a {@link Either} instance.
 	 */
 	public static <K, T> SingleOutputStreamOperator<Either<Tuple2<Map<String, T>, Long>, Map<String, T>>> createTimeoutPatternStream(
-			DataStream<T> inputStream, Pattern<T, ?> pattern, OutputTag<T> lateDataOutputTag) {
+			DataStream<T> inputStream, Pattern<T, ?> pattern, OutputTag<T> lateDataOutputTag, OutputTag<T> discardedPatternsOutputTag) {
 
 		final TypeSerializer<T> inputSerializer = inputStream.getType().createSerializer(inputStream.getExecutionConfig());
 
@@ -142,6 +142,7 @@ public class CEPOperatorUtils {
 					keySerializer,
 					nfaFactory,
 					lateDataOutputTag,
+					discardedPatternsOutputTag,
 					true));
 		} else {
 
@@ -158,6 +159,7 @@ public class CEPOperatorUtils {
 					keySerializer,
 					nfaFactory,
 					lateDataOutputTag,
+					discardedPatternsOutputTag,
 					false
 				)).forceNonParallel();
 		}

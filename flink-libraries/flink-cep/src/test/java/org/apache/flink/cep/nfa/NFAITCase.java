@@ -94,7 +94,7 @@ public class NFAITCase extends TestLogger {
 		for (StreamRecord<Event> inputEvent: inputEvents) {
 			Collection<Map<String, Event>> patterns = nfa.process(
 				inputEvent.getValue(),
-				inputEvent.getTimestamp()).f0;
+				inputEvent.getTimestamp()).getMatches();
 
 			resultingPatterns.addAll(patterns);
 		}
@@ -141,7 +141,7 @@ public class NFAITCase extends TestLogger {
 		for (StreamRecord<Event> inputEvent : inputEvents) {
 			Collection<Map<String, Event>> patterns = nfa.process(
 				inputEvent.getValue(),
-				inputEvent.getTimestamp()).f0;
+				inputEvent.getTimestamp()).getMatches();
 
 			for (Map<String, Event> foundPattern : patterns) {
 				resultingPatterns.add(new HashSet<>(foundPattern.values()));
@@ -190,7 +190,7 @@ public class NFAITCase extends TestLogger {
 		for (StreamRecord<Event> inputEvent : inputEvents) {
 			Collection<Map<String, Event>> patterns = nfa.process(
 				inputEvent.getValue(),
-				inputEvent.getTimestamp()).f0;
+				inputEvent.getTimestamp()).getMatches();
 
 			for (Map<String, Event> foundPattern : patterns) {
 				resultingPatterns.add(new HashSet<>(foundPattern.values()));
@@ -249,7 +249,7 @@ public class NFAITCase extends TestLogger {
 		for (StreamRecord<Event> event: events) {
 			Collection<Map<String, Event>> patterns = nfa.process(
 					event.getValue(),
-					event.getTimestamp()).f0;
+					event.getTimestamp()).getMatches();
 
 			resultingPatterns.addAll(patterns);
 		}
@@ -326,11 +326,10 @@ public class NFAITCase extends TestLogger {
 		NFA<Event> nfa = NFACompiler.compile(pattern, Event.createTypeSerializer(), true);
 
 		for (StreamRecord<Event> event: events) {
-			Tuple3<Collection<Map<String, Event>>, Collection<Tuple2<Map<String, Event>, Long>>, Collection<Map<String, Event>>> patterns =
-				nfa.process(event.getValue(), event.getTimestamp());
+			final NFAMatches<Event> patterns = nfa.process(event.getValue(), event.getTimestamp());
 
-			Collection<Map<String, Event>> matchedPatterns = patterns.f0;
-			Collection<Tuple2<Map<String, Event>, Long>> timeoutPatterns = patterns.f1;
+			Collection<Map<String, Event>> matchedPatterns = patterns.getMatches();
+			Collection<Tuple2<Map<String, Event>, Long>> timeoutPatterns = patterns.getTimeoutedMatches();
 
 			resultingPatterns.addAll(matchedPatterns);
 			resultingTimeoutPatterns.addAll(timeoutPatterns);
@@ -399,7 +398,7 @@ public class NFAITCase extends TestLogger {
 		for (StreamRecord<Event> inputEvent: inputEvents) {
 			Collection<Map<String, Event>> patterns = nfa.process(
 				inputEvent.getValue(),
-				inputEvent.getTimestamp()).f0;
+				inputEvent.getTimestamp()).getMatches();
 
 			resultingPatterns.addAll(patterns);
 		}
@@ -488,7 +487,7 @@ public class NFAITCase extends TestLogger {
 		for (StreamRecord<Event> inputEvent : inputEvents) {
 			Collection<Map<String, Event>> patterns = nfa.process(
 				inputEvent.getValue(),
-				inputEvent.getTimestamp()).f0;
+				inputEvent.getTimestamp()).getMatches();
 
 			for (Map<String, Event> foundPattern : patterns) {
 				resultingPatterns.add(new HashSet<>(foundPattern.values()));
@@ -562,7 +561,7 @@ public class NFAITCase extends TestLogger {
 		for (StreamRecord<Event> inputEvent : inputEvents) {
 			Collection<Map<String, Event>> patterns = nfa.process(
 				inputEvent.getValue(),
-				inputEvent.getTimestamp()).f0;
+				inputEvent.getTimestamp()).getMatches();
 
 			for (Map<String, Event> foundPattern : patterns) {
 				resultingPatterns.add(new HashSet<>(foundPattern.values()));
@@ -627,7 +626,7 @@ public class NFAITCase extends TestLogger {
 		for (StreamRecord<Event> inputEvent : inputEvents) {
 			Collection<Map<String, Event>> patterns = nfa.process(
 				inputEvent.getValue(),
-				inputEvent.getTimestamp()).f0;
+				inputEvent.getTimestamp()).getMatches();
 
 			for (Map<String, Event> foundPattern : patterns) {
 				resultingPatterns.add(new HashSet<>(foundPattern.values()));
@@ -682,7 +681,7 @@ public class NFAITCase extends TestLogger {
 		for (StreamRecord<Event> inputEvent : inputEvents) {
 			Collection<Map<String, Event>> patterns = nfa.process(
 				inputEvent.getValue(),
-				inputEvent.getTimestamp()).f0;
+				inputEvent.getTimestamp()).getMatches();
 
 			for (Map<String, Event> foundPattern : patterns) {
 				resultingPatterns.add(new HashSet<>(foundPattern.values()));
@@ -756,7 +755,7 @@ public class NFAITCase extends TestLogger {
 		for (StreamRecord<Event> inputEvent : inputEvents) {
 			Collection<Map<String, Event>> patterns = nfa.process(
 				inputEvent.getValue(),
-				inputEvent.getTimestamp()).f0;
+				inputEvent.getTimestamp()).getMatches();
 
 			for (Map<String, Event> foundPattern : patterns) {
 				resultingPatterns.add(new HashSet<>(foundPattern.values()));
@@ -842,7 +841,7 @@ public class NFAITCase extends TestLogger {
 		for (StreamRecord<Event> inputEvent : inputEvents) {
 			Collection<Map<String, Event>> patterns = nfa.process(
 				inputEvent.getValue(),
-				inputEvent.getTimestamp()).f0;
+				inputEvent.getTimestamp()).getMatches();
 
 			for (Map<String, Event> foundPattern : patterns) {
 				resultingPatterns.add(new HashSet<>(foundPattern.values()));
@@ -910,7 +909,7 @@ public class NFAITCase extends TestLogger {
 		for (StreamRecord<Event> inputEvent : inputEvents) {
 			Collection<Map<String, Event>> patterns = nfa.process(
 				inputEvent.getValue(),
-				inputEvent.getTimestamp()).f0;
+				inputEvent.getTimestamp()).getMatches();
 
 			for (Map<String, Event> foundPattern : patterns) {
 				resultingPatterns.add(new HashSet<>(foundPattern.values()));
@@ -965,7 +964,7 @@ public class NFAITCase extends TestLogger {
 		for (StreamRecord<Event> inputEvent : inputEvents) {
 			Collection<Map<String, Event>> patterns = nfa.process(
 				inputEvent.getValue(),
-				inputEvent.getTimestamp()).f0;
+				inputEvent.getTimestamp()).getMatches();
 
 			for (Map<String, Event> foundPattern : patterns) {
 				resultingPatterns.add(new HashSet<>(foundPattern.values()));
@@ -1025,7 +1024,7 @@ public class NFAITCase extends TestLogger {
 		for (StreamRecord<Event> inputEvent : inputEvents) {
 			Collection<Map<String, Event>> patterns = nfa.process(
 				inputEvent.getValue(),
-				inputEvent.getTimestamp()).f0;
+				inputEvent.getTimestamp()).getMatches();
 
 			for (Map<String, Event> foundPattern : patterns) {
 				resultingPatterns.add(new HashSet<>(foundPattern.values()));
@@ -1079,7 +1078,7 @@ public class NFAITCase extends TestLogger {
 		for (StreamRecord<Event> inputEvent : inputEvents) {
 			Collection<Map<String, Event>> patterns = nfa.process(
 				inputEvent.getValue(),
-				inputEvent.getTimestamp()).f0;
+				inputEvent.getTimestamp()).getMatches();
 
 			for (Map<String, Event> foundPattern : patterns) {
 				resultingPatterns.add(new HashSet<>(foundPattern.values()));
@@ -1147,7 +1146,7 @@ public class NFAITCase extends TestLogger {
 		for (StreamRecord<Event> inputEvent : inputEvents) {
 			Collection<Map<String, Event>> patterns = nfa.process(
 				inputEvent.getValue(),
-				inputEvent.getTimestamp()).f0;
+				inputEvent.getTimestamp()).getMatches();
 
 			for (Map<String, Event> foundPattern : patterns) {
 				resultingPatterns.add(new HashSet<>(foundPattern.values()));
@@ -1208,7 +1207,7 @@ public class NFAITCase extends TestLogger {
 		for (StreamRecord<Event> inputEvent : inputEvents) {
 			Collection<Map<String, Event>> patterns = nfa.process(
 				inputEvent.getValue(),
-				inputEvent.getTimestamp()).f0;
+				inputEvent.getTimestamp()).getMatches();
 
 			for (Map<String, Event> foundPattern : patterns) {
 				resultingPatterns.add(new HashSet<>(foundPattern.values()));
@@ -1267,7 +1266,7 @@ public class NFAITCase extends TestLogger {
 		for (StreamRecord<Event> inputEvent : inputEvents) {
 			Collection<Map<String, Event>> patterns = nfa.process(
 				inputEvent.getValue(),
-				inputEvent.getTimestamp()).f0;
+				inputEvent.getTimestamp()).getMatches();
 
 			for (Map<String, Event> foundPattern : patterns) {
 				resultingPatterns.add(new HashSet<>(foundPattern.values()));
@@ -1329,7 +1328,7 @@ public class NFAITCase extends TestLogger {
 		for (StreamRecord<Event> inputEvent : inputEvents) {
 			Collection<Map<String, Event>> patterns = nfa.process(
 				inputEvent.getValue(),
-				inputEvent.getTimestamp()).f0;
+				inputEvent.getTimestamp()).getMatches();
 
 			for (Map<String, Event> foundPattern : patterns) {
 				resultingPatterns.add(new HashSet<>(foundPattern.values()));
@@ -1381,7 +1380,7 @@ public class NFAITCase extends TestLogger {
 		for (StreamRecord<Event> inputEvent : inputEvents) {
 			Collection<Map<String, Event>> patterns = nfa.process(
 				inputEvent.getValue(),
-				inputEvent.getTimestamp()).f0;
+				inputEvent.getTimestamp()).getMatches();
 
 			for (Map<String, Event> foundPattern : patterns) {
 				resultingPatterns.add(new HashSet<>(foundPattern.values()));
@@ -1430,7 +1429,7 @@ public class NFAITCase extends TestLogger {
 		for (StreamRecord<Event> inputEvent : inputEvents) {
 			Collection<Map<String, Event>> patterns = nfa.process(
 				inputEvent.getValue(),
-				inputEvent.getTimestamp()).f0;
+				inputEvent.getTimestamp()).getMatches();
 
 			for (Map<String, Event> foundPattern : patterns) {
 				resultingPatterns.add(new HashSet<>(foundPattern.values()));
@@ -1483,7 +1482,7 @@ public class NFAITCase extends TestLogger {
 		for (StreamRecord<Event> inputEvent : inputEvents) {
 			Collection<Map<String, Event>> patterns = nfa.process(
 				inputEvent.getValue(),
-				inputEvent.getTimestamp()).f0;
+				inputEvent.getTimestamp()).getMatches();
 
 			for (Map<String, Event> foundPattern : patterns) {
 				resultingPatterns.add(new HashSet<>(foundPattern.values()));
@@ -1537,7 +1536,7 @@ public class NFAITCase extends TestLogger {
 		for (StreamRecord<Event> inputEvent : inputEvents) {
 			Collection<Map<String, Event>> patterns = nfa.process(
 				inputEvent.getValue(),
-				inputEvent.getTimestamp()).f0;
+				inputEvent.getTimestamp()).getMatches();
 
 			for (Map<String, Event> foundPattern : patterns) {
 				resultingPatterns.add(new HashSet<>(foundPattern.values()));
@@ -1590,7 +1589,7 @@ public class NFAITCase extends TestLogger {
 		for (StreamRecord<Event> inputEvent : inputEvents) {
 			Collection<Map<String, Event>> patterns = nfa.process(
 				inputEvent.getValue(),
-				inputEvent.getTimestamp()).f0;
+				inputEvent.getTimestamp()).getMatches();
 
 			for (Map<String, Event> foundPattern : patterns) {
 				resultingPatterns.add(new HashSet<>(foundPattern.values()));
@@ -1643,7 +1642,7 @@ public class NFAITCase extends TestLogger {
 		for (StreamRecord<Event> inputEvent : inputEvents) {
 			Collection<Map<String, Event>> patterns = nfa.process(
 				inputEvent.getValue(),
-				inputEvent.getTimestamp()).f0;
+				inputEvent.getTimestamp()).getMatches();
 
 			for (Map<String, Event> foundPattern : patterns) {
 				resultingPatterns.add(new HashSet<>(foundPattern.values()));
@@ -2520,9 +2519,10 @@ public class NFAITCase extends TestLogger {
 
 		NFA<Event> nfa = NFACompiler.compile(pattern, Event.createTypeSerializer(), false);
 
-		List<List<Event>> resultingPatterns = feedNFA(inputEvents, nfa);
+		final Tuple2<List<List<Event>>, List<List<Event>>> matches = feedNFAWithDiscarded(inputEvents, nfa);
 
-		compareMaps(resultingPatterns,Lists.<List<Event>>newArrayList(
+		assertEquals(0, matches.f1.size());
+		compareMaps(matches.f1, Lists.<List<Event>>newArrayList(
 			Lists.newArrayList(a1, c1, d),
 			Lists.newArrayList(a1, c2, d)
 		));
@@ -2625,10 +2625,13 @@ public class NFAITCase extends TestLogger {
 
 		NFA<Event> nfa = NFACompiler.compile(pattern, Event.createTypeSerializer(), false);
 
-		List<List<Event>> resultingPatterns = feedNFA(inputEvents, nfa);
+		final Tuple2<List<List<Event>>, List<List<Event>>> matches = feedNFAWithDiscarded(inputEvents, nfa);
 
-		compareMaps(resultingPatterns,Lists.<List<Event>>newArrayList(
+		compareMaps(matches.f0,Lists.<List<Event>>newArrayList(
 			Lists.newArrayList(a1, c1, d)
+		));
+		compareMaps(matches.f1, Lists.<List<Event>>newArrayList(
+			Lists.newArrayList(a1, b1)
 		));
 	}
 
@@ -2637,15 +2640,15 @@ public class NFAITCase extends TestLogger {
 		List<StreamRecord<Event>> inputEvents = new ArrayList<>();
 
 		Event a1 = new Event(40, "a", 1.0);
-		Event c1 = new Event(41, "c", 2.0);
 		Event b1 = new Event(42, "b", 3.0);
+		Event c1 = new Event(41, "c", 2.0);
 		Event a2 = new Event(41, "a", 4.0);
 		Event c2 = new Event(43, "c", 5.0);
 		Event d = new Event(43, "d", 6.0);
 
 		inputEvents.add(new StreamRecord<>(a1, 1));
-		inputEvents.add(new StreamRecord<>(c1, 2));
-		inputEvents.add(new StreamRecord<>(b1, 3));
+		inputEvents.add(new StreamRecord<>(b1, 2));
+		inputEvents.add(new StreamRecord<>(c1, 3));
 		inputEvents.add(new StreamRecord<>(a2, 4));
 		inputEvents.add(new StreamRecord<>(c2, 5));
 		inputEvents.add(new StreamRecord<>(d, 6));
@@ -2680,10 +2683,13 @@ public class NFAITCase extends TestLogger {
 
 		NFA<Event> nfa = NFACompiler.compile(pattern, Event.createTypeSerializer(), false);
 
-		List<List<Event>> resultingPatterns = feedNFA(inputEvents, nfa);
+		final Tuple2<List<List<Event>>, List<List<Event>>> matches = feedNFAWithDiscarded(inputEvents, nfa);
 
-		compareMaps(resultingPatterns,Lists.<List<Event>>newArrayList(
+		compareMaps(matches.f0, Lists.<List<Event>>newArrayList(
 			Lists.newArrayList(a2, c2, d)
+		));
+		compareMaps(matches.f1, Lists.<List<Event>>newArrayList(
+			Lists.newArrayList(a1, b1)
 		));
 	}
 
@@ -2697,23 +2703,21 @@ public class NFAITCase extends TestLogger {
 		Event a1 = new Event(40, "a", p++);
 		Event f1 = new Event(41, "f", p++);
 		Event c1 = new Event(41, "c", p++);
-		Event b1 = new Event(41, "b", p++);
 		Event c2 = new Event(42, "c", p++);
 		Event e1 = new Event(43, "e", p++);
 		Event d1 = new Event(43, "d", p++);
 		Event e2 = new Event(43, "e", p++);
-		Event f = new Event(43, "f", p);
+		Event f2 = new Event(43, "f", p);
 
 		int i = 0;
 		inputEvents.add(new StreamRecord<>(a1, i++));
 		inputEvents.add(new StreamRecord<>(f1, i++));
 		inputEvents.add(new StreamRecord<>(c1, i++));
-		inputEvents.add(new StreamRecord<>(b1, i++));
 		inputEvents.add(new StreamRecord<>(c2, i++));
 		inputEvents.add(new StreamRecord<>(e1, i++));
 		inputEvents.add(new StreamRecord<>(d1, i++));
 		inputEvents.add(new StreamRecord<>(e2, i++));
-		inputEvents.add(new StreamRecord<>(f, i));
+		inputEvents.add(new StreamRecord<>(f2, i));
 
 		Pattern<Event, ?> pattern = Pattern.<Event>begin("a").where(new SimpleCondition<Event>() {
 			private static final long serialVersionUID = 5726188262756267490L;
@@ -2734,7 +2738,8 @@ public class NFAITCase extends TestLogger {
 			public boolean filter(Event value) throws Exception {
 				return value.getName().equals("c");
 			}
-		}).oneOrMore().notFollowedBy("not d").where(new SimpleCondition<Event>() {
+		}).zeroOrMore()
+		.notFollowedBy("not d").where(new SimpleCondition<Event>() {
 			private static final long serialVersionUID = 5726188262756267490L;
 
 			@Override
@@ -2759,10 +2764,19 @@ public class NFAITCase extends TestLogger {
 
 		NFA<Event> nfa = NFACompiler.compile(pattern, Event.createTypeSerializer(), false);
 
-		List<List<Event>> resultingPatterns = feedNFA(inputEvents, nfa);
+		final Tuple2<List<List<Event>>, List<List<Event>>> matches = feedNFAWithDiscarded(inputEvents, nfa);
 
-		compareMaps(resultingPatterns,Lists.<List<Event>>newArrayList(
-			Lists.newArrayList(a1, f1)
+		compareMaps(matches.f0,Lists.<List<Event>>newArrayList(
+			Lists.newArrayList(a1, f1),
+			Lists.newArrayList(a1, c1, c2, e1, f2),
+			Lists.newArrayList(a1, c1, c2, f2),
+			Lists.newArrayList(a1, c1, e1, f2),
+			Lists.newArrayList(a1, e1, f2)
+		));
+		compareMaps(matches.f1, Lists.<List<Event>>newArrayList(
+			Lists.newArrayList(a1, c1, c2, e1, d1),
+			Lists.newArrayList(a1, c1, e1, d1),
+			Lists.newArrayList(a1, e1, d1)
 		));
 	}
 
@@ -2816,11 +2830,14 @@ public class NFAITCase extends TestLogger {
 
 		NFA<Event> nfa = NFACompiler.compile(pattern, Event.createTypeSerializer(), false);
 
-		List<List<Event>> resultingPatterns = feedNFA(inputEvents, nfa);
+		final Tuple2<List<List<Event>>, List<List<Event>>> matches = feedNFAWithDiscarded(inputEvents, nfa);
 
-		compareMaps(resultingPatterns,Lists.<List<Event>>newArrayList(
-			Lists.newArrayList(a1, c2, f)
+
+		compareMaps(matches.f0, Lists.<List<Event>>newArrayList(
+			Lists.newArrayList(a1, c1, c2, f),
+			Lists.newArrayList(a1, c1, f)
 		));
+		assertEquals(0, matches.f1.size());
 	}
 
 	@Test
@@ -2875,15 +2892,33 @@ public class NFAITCase extends TestLogger {
 
 		NFA<Event> nfa = NFACompiler.compile(pattern, Event.createTypeSerializer(), false);
 
-		List<List<Event>> resultingPatterns = feedNFA(inputEvents, nfa);
+		final Tuple2<List<List<Event>>, List<List<Event>>> matches = feedNFAWithDiscarded(inputEvents, nfa);
 
-		compareMaps(resultingPatterns,Lists.<List<Event>>newArrayList(
-			Lists.newArrayList(a1, b1, b2, b3, d1),
-			Lists.newArrayList(a1, b1, b2, d1),
-			Lists.newArrayList(a1, d1)
+		assertEquals(0, matches.f0.size());
+		compareMaps(matches.f1, Lists.<List<Event>>newArrayList(
+			Lists.newArrayList(a1, b1, c1)
 		));
 	}
 
+	private Tuple2<List<List<Event>>, List<List<Event>>> feedNFAWithDiscarded(List<StreamRecord<Event>> inputEvents, NFA<Event> nfa) {
+		List<List<Event>> resultingPatterns = new ArrayList<>();
+		List<List<Event>> discardedPatterns = new ArrayList<>();
+
+		for (StreamRecord<Event> inputEvent : inputEvents) {
+			final NFAMatches<Event> matches = nfa.process(
+				inputEvent.getValue(),
+				inputEvent.getTimestamp());
+
+			for (Map<String, Event> p: matches.getMatches()) {
+				resultingPatterns.add(new ArrayList<>(p.values()));
+			}
+
+			for (Map<String, Event> d : matches.getDiscardedMatches()) {
+				discardedPatterns.add(new ArrayList<>(d.values()));
+			}
+		}
+		return Tuple2.of(resultingPatterns, discardedPatterns);
+	}
 
 
 	/////////////////////////////////////////       Utility        /////////////////////////////////////////////////
@@ -2894,7 +2929,7 @@ public class NFAITCase extends TestLogger {
 		for (StreamRecord<Event> inputEvent : inputEvents) {
 			Collection<Map<String, Event>> patterns = nfa.process(
 				inputEvent.getValue(),
-				inputEvent.getTimestamp()).f0;
+				inputEvent.getTimestamp()).getMatches();
 
 			for (Map<String, Event> p: patterns) {
 				resultingPatterns.add(new ArrayList<>(p.values()));

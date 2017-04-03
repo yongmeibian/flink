@@ -23,6 +23,7 @@ import org.apache.flink.api.java.functions.KeySelector;
 import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.api.java.tuple.Tuple3;
 import org.apache.flink.cep.nfa.NFA;
+import org.apache.flink.cep.nfa.NFAMatches;
 import org.apache.flink.cep.nfa.compiler.NFACompiler;
 import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
 import org.apache.flink.util.OutputTag;
@@ -56,16 +57,14 @@ public class KeyedCEPPatternOperator<IN, KEY> extends AbstractKeyedCEPPatternOpe
 
 	@Override
 	protected void processEvent(NFA<IN> nfa, IN event, long timestamp) {
-		Tuple3<Collection<Map<String, IN>>, Collection<Tuple2<Map<String, IN>, Long>>, Collection<Map<String, IN>>> patterns =
-			nfa.process(event, timestamp);
-		emitMatchedSequences(patterns.f0, timestamp);
+		final NFAMatches<IN> patterns = nfa.process(event, timestamp);
+		emitMatchedSequences(patterns.getMatches(), timestamp);
 	}
 
 	@Override
 	protected void advanceTime(NFA<IN> nfa, long timestamp) {
-		Tuple3<Collection<Map<String, IN>>, Collection<Tuple2<Map<String, IN>, Long>>, Collection<Map<String, IN>>> patterns =
-			nfa.process(null, timestamp);
-		emitMatchedSequences(patterns.f0, timestamp);
+		final NFAMatches<IN> patterns = nfa.process(null, timestamp);
+		emitMatchedSequences(patterns.getMatches(), timestamp);
 	}
 
 	private void emitMatchedSequences(Iterable<Map<String, IN>> matchedSequences, long timestamp) {

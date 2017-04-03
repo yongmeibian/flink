@@ -18,6 +18,7 @@
 
 package org.apache.flink.cep.nfa;
 
+import com.google.common.base.Optional;
 import com.google.common.base.Predicate;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Iterators;
@@ -188,12 +189,11 @@ public class NFA<T> implements Serializable {
 	 * reached a final state) and the collection of timed out patterns (if timeout handling is
 	 * activated)
 	 */
-	public Tuple3<Collection<Map<String, T>>, Collection<Tuple2<Map<String, T>, Long>>, Collection<Map<String, T>>> process(final T event, final long timestamp) {
-		final Collection<Map<String, T>> result = new ArrayList<>();
-		final Collection<Tuple2<Map<String, T>, Long>> timeoutResult = new ArrayList<>();
-		final Collection<Map<String, T>> discardedResult = new ArrayList<>();
+	public NFAMatches<T> process(final T event, final long timestamp) {
+		final NFAMatches<T> result = new NFAMatches<>();
 
 		// iterate over all current computations
+		final Set<DeweyNumber> runsToRemove = new HashSet<>();
 		final Collection<ComputationState<T>> statesToRetain = new ArrayList<>();
 		ComputationState<T> computationState = computationStates.poll();
 		while(computationState != null) {
@@ -206,10 +206,7 @@ public class NFA<T> implements Serializable {
 				if (handleTimeout) {
 					// extract the timed out event patterns
 					Collection<Map<String, T>> timeoutPatterns = extractPatternMatches(computationState);
-
-					for (Map<String, T> timeoutPattern : timeoutPatterns) {
-						timeoutResult.add(Tuple2.of(timeoutPattern, timestamp));
-					}
+					result.addTimeoutedMatch(timeoutPatterns, timestamp);
 				}
 
 				stringSharedBuffer.release(
@@ -229,7 +226,7 @@ public class NFA<T> implements Serializable {
 				if (newComputationState.isFinalState()) {
 					// we've reached a final state and can thus retrieve the matching event sequence
 					Collection<Map<String, T>> matches = extractPatternMatches(newComputationState);
-					result.addAll(matches);
+					result.addMatch(matches);
 
 					// remove found patterns because they are no longer needed
 					stringSharedBuffer.release(
@@ -237,28 +234,8 @@ public class NFA<T> implements Serializable {
 							newComputationState.getEvent(),
 							newComputationState.getTimestamp());
 				} else if (newComputationState.isStopState()) {
-					//
-					Collection<Map<String, T>> matches = extractPatternMatches(newComputationState);
-					discardedResult.addAll(matches);
-					final List<ComputationState<T>> otherRuns = new ArrayList<>();
-					ComputationState<T> state;
-					while ((state = this.computationStates.poll()) != null) {
-						if (state.getVersion().getRun() == newComputationState.getVersion().getRun()) {
-							stringSharedBuffer.release(
-								state.getPreviousState().getName(),
-								state.getEvent(),
-								state.getTimestamp());
-						} else {
-							otherRuns.add(state);
-						}
-					}
-					computationStates.addAll(otherRuns);
-					Iterables.removeIf(statesToRetain, new Predicate<ComputationState<T>>() {
-						@Override
-						public boolean apply(@Nullable ComputationState<T> input) {
-							return input.getVersion().getRun() == newComputationState.getVersion().getRun();
-						}
-					});
+					result.addDiscardedMatch(extractPatternMatches(newComputationState));
+					runsToRemove.add(newComputationState.getVersion().getParent());
 				} else {
 					// add new computation state; it will be processed once the next event arrives
 					statesToRetain.add(newComputationState);
@@ -268,7 +245,22 @@ public class NFA<T> implements Serializable {
 			computationState = computationStates.poll();
 		}
 
-		computationStates.addAll(statesToRetain);
+		for (final ComputationState<T> state : statesToRetain) {
+			final Optional<DeweyNumber> shouldBeRemoved = Iterables.tryFind(runsToRemove, new Predicate<DeweyNumber>() {
+					@Override
+					public boolean apply(@Nullable DeweyNumber input) {
+						return state.getVersion().isCompatibleWith(input);
+					}
+				});
+			if (shouldBeRemoved.isPresent()) {
+				stringSharedBuffer.release(
+					state.getPreviousState().getName(),
+					state.getEvent(),
+					state.getTimestamp());
+			} else {
+				computationStates.add(state);
+			}
+		}
 
 		// prune shared buffer based on window length
 		if(windowTime > 0L) {
@@ -283,7 +275,7 @@ public class NFA<T> implements Serializable {
 			}
 		}
 
-		return Tuple3.of(result, timeoutResult, discardedResult);
+		return result;
 	}
 
 	@Override
