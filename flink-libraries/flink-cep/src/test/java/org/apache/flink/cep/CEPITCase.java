@@ -18,7 +18,7 @@
 
 package org.apache.flink.cep;
 
-import com.google.common.base.Strings;
+import java.util.Map;
 import org.apache.flink.api.common.functions.MapFunction;
 import org.apache.flink.api.java.functions.KeySelector;
 import org.apache.flink.api.java.tuple.Tuple2;
@@ -32,7 +32,6 @@ import org.apache.flink.streaming.api.functions.AssignerWithPunctuatedWatermarks
 import org.apache.flink.streaming.api.watermark.Watermark;
 import org.apache.flink.streaming.api.windowing.time.Time;
 import org.apache.flink.streaming.util.StreamingMultipleProgramsTestBase;
-
 import org.apache.flink.types.Either;
 import org.apache.flink.util.OutputTag;
 import org.junit.After;
@@ -40,8 +39,6 @@ import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
-
-import java.util.Map;
 
 @SuppressWarnings("serial")
 public class CEPITCase extends StreamingMultipleProgramsTestBase {
@@ -784,7 +781,6 @@ public class CEPITCase extends StreamingMultipleProgramsTestBase {
 
 		final DataStream<Map<String, Event>> discardedPatterns = patternStream.getSideOutput(discardedTag);
 
-		// we just care for the late events in this test.
 		discardedPatterns.map(
 			new MapFunction<Map<String,Event>, String>() {
 				@Override

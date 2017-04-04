@@ -183,6 +183,9 @@ public class NFA<T> implements Serializable {
 	 * resulting event sequences are returned. If computations time out and timeout handling is
 	 * activated, then the timed out event patterns are returned.
 	 *
+	 * <p>If computations reach a stop state, the path forward is discarded and currently constructed path is returned
+	 * with the element that resulted in the stop state.
+	 *
 	 * @param event The current event to be processed or null if only pruning shall be done
 	 * @param timestamp The timestamp of the current event
 	 * @return Tuple of the collection of matched patterns (e.g. the result of computations which have
@@ -222,7 +225,9 @@ public class NFA<T> implements Serializable {
 			}
 
 
+			//delay adding new computation states in case a stop state is reached and we discard the path.
 			final Collection<ComputationState<T>> statesToRetain = new ArrayList<>();
+			//if stop state reached in this path
 			boolean shouldDiscardPath = false;
 			for (final ComputationState<T> newComputationState: newComputationStates) {
 				if (newComputationState.isFinalState()) {
@@ -236,13 +241,13 @@ public class NFA<T> implements Serializable {
 							newComputationState.getEvent(),
 							newComputationState.getTimestamp());
 				} else if (newComputationState.isStopState()) {
+					//reached stop state. release entry for the stop state
 					result.addDiscardedMatch(extractPatternMatches(newComputationState));
 					shouldDiscardPath = true;
 					stringSharedBuffer.release(
 						newComputationState.getPreviousState().getName(),
 						newComputationState.getEvent(),
 						newComputationState.getTimestamp());
-//					runsToRemove.add(newComputationState.getVersion().getParent());
 				} else {
 					// add new computation state; it will be processed once the next event arrives
 					statesToRetain.add(newComputationState);
@@ -250,6 +255,8 @@ public class NFA<T> implements Serializable {
 			}
 
 			if (shouldDiscardPath) {
+				// a stop state was reached in this branch. release branch which results in removing previous event from
+				// the buffer
 				for (final ComputationState<T> state : statesToRetain) {
 					stringSharedBuffer.release(
 						state.getPreviousState().getName(),

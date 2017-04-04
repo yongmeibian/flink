@@ -19,37 +19,51 @@ package org.apache.flink.cep.nfa;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashSet;
 import java.util.Map;
 import org.apache.flink.api.java.tuple.Tuple2;
 
+/**
+ * Wrapper for results of {@link NFA#process(Object, long)}.
+ * @param <T> type of processed events
+ */
 public class NFAMatches<T> {
 
 	private Collection<Map<String, T>> matches = new ArrayList<>();
-	private Collection<Map<String, T>> discardedMatches = new ArrayList<>();
+	private Collection<Map<String, T>> discardedMatches = new HashSet<>();
 	private Collection<Tuple2<Map<String, T>, Long>> timeoutedMatches = new ArrayList<>();
 
-	public void addMatch(final Collection<Map<String, T>> match) {
+	void addMatch(final Collection<Map<String, T>> match) {
 		matches.addAll(match);
 	}
 
-	public void addDiscardedMatch(final Collection<Map<String, T>> discardedMatch) {
+	void addDiscardedMatch(final Collection<Map<String, T>> discardedMatch) {
 		discardedMatches.addAll(discardedMatch);
 	}
 
-	public void addTimeoutedMatch(final Collection<Map<String, T>> timeoutedMatch, final long timestamp) {
+	void addTimeoutedMatch(final Collection<Map<String, T>> timeoutedMatch, final long timestamp) {
 		for (Map<String, T> timeoutPattern : timeoutedMatch) {
 			timeoutedMatches.add(Tuple2.of(timeoutPattern, timestamp));
 		}
 	}
 
+	/**
+	 * @return Found positive matches
+	 */
 	public Collection<Map<String, T>> getMatches() {
 		return matches;
 	}
 
+	/**
+	 * @return Found matches that was ended with a stop state
+	 */
 	public Collection<Map<String, T>> getDiscardedMatches() {
 		return discardedMatches;
 	}
 
+	/**
+	 * @return Matches that were timeouted before completing
+	 */
 	public Collection<Tuple2<Map<String, T>, Long>> getTimeoutedMatches() {
 		return timeoutedMatches;
 	}
