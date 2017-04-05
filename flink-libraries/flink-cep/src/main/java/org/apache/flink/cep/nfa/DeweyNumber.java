@@ -186,4 +186,8 @@ public class DeweyNumber implements Serializable {
 			return new DeweyNumber(deweyNumber);
 		}
 	}
+
+	public int getRun() {
+		return deweyNumber[0];
+	}
 }

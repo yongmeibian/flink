@@ -196,6 +196,9 @@ public class NFA<T> implements Serializable {
 		final int numberComputationStates = computationStates.size();
 		final NFAMatches<T> result = new NFAMatches<>();
 
+		final Set<Integer> runsToRemove = new HashSet<>();
+		//delay adding new computation states in case a stop state is reached and we discard the path.
+		final Collection<ComputationState<T>> statesToRetain = new ArrayList<>();
 		// iterate over all current computations
 		for (int i = 0; i < numberComputationStates; i++) {
 			ComputationState<T> computationState = computationStates.poll();
@@ -224,11 +227,7 @@ public class NFA<T> implements Serializable {
 				newComputationStates = Collections.singleton(computationState);
 			}
 
-
-			//delay adding new computation states in case a stop state is reached and we discard the path.
-			final Collection<ComputationState<T>> statesToRetain = new ArrayList<>();
 			//if stop state reached in this path
-			boolean shouldDiscardPath = false;
 			for (final ComputationState<T> newComputationState: newComputationStates) {
 				if (newComputationState.isFinalState()) {
 					// we've reached a final state and can thus retrieve the matching event sequence
@@ -243,7 +242,8 @@ public class NFA<T> implements Serializable {
 				} else if (newComputationState.isStopState()) {
 					//reached stop state. release entry for the stop state
 					result.addDiscardedMatch(extractPatternMatches(newComputationState));
-					shouldDiscardPath = true;
+					runsToRemove.add(newComputationState.getVersion().getRun());
+
 					stringSharedBuffer.release(
 						newComputationState.getPreviousState().getName(),
 						newComputationState.getEvent(),
@@ -253,20 +253,17 @@ public class NFA<T> implements Serializable {
 					statesToRetain.add(newComputationState);
 				}
 			}
+		}
 
-			if (shouldDiscardPath) {
-				// a stop state was reached in this branch. release branch which results in removing previous event from
-				// the buffer
-				for (final ComputationState<T> state : statesToRetain) {
-					stringSharedBuffer.release(
-						state.getPreviousState().getName(),
-						state.getEvent(),
-						state.getTimestamp());
-				}
+		for (ComputationState<T> state : statesToRetain) {
+			if (runsToRemove.contains(state.getVersion().getRun())) {
+				stringSharedBuffer.release(
+					state.getPreviousState().getName(),
+					state.getEvent(),
+					state.getTimestamp());
 			} else {
-				computationStates.addAll(statesToRetain);
+				computationStates.add(state);
 			}
-
 		}
 
 		// prune shared buffer based on window length
