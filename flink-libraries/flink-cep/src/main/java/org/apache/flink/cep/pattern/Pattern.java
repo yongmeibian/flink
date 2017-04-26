@@ -209,7 +209,7 @@ public class Pattern<T, F extends T> {
 	}
 
 	public Pattern<T, T> notNext(final String name) {
-		return new Pattern<>(name, previous, ConsumingStrategy.NOT_NEXT);
+		return new Pattern<>(name, this, ConsumingStrategy.NOT_NEXT);
 	}
 
 	/**
@@ -225,7 +225,7 @@ public class Pattern<T, F extends T> {
 	}
 
 	public Pattern<T, T> notFollowedBy(final String name) {
-		return new Pattern<>(name, previous, ConsumingStrategy.NOT_FOLLOW);
+		return new Pattern<>(name, this, ConsumingStrategy.NOT_FOLLOW);
 	}
 
 	/**

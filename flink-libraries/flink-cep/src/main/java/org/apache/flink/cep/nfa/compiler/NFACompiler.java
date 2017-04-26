@@ -120,8 +120,7 @@ public class NFACompiler {
 		 * multiple NFAs.
 		 */
 		void compileFactory() {
-			if (currentPattern.getQuantifier() instanceof QuantifierNot &&
-				currentPattern.getQuantifier().isOptional()) {
+			if (currentPattern.getQuantifier().getConsumingStrategy() == Quantifier.ConsumingStrategy.NOT_FOLLOW) {
 				throw new MalformedPatternException("NotFollowedBy is not supported as a last part of a Pattern!");
 			}
 
@@ -154,13 +153,12 @@ public class NFACompiler {
 		private List<Tuple2<IterativeCondition<T>, String>>  getCurrentNotCondition() {
 			final List<Tuple2<IterativeCondition<T>, String>> notConditions = new ArrayList<>();
 			Pattern<T, ? extends T> previousPattern = currentPattern;
-			while (previousPattern.getPrevious() != null && (
-				previousPattern.getPrevious().getQuantifier().isOptional() ||
-				previousPattern.getPrevious().getQuantifier() instanceof QuantifierNot)) {
+			while (previousPattern.getPrevious() != null &&
+				previousPattern.getPrevious().getQuantifier().getConsumingStrategy() == Quantifier.ConsumingStrategy.NOT_FOLLOW) {
 
 				previousPattern = previousPattern.getPrevious();
 
-				if (previousPattern.getQuantifier() instanceof QuantifierNot) {
+				if (previousPattern.getQuantifier().getConsumingStrategy() == Quantifier.ConsumingStrategy.NOT_FOLLOW) {
 					final IterativeCondition<T> notCondition = (IterativeCondition<T>) previousPattern.getCondition();
 					notConditions.add(Tuple2.of(notCondition, previousPattern.getName()));
 				}
@@ -193,17 +191,14 @@ public class NFACompiler {
 			State<T> lastSink = sinkState;
 			while (currentPattern.getPrevious() != null) {
 
-				if (currentPattern.getQuantifier() instanceof QuantifierNot &&
-				    currentPattern.getQuantifier().getConsumingStrategy() != Quantifier.ConsumingStrategy.STRICT) {
+				if (currentPattern.getQuantifier().getConsumingStrategy() == Quantifier.ConsumingStrategy.NOT_FOLLOW) {
 					//skip not patterns, they are converted into edge conditions
 
-				} else if (currentPattern.getQuantifier() instanceof QuantifierNot) {
+				} else if (currentPattern.getQuantifier().getConsumingStrategy() == Quantifier.ConsumingStrategy.NOT_NEXT) {
 					final State<T> notNext = createNormalState();
-					final State<T> stopState = new State<>(currentPattern.getName(), State.StateType.Stop);
-					states.add(stopState);
-
 					final IterativeCondition<T> notCondition = (IterativeCondition<T>) currentPattern.getCondition();
-					stopState.addTake(notCondition);
+					final State<T> stopState = createStopState(notCondition, currentPattern.getName());
+
 					if (lastSink.isFinal()) {
 						//hack so that the proceed to final is not fired
 						notNext.addIgnore(lastSink, new NotCondition<>(notCondition));
@@ -286,18 +281,22 @@ public class NFACompiler {
 		@SuppressWarnings("unchecked")
 		private State<T> createWaitingStateForZeroOrMore(final State<T> loopingState, final State<T> lastSink) {
 			final State<T> followByState = createNormalState();
-			final State<T> followByStateWithoutProceed = createNormalState();
 
 			final IterativeCondition<T> currentFunction = (IterativeCondition<T>)currentPattern.getCondition();
 
 			followByState.addProceed(lastSink, BooleanConditions.<T>trueFunction());
 			followByState.addTake(loopingState, currentFunction);
 
+			addStopStates(followByState);
+
 			final IterativeCondition<T> ignoreFunction = getIgnoreCondition(currentPattern);
 			if (ignoreFunction != null) {
+				final State<T> followByStateWithoutProceed = createNormalState();
 				followByState.addIgnore(followByStateWithoutProceed, ignoreFunction);
 				followByStateWithoutProceed.addIgnore(ignoreFunction);
 				followByStateWithoutProceed.addTake(loopingState, currentFunction);
+
+				addStopStates(followByStateWithoutProceed);
 			}
 
 			return followByState;
@@ -431,6 +430,8 @@ public class NFACompiler {
 			if (ignoreCondition != null) {
 				firstState.addIgnore(ignoreCondition);
 			}
+			addStopStates(firstState);
+
 			return firstState;
 		}
 
@@ -453,8 +454,7 @@ public class NFACompiler {
 			loopingState.addTake(filterFunction);
 
 			if (previousPattern != null &&
-				previousPattern.getQuantifier() instanceof QuantifierNot &&
-			    previousPattern.getQuantifier().getConsumingStrategy() != Quantifier.ConsumingStrategy.STRICT) {
+			    previousPattern.getQuantifier().getConsumingStrategy() == Quantifier.ConsumingStrategy.NOT_FOLLOW) {
 				final IterativeCondition<T> notCondition = (IterativeCondition<T>) previousPattern.getCondition();
 				final State<T> stopState = createStopState(
 					notCondition,
@@ -471,8 +471,7 @@ public class NFACompiler {
 				ignoreState.addIgnore(ignoreCondition);
 
 				if (previousPattern != null &&
-					previousPattern.getQuantifier() instanceof QuantifierNot &&
-				    previousPattern.getQuantifier().getConsumingStrategy() != Quantifier.ConsumingStrategy.STRICT) {
+				    previousPattern.getQuantifier().getConsumingStrategy() == Quantifier.ConsumingStrategy.NOT_FOLLOW) {
 					final IterativeCondition<T> notCondition = (IterativeCondition<T>) previousPattern.getCondition();
 					final State<T> stopState = createStopState(
 						notCondition,
