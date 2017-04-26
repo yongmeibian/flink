@@ -84,11 +84,27 @@ public class SharedBufferTest extends TestLogger {
 		sharedBuffer.put("a[]", events[6], timestamp, "a[]", events[5], timestamp, DeweyNumber.fromString("1.1"));
 		sharedBuffer.put("b", events[7], timestamp, "a[]", events[6], timestamp, DeweyNumber.fromString("1.1.0"));
 
-		Collection<LinkedHashMultimap<String, Event>> patterns3 = sharedBuffer.extractPatterns("b", events[7], timestamp, DeweyNumber.fromString("1.1.0"));
+		Collection<LinkedHashMultimap<String, Event>> patterns3 = sharedBuffer.extractPatterns(
+			"b",
+			events[7],
+			timestamp,
+			DeweyNumber.fromString("1.1.0"));
 		sharedBuffer.release("b", events[7], timestamp);
-		Collection<LinkedHashMultimap<String, Event>> patterns4 = sharedBuffer.extractPatterns("b", events[7], timestamp, DeweyNumber.fromString("1.1.0"));
-		Collection<LinkedHashMultimap<String, Event>> patterns1 = sharedBuffer.extractPatterns("b", events[5], timestamp, DeweyNumber.fromString("2.0.0"));
-		Collection<LinkedHashMultimap<String, Event>> patterns2 = sharedBuffer.extractPatterns("b", events[5], timestamp, DeweyNumber.fromString("1.0.0"));
+		Collection<LinkedHashMultimap<String, Event>> patterns4 = sharedBuffer.extractPatterns(
+			"b",
+			events[7],
+			timestamp,
+			DeweyNumber.fromString("1.1.0"));
+		Collection<LinkedHashMultimap<String, Event>> patterns1 = sharedBuffer.extractPatterns(
+			"b",
+			events[5],
+			timestamp,
+			DeweyNumber.fromString("2.0.0"));
+		Collection<LinkedHashMultimap<String, Event>> patterns2 = sharedBuffer.extractPatterns(
+			"b",
+			events[5],
+			timestamp,
+			DeweyNumber.fromString("1.0.0"));
 		sharedBuffer.release("b", events[5], timestamp);
 
 		assertEquals(1L, patterns3.size());
@@ -135,7 +151,7 @@ public class SharedBufferTest extends TestLogger {
 		ByteArrayInputStream bais = new ByteArrayInputStream(baos.toByteArray());
 		ObjectInputStream ois = new ObjectInputStream(bais);
 
-		SharedBuffer<String, Event> copy = (SharedBuffer<String, Event>)ois.readObject();
+		SharedBuffer<String, Event> copy = (SharedBuffer<String, Event>) ois.readObject();
 
 		assertEquals(sharedBuffer, copy);
 	}

@@ -205,7 +205,11 @@ public class Pattern<T, F extends T> {
 	 * @return A new pattern which is appended to this one
 	 */
 	public Pattern<T, T> next(final String name) {
-		return new Pattern<T, T>(name, this, ConsumingStrategy.STRICT);
+		return new Pattern<>(name, this, ConsumingStrategy.STRICT);
+	}
+
+	public Pattern<T, T> notNext(final String name) {
+		return new Pattern<>(name, previous, ConsumingStrategy.NOT_NEXT);
 	}
 
 	/**
@@ -218,6 +222,10 @@ public class Pattern<T, F extends T> {
 	 */
 	public Pattern<T, T> followedBy(final String name) {
 		return new Pattern<>(name, this, ConsumingStrategy.SKIP_TILL_NEXT);
+	}
+
+	public Pattern<T, T> notFollowedBy(final String name) {
+		return new Pattern<>(name, previous, ConsumingStrategy.NOT_FOLLOW);
 	}
 
 	/**

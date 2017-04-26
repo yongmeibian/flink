@@ -48,6 +48,8 @@ class PatternStream[T](jPatternStream: JPatternStream[T]) {
 
   private[flink] var lateDataOutputTag: OutputTag[T] = null
 
+  private[flink] var discardedPatternOutputTag: OutputTag[JMap[String, T]] = null
+
   private[flink] def wrappedPatternStream = jPatternStream
 
 
@@ -110,7 +112,8 @@ class PatternStream[T](jPatternStream: JPatternStream[T]) {
     val patternStream = CEPOperatorUtils.createTimeoutPatternStream(
       jPatternStream.getInputStream(),
       jPatternStream.getPattern(),
-      lateDataOutputTag)
+      lateDataOutputTag,
+      discardedPatternOutputTag)
 
     val cleanedSelect = cleanClosure(patternSelectFunction)
     val cleanedTimeout = cleanClosure(patternTimeoutFunction)
@@ -176,7 +179,8 @@ class PatternStream[T](jPatternStream: JPatternStream[T]) {
     val patternStream = CEPOperatorUtils.createTimeoutPatternStream(
       jPatternStream.getInputStream(),
       jPatternStream.getPattern(),
-      lateDataOutputTag
+      lateDataOutputTag,
+      discardedPatternOutputTag
     )
 
     val cleanedSelect = cleanClosure(patternFlatSelectFunction)
