@@ -3439,6 +3439,8 @@ public class NFAITCase extends TestLogger {
 		final Tuple2<List<List<Event>>, List<List<Event>>> matches = feedNFAWithDiscarded(inputEvents, nfa);
 
 		compareMaps(matches.f0,Lists.<List<Event>>newArrayList(
+			Lists.newArrayList(a1, c1, c2, f2),
+			Lists.newArrayList(a1, c1, f2),
 			Lists.newArrayList(a1, f1)
 		));
 		compareMaps(matches.f1, Lists.<List<Event>>newArrayList(
@@ -4077,16 +4079,26 @@ public class NFAITCase extends TestLogger {
 			Lists.newArrayList(NotFollowByData.a1, NotFollowByData.d1)
 		));
 		compareMaps(matches.f1, Lists.<List<Event>>newArrayList(
+			Lists.newArrayList(NotFollowByData.a1, NotFollowByData.c1)
 		));
 	}
 
 	@Test
 	public void testNotFollowedByBeforeZeroOrMoreCombinationsSkipTillAny() {
 		final Tuple2<List<List<Event>>, List<List<Event>>> matches = testNotFollowedByBeforeZeroOrMore(false, true);
-		assertEquals(0, matches.f0.size());
+		compareMaps(matches.f0, Lists.<List<Event>>newArrayList(
+			Lists.newArrayList(NotFollowByData.a1, NotFollowByData.b1, NotFollowByData.b4, NotFollowByData.b5, NotFollowByData.b6, NotFollowByData.d1),
+			Lists.newArrayList(NotFollowByData.a1, NotFollowByData.b1, NotFollowByData.b4, NotFollowByData.b5, NotFollowByData.d1),
+			Lists.newArrayList(NotFollowByData.a1, NotFollowByData.b1, NotFollowByData.b4, NotFollowByData.b6, NotFollowByData.d1),
+			Lists.newArrayList(NotFollowByData.a1, NotFollowByData.b1, NotFollowByData.b4, NotFollowByData.d1),
+			Lists.newArrayList(NotFollowByData.a1, NotFollowByData.b1, NotFollowByData.d1),
+			Lists.newArrayList(NotFollowByData.a1, NotFollowByData.b1, NotFollowByData.b5, NotFollowByData.b6, NotFollowByData.d1),
+			Lists.newArrayList(NotFollowByData.a1, NotFollowByData.b1, NotFollowByData.b5, NotFollowByData.d1),
+			Lists.newArrayList(NotFollowByData.a1, NotFollowByData.b1, NotFollowByData.b6, NotFollowByData.d1),
+			Lists.newArrayList(NotFollowByData.a1, NotFollowByData.d1)
+		));
 		compareMaps(matches.f1, Lists.<List<Event>>newArrayList(
-			Lists.newArrayList(NotFollowByData.a1, NotFollowByData.c1),
-			Lists.newArrayList(NotFollowByData.a1, NotFollowByData.b1, NotFollowByData.c1)
+			Lists.newArrayList(NotFollowByData.a1, NotFollowByData.c1)
 		));
 	}
 
