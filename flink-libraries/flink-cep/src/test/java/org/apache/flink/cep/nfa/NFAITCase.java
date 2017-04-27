@@ -3303,10 +3303,10 @@ public class NFAITCase extends TestLogger {
 		final Tuple2<List<List<Event>>, List<List<Event>>> matches = feedNFAWithDiscarded(inputEvents, nfa);
 
 		compareMaps(matches.f0,Lists.<List<Event>>newArrayList(
-			Lists.newArrayList(a1, c1, d),
-			Lists.newArrayList(a1, d)
+			Lists.newArrayList(a1, c1, d)
 		));
 		compareMaps(matches.f1, Lists.<List<Event>>newArrayList(
+			Lists.newArrayList(a1, b1)
 		));
 	}
 
@@ -3439,91 +3439,10 @@ public class NFAITCase extends TestLogger {
 		final Tuple2<List<List<Event>>, List<List<Event>>> matches = feedNFAWithDiscarded(inputEvents, nfa);
 
 		compareMaps(matches.f0,Lists.<List<Event>>newArrayList(
-			Lists.newArrayList(a1, c1, c2, f2),
-			Lists.newArrayList(a1, c1, f2),
 			Lists.newArrayList(a1, f1)
 		));
 		compareMaps(matches.f1, Lists.<List<Event>>newArrayList(
 			Lists.newArrayList(a1, c1, c2, d1),
-			Lists.newArrayList(a1, c1, d1),
-			Lists.newArrayList(a1, d1)
-		));
-	}
-
-	@Test
-	public void testNotFollowedByWithTwoLoopingStates() {
-		List<StreamRecord<Event>> inputEvents = new ArrayList<>();
-
-		double p = 0.0;
-		Event a1 = new Event(40, "a", p++);
-		Event f1 = new Event(41, "f", p++);
-		Event c1 = new Event(41, "c", p++);
-		Event c2 = new Event(42, "c", p++);
-		Event e1 = new Event(43, "e", p++);
-		Event d1 = new Event(43, "d", p++);
-		Event e2 = new Event(43, "e", p++);
-		Event f2 = new Event(43, "f", p);
-
-		int i = 0;
-		inputEvents.add(new StreamRecord<>(a1, i++));
-		inputEvents.add(new StreamRecord<>(f1, i++));
-		inputEvents.add(new StreamRecord<>(c1, i++));
-		inputEvents.add(new StreamRecord<>(c2, i++));
-		inputEvents.add(new StreamRecord<>(e1, i++));
-		inputEvents.add(new StreamRecord<>(d1, i++));
-		inputEvents.add(new StreamRecord<>(e2, i++));
-		inputEvents.add(new StreamRecord<>(f2, i));
-
-		Pattern<Event, ?> pattern = Pattern.<Event>begin("a").where(new SimpleCondition<Event>() {
-			private static final long serialVersionUID = 5726188262756267490L;
-
-			@Override
-			public boolean filter(Event value) throws Exception {
-				return value.getName().equals("a");
-			}
-		}).followedBy("c*").where(new SimpleCondition<Event>() {
-			private static final long serialVersionUID = 5726188262756267490L;
-
-			@Override
-			public boolean filter(Event value) throws Exception {
-				return value.getName().equals("c");
-			}
-		}).oneOrMore().optional()
-		.notFollowedBy("not d").where(new SimpleCondition<Event>() {
-			private static final long serialVersionUID = 5726188262756267490L;
-
-			@Override
-			public boolean filter(Event value) throws Exception {
-				return value.getName().equals("d");
-			}
-		}).followedBy("e*").where(new SimpleCondition<Event>() {
-			private static final long serialVersionUID = 5726188262756267490L;
-
-			@Override
-			public boolean filter(Event value) throws Exception {
-				return value.getName().equals("e");
-			}
-		}).oneOrMore().optional().followedBy("f").where(new SimpleCondition<Event>() {
-			private static final long serialVersionUID = 5726188262756267490L;
-
-			@Override
-			public boolean filter(Event value) throws Exception {
-				return value.getName().equals("f");
-			}
-		});
-
-		NFA<Event> nfa = NFACompiler.compile(pattern, Event.createTypeSerializer(), false);
-
-		final Tuple2<List<List<Event>>, List<List<Event>>> matches = feedNFAWithDiscarded(inputEvents, nfa);
-
-		compareMaps(matches.f0,Lists.<List<Event>>newArrayList(
-			Lists.newArrayList(a1, f1)
-		));
-		compareMaps(matches.f1, Lists.<List<Event>>newArrayList(
-			Lists.newArrayList(a1, c1, c2, e1, d1),
-			Lists.newArrayList(a1, c1, e1, d1),
-			Lists.newArrayList(a1, c1, c2, d1),
-			Lists.newArrayList(a1, e1, d1),
 			Lists.newArrayList(a1, c1, d1),
 			Lists.newArrayList(a1, d1)
 		));
@@ -4043,10 +3962,10 @@ public class NFAITCase extends TestLogger {
 			Lists.newArrayList(NotFollowByData.a1, NotFollowByData.b1, NotFollowByData.b4, NotFollowByData.b5, NotFollowByData.b6, NotFollowByData.d1),
 			Lists.newArrayList(NotFollowByData.a1, NotFollowByData.b1, NotFollowByData.b4, NotFollowByData.b5, NotFollowByData.d1),
 			Lists.newArrayList(NotFollowByData.a1, NotFollowByData.b1, NotFollowByData.b4, NotFollowByData.d1),
-			Lists.newArrayList(NotFollowByData.a1, NotFollowByData.b1, NotFollowByData.d1),
-			Lists.newArrayList(NotFollowByData.a1, NotFollowByData.d1)
+			Lists.newArrayList(NotFollowByData.a1, NotFollowByData.b1, NotFollowByData.d1)
 		));
 		compareMaps(matches.f1, Lists.<List<Event>>newArrayList(
+			Lists.newArrayList(NotFollowByData.a1, NotFollowByData.c1)
 		));
 	}
 
@@ -4061,10 +3980,10 @@ public class NFAITCase extends TestLogger {
 			Lists.newArrayList(NotFollowByData.a1, NotFollowByData.b1, NotFollowByData.d1),
 			Lists.newArrayList(NotFollowByData.a1, NotFollowByData.b1, NotFollowByData.b5, NotFollowByData.b6, NotFollowByData.d1),
 			Lists.newArrayList(NotFollowByData.a1, NotFollowByData.b1, NotFollowByData.b5, NotFollowByData.d1),
-			Lists.newArrayList(NotFollowByData.a1, NotFollowByData.b1, NotFollowByData.b6, NotFollowByData.d1),
-			Lists.newArrayList(NotFollowByData.a1, NotFollowByData.d1)
+			Lists.newArrayList(NotFollowByData.a1, NotFollowByData.b1, NotFollowByData.b6, NotFollowByData.d1)
 		));
 		compareMaps(matches.f1, Lists.<List<Event>>newArrayList(
+			Lists.newArrayList(NotFollowByData.a1, NotFollowByData.c1)
 		));
 	}
 
@@ -4075,8 +3994,7 @@ public class NFAITCase extends TestLogger {
 			Lists.newArrayList(NotFollowByData.a1, NotFollowByData.b1, NotFollowByData.b4, NotFollowByData.b5, NotFollowByData.b6, NotFollowByData.d1),
 			Lists.newArrayList(NotFollowByData.a1, NotFollowByData.b1, NotFollowByData.b4, NotFollowByData.b5, NotFollowByData.d1),
 			Lists.newArrayList(NotFollowByData.a1, NotFollowByData.b1, NotFollowByData.b4, NotFollowByData.d1),
-			Lists.newArrayList(NotFollowByData.a1, NotFollowByData.b1, NotFollowByData.d1),
-			Lists.newArrayList(NotFollowByData.a1, NotFollowByData.d1)
+			Lists.newArrayList(NotFollowByData.a1, NotFollowByData.b1, NotFollowByData.d1)
 		));
 		compareMaps(matches.f1, Lists.<List<Event>>newArrayList(
 			Lists.newArrayList(NotFollowByData.a1, NotFollowByData.c1)
@@ -4094,8 +4012,7 @@ public class NFAITCase extends TestLogger {
 			Lists.newArrayList(NotFollowByData.a1, NotFollowByData.b1, NotFollowByData.d1),
 			Lists.newArrayList(NotFollowByData.a1, NotFollowByData.b1, NotFollowByData.b5, NotFollowByData.b6, NotFollowByData.d1),
 			Lists.newArrayList(NotFollowByData.a1, NotFollowByData.b1, NotFollowByData.b5, NotFollowByData.d1),
-			Lists.newArrayList(NotFollowByData.a1, NotFollowByData.b1, NotFollowByData.b6, NotFollowByData.d1),
-			Lists.newArrayList(NotFollowByData.a1, NotFollowByData.d1)
+			Lists.newArrayList(NotFollowByData.a1, NotFollowByData.b1, NotFollowByData.b6, NotFollowByData.d1)
 		));
 		compareMaps(matches.f1, Lists.<List<Event>>newArrayList(
 			Lists.newArrayList(NotFollowByData.a1, NotFollowByData.c1)

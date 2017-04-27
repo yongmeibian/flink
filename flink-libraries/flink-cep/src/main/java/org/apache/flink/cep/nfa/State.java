@@ -51,6 +51,12 @@ public class State<T> implements Serializable {
 		stateTransitions = new ArrayList<>();
 	}
 
+	public State(State<T> state) {
+		this.name = state.name;
+		this.stateType = state.stateType;
+		this.stateTransitions = new ArrayList<>(state.stateTransitions);
+	}
+
 	public boolean isFinal() {
 		return stateType == StateType.Final;
 	}
