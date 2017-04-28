@@ -227,7 +227,6 @@ public class CEPOperatorTest extends TestLogger {
 				IntSerializer.INSTANCE,
 				new NFAFactory(true),
 				null,
-				null,
 				true),
 			keySelector,
 			BasicTypeInfo.INT_TYPE_INFO);
@@ -437,7 +436,7 @@ public class CEPOperatorTest extends TestLogger {
 
 		harness.close();
 	}
-	
+
 	private void verifyWatermark(Object outputObject, long timestamp) {
 		assertTrue(outputObject instanceof Watermark);
 		assertEquals(timestamp, ((Watermark) outputObject).getTimestamp());
@@ -485,7 +484,6 @@ public class CEPOperatorTest extends TestLogger {
 			keySelector,
 			IntSerializer.INSTANCE,
 			new NFAFactory(),
-			null,
 			null,
 			true);
 	}

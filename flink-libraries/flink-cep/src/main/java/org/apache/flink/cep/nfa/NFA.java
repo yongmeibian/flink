@@ -45,6 +45,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import javax.annotation.Nullable;
 import org.apache.flink.api.common.typeutils.TypeSerializer;
+import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.api.java.typeutils.runtime.DataInputViewStream;
 import org.apache.flink.api.java.typeutils.runtime.DataOutputViewStream;
 import org.apache.flink.cep.NonDuplicatingTypeSerializer;
@@ -187,9 +188,10 @@ public class NFA<T> implements Serializable {
 	 * reached a final state) and the collection of timed out patterns (if timeout handling is
 	 * activated)
 	 */
-	public NFAMatches<T> process(final T event, final long timestamp) {
+	public Tuple2<Collection<Map<String, T>>, Collection<Tuple2<Map<String, T>, Long>>> process(final T event, final long timestamp) {
 		final int numberComputationStates = computationStates.size();
-		final NFAMatches<T> result = new NFAMatches<>();
+		final Collection<Map<String, T>> result = new ArrayList<>();
+		final Collection<Tuple2<Map<String, T>, Long>> timeoutResult = new ArrayList<>();
 
 		// iterate over all current computations
 		for (int i = 0; i < numberComputationStates; i++) {
@@ -204,7 +206,10 @@ public class NFA<T> implements Serializable {
 				if (handleTimeout) {
 					// extract the timed out event patterns
 					Collection<Map<String, T>> timeoutPatterns = extractPatternMatches(computationState);
-					result.addTimeoutedMatch(timeoutPatterns, timestamp);
+
+					for (Map<String, T> timeoutPattern : timeoutPatterns) {
+						timeoutResult.add(Tuple2.of(timeoutPattern, timestamp));
+					}
 				}
 
 				stringSharedBuffer.release(
@@ -228,7 +233,7 @@ public class NFA<T> implements Serializable {
 				if (newComputationState.isFinalState()) {
 					// we've reached a final state and can thus retrieve the matching event sequence
 					Collection<Map<String, T>> matches = extractPatternMatches(newComputationState);
-					result.addMatch(matches);
+					result.addAll(matches);
 
 					// remove found patterns because they are no longer needed
 					stringSharedBuffer.release(
@@ -237,7 +242,6 @@ public class NFA<T> implements Serializable {
 							newComputationState.getTimestamp());
 				} else if (newComputationState.isStopState()) {
 					//reached stop state. release entry for the stop state
-					result.addDiscardedMatch(extractPatternMatches(newComputationState));
 					shouldDiscardPath = true;
 					stringSharedBuffer.release(
 						newComputationState.getPreviousState().getName(),
@@ -277,7 +281,7 @@ public class NFA<T> implements Serializable {
 			}
 		}
 
-		return result;
+		return Tuple2.of(result, timeoutResult);
 	}
 
 	@Override

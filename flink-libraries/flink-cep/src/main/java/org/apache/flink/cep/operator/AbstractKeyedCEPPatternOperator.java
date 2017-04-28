@@ -18,12 +18,6 @@
 
 package org.apache.flink.cep.operator;
 
-import java.io.IOException;
-import java.io.ObjectInputStream;
-import java.io.Serializable;
-import java.util.Map;
-import java.util.Objects;
-import java.util.PriorityQueue;
 import org.apache.flink.annotation.VisibleForTesting;
 import org.apache.flink.api.common.state.ValueState;
 import org.apache.flink.api.common.state.ValueStateDescriptor;
@@ -36,10 +30,10 @@ import org.apache.flink.core.memory.DataInputView;
 import org.apache.flink.core.memory.DataInputViewStreamWrapper;
 import org.apache.flink.core.memory.DataOutputView;
 import org.apache.flink.migration.streaming.runtime.streamrecord.MultiplexingStreamRecordSerializer;
-import org.apache.flink.runtime.state.StateInitializationContext;
-import org.apache.flink.streaming.api.operators.AbstractStreamOperator;
-import org.apache.flink.streaming.api.operators.CheckpointedRestoringOperator;
 import org.apache.flink.streaming.api.operators.InternalWatermarkCallbackService;
+import org.apache.flink.runtime.state.StateInitializationContext;
+import org.apache.flink.streaming.api.operators.CheckpointedRestoringOperator;
+import org.apache.flink.streaming.api.operators.AbstractStreamOperator;
 import org.apache.flink.streaming.api.operators.OnWatermarkCallback;
 import org.apache.flink.streaming.api.operators.OneInputStreamOperator;
 import org.apache.flink.streaming.api.watermark.Watermark;
@@ -48,6 +42,12 @@ import org.apache.flink.streaming.runtime.streamrecord.StreamElementSerializer;
 import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
 import org.apache.flink.util.OutputTag;
 import org.apache.flink.util.Preconditions;
+
+import java.io.IOException;
+import java.io.ObjectInputStream;
+import java.io.Serializable;
+import java.util.Objects;
+import java.util.PriorityQueue;
 
 /**
  * Abstract CEP pattern operator for a keyed input stream. For each key, the operator creates
@@ -96,8 +96,6 @@ public abstract class AbstractKeyedCEPPatternOperator<IN, KEY, OUT>
 	 */
 	private final OutputTag<IN> lateDataOutputTag;
 
-	protected final OutputTag<Map<String, IN>> discardedPatternsOutputTag;
-
 	/**
 	 * The last seen watermark. This will be used to
 	 * decide if an incoming element is late or not.
@@ -117,7 +115,6 @@ public abstract class AbstractKeyedCEPPatternOperator<IN, KEY, OUT>
 			final TypeSerializer<KEY> keySerializer,
 			final NFACompiler.NFAFactory<IN> nfaFactory,
 			final OutputTag<IN> lateDataOutputTag,
-			final OutputTag<Map<String, IN>> discardedPatternsOutputTag,
 			final boolean migratingFromOldKeyedOperator) {
 
 		this.inputSerializer = Preconditions.checkNotNull(inputSerializer);
@@ -128,7 +125,6 @@ public abstract class AbstractKeyedCEPPatternOperator<IN, KEY, OUT>
 
 		this.lateDataOutputTag = lateDataOutputTag;
 		this.migratingFromOldKeyedOperator = migratingFromOldKeyedOperator;
-		this.discardedPatternsOutputTag = discardedPatternsOutputTag;
 	}
 
 	@Override
@@ -303,19 +299,6 @@ public abstract class AbstractKeyedCEPPatternOperator<IN, KEY, OUT>
 	 * @param timestamp to advance the time to
 	 */
 	protected abstract void advanceTime(NFA<IN> nfa, long timestamp);
-
-	protected void emitDiscardedSequences(Iterable<Map<String, IN>> matchedSequences, long timestamp) {
-		if (this.discardedPatternsOutputTag == null) {
-			return;
-		}
-
-		StreamRecord<Map<String, IN>> streamRecord = new StreamRecord<>(null, timestamp);
-
-		for (Map<String, IN> matchedPattern : matchedSequences) {
-			streamRecord.replace(matchedPattern);
-			output.collect(discardedPatternsOutputTag, streamRecord);
-		}
-	}
 
 	//////////////////////			Backwards Compatibility			//////////////////////
 

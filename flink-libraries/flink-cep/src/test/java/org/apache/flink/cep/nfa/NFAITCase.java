@@ -95,7 +95,7 @@ public class NFAITCase extends TestLogger {
 		for (StreamRecord<Event> inputEvent: inputEvents) {
 			Collection<Map<String, Event>> patterns = nfa.process(
 				inputEvent.getValue(),
-				inputEvent.getTimestamp()).getMatches();
+				inputEvent.getTimestamp()).f0;
 
 			resultingPatterns.addAll(patterns);
 		}
@@ -142,7 +142,7 @@ public class NFAITCase extends TestLogger {
 		for (StreamRecord<Event> inputEvent : inputEvents) {
 			Collection<Map<String, Event>> patterns = nfa.process(
 				inputEvent.getValue(),
-				inputEvent.getTimestamp()).getMatches();
+				inputEvent.getTimestamp()).f0;
 
 			for (Map<String, Event> foundPattern : patterns) {
 				resultingPatterns.add(new HashSet<>(foundPattern.values()));
@@ -191,7 +191,7 @@ public class NFAITCase extends TestLogger {
 		for (StreamRecord<Event> inputEvent : inputEvents) {
 			Collection<Map<String, Event>> patterns = nfa.process(
 				inputEvent.getValue(),
-				inputEvent.getTimestamp()).getMatches();
+				inputEvent.getTimestamp()).f0;
 
 			for (Map<String, Event> foundPattern : patterns) {
 				resultingPatterns.add(new HashSet<>(foundPattern.values()));
@@ -250,7 +250,7 @@ public class NFAITCase extends TestLogger {
 		for (StreamRecord<Event> event: events) {
 			Collection<Map<String, Event>> patterns = nfa.process(
 					event.getValue(),
-					event.getTimestamp()).getMatches();
+					event.getTimestamp()).f0;
 
 			resultingPatterns.addAll(patterns);
 		}
@@ -327,10 +327,10 @@ public class NFAITCase extends TestLogger {
 		NFA<Event> nfa = NFACompiler.compile(pattern, Event.createTypeSerializer(), true);
 
 		for (StreamRecord<Event> event: events) {
-			final NFAMatches<Event> patterns = nfa.process(event.getValue(), event.getTimestamp());
+			final Tuple2<Collection<Map<String, Event>>, Collection<Tuple2<Map<String, Event>, Long>>> patterns = nfa.process(event.getValue(), event.getTimestamp());
 
-			Collection<Map<String, Event>> matchedPatterns = patterns.getMatches();
-			Collection<Tuple2<Map<String, Event>, Long>> timeoutPatterns = patterns.getTimeoutedMatches();
+			Collection<Map<String, Event>> matchedPatterns = patterns.f0;
+			Collection<Tuple2<Map<String, Event>, Long>> timeoutPatterns = patterns.f1;
 
 			resultingPatterns.addAll(matchedPatterns);
 			resultingTimeoutPatterns.addAll(timeoutPatterns);
@@ -399,7 +399,7 @@ public class NFAITCase extends TestLogger {
 		for (StreamRecord<Event> inputEvent: inputEvents) {
 			Collection<Map<String, Event>> patterns = nfa.process(
 				inputEvent.getValue(),
-				inputEvent.getTimestamp()).getMatches();
+				inputEvent.getTimestamp()).f0;
 
 			resultingPatterns.addAll(patterns);
 		}
@@ -488,7 +488,7 @@ public class NFAITCase extends TestLogger {
 		for (StreamRecord<Event> inputEvent : inputEvents) {
 			Collection<Map<String, Event>> patterns = nfa.process(
 				inputEvent.getValue(),
-				inputEvent.getTimestamp()).getMatches();
+				inputEvent.getTimestamp()).f0;
 
 			for (Map<String, Event> foundPattern : patterns) {
 				resultingPatterns.add(new HashSet<>(foundPattern.values()));
@@ -614,7 +614,7 @@ public class NFAITCase extends TestLogger {
 		for (StreamRecord<Event> inputEvent : inputEvents) {
 			Collection<Map<String, Event>> patterns = nfa.process(
 				inputEvent.getValue(),
-				inputEvent.getTimestamp()).getMatches();
+				inputEvent.getTimestamp()).f0;
 
 			for (Map<String, Event> foundPattern : patterns) {
 				resultingPatterns.add(new HashSet<>(foundPattern.values()));
@@ -669,7 +669,7 @@ public class NFAITCase extends TestLogger {
 		for (StreamRecord<Event> inputEvent : inputEvents) {
 			Collection<Map<String, Event>> patterns = nfa.process(
 				inputEvent.getValue(),
-				inputEvent.getTimestamp()).getMatches();
+				inputEvent.getTimestamp()).f0;
 
 			for (Map<String, Event> foundPattern : patterns) {
 				resultingPatterns.add(new HashSet<>(foundPattern.values()));
@@ -745,7 +745,7 @@ public class NFAITCase extends TestLogger {
 		for (StreamRecord<Event> inputEvent : inputEvents) {
 			Collection<Map<String, Event>> patterns = nfa.process(
 				inputEvent.getValue(),
-				inputEvent.getTimestamp()).getMatches();
+				inputEvent.getTimestamp()).f0;
 
 			for (Map<String, Event> foundPattern : patterns) {
 				resultingPatterns.add(new HashSet<>(foundPattern.values()));
@@ -829,7 +829,7 @@ public class NFAITCase extends TestLogger {
 		for (StreamRecord<Event> inputEvent : inputEvents) {
 			Collection<Map<String, Event>> patterns = nfa.process(
 				inputEvent.getValue(),
-				inputEvent.getTimestamp()).getMatches();
+				inputEvent.getTimestamp()).f0;
 
 			for (Map<String, Event> foundPattern : patterns) {
 				resultingPatterns.add(new HashSet<>(foundPattern.values()));
@@ -897,7 +897,7 @@ public class NFAITCase extends TestLogger {
 		for (StreamRecord<Event> inputEvent : inputEvents) {
 			Collection<Map<String, Event>> patterns = nfa.process(
 				inputEvent.getValue(),
-				inputEvent.getTimestamp()).getMatches();
+				inputEvent.getTimestamp()).f0;
 
 			for (Map<String, Event> foundPattern : patterns) {
 				resultingPatterns.add(new HashSet<>(foundPattern.values()));
@@ -999,7 +999,7 @@ public class NFAITCase extends TestLogger {
 		for (StreamRecord<Event> inputEvent : inputEvents) {
 			Collection<Map<String, Event>> patterns = nfa.process(
 				inputEvent.getValue(),
-				inputEvent.getTimestamp()).getMatches();
+				inputEvent.getTimestamp()).f0;
 
 			for (Map<String, Event> foundPattern : patterns) {
 				resultingPatterns.add(new HashSet<>(foundPattern.values()));
@@ -1053,7 +1053,7 @@ public class NFAITCase extends TestLogger {
 		for (StreamRecord<Event> inputEvent : inputEvents) {
 			Collection<Map<String, Event>> patterns = nfa.process(
 				inputEvent.getValue(),
-				inputEvent.getTimestamp()).getMatches();
+				inputEvent.getTimestamp()).f0;
 
 			for (Map<String, Event> foundPattern : patterns) {
 				resultingPatterns.add(new HashSet<>(foundPattern.values()));
@@ -1121,7 +1121,7 @@ public class NFAITCase extends TestLogger {
 		for (StreamRecord<Event> inputEvent : inputEvents) {
 			Collection<Map<String, Event>> patterns = nfa.process(
 				inputEvent.getValue(),
-				inputEvent.getTimestamp()).getMatches();
+				inputEvent.getTimestamp()).f0;
 
 			for (Map<String, Event> foundPattern : patterns) {
 				resultingPatterns.add(new HashSet<>(foundPattern.values()));
@@ -1231,7 +1231,7 @@ public class NFAITCase extends TestLogger {
 		for (StreamRecord<Event> inputEvent : inputEvents) {
 			Collection<Map<String, Event>> patterns = nfa.process(
 				inputEvent.getValue(),
-				inputEvent.getTimestamp()).getMatches();
+				inputEvent.getTimestamp()).f0;
 
 			for (Map<String, Event> foundPattern : patterns) {
 				resultingPatterns.add(new HashSet<>(foundPattern.values()));
@@ -1542,7 +1542,7 @@ public class NFAITCase extends TestLogger {
 		for (StreamRecord<Event> inputEvent : inputEvents) {
 			Collection<Map<String, Event>> patterns = nfa.process(
 				inputEvent.getValue(),
-				inputEvent.getTimestamp()).getMatches();
+				inputEvent.getTimestamp()).f0;
 
 			for (Map<String, Event> foundPattern : patterns) {
 				resultingPatterns.add(new HashSet<>(foundPattern.values()));
@@ -1595,7 +1595,7 @@ public class NFAITCase extends TestLogger {
 		for (StreamRecord<Event> inputEvent : inputEvents) {
 			Collection<Map<String, Event>> patterns = nfa.process(
 				inputEvent.getValue(),
-				inputEvent.getTimestamp()).getMatches();
+				inputEvent.getTimestamp()).f0;
 
 			for (Map<String, Event> foundPattern : patterns) {
 				resultingPatterns.add(new HashSet<>(foundPattern.values()));
@@ -1689,7 +1689,7 @@ public class NFAITCase extends TestLogger {
 		for (StreamRecord<Event> inputEvent : inputEvents) {
 			Collection<Map<String, Event>> patterns = nfa.process(
 				inputEvent.getValue(),
-				inputEvent.getTimestamp()).getMatches();
+				inputEvent.getTimestamp()).f0;
 
 			for (Map<String, Event> foundPattern : patterns) {
 				resultingPatterns.add(new HashSet<>(foundPattern.values()));
@@ -3080,13 +3080,12 @@ public class NFAITCase extends TestLogger {
 
 		NFA<Event> nfa = NFACompiler.compile(pattern, Event.createTypeSerializer(), false);
 
-		final Tuple2<List<List<Event>>, List<List<Event>>> matches = feedNFAWithDiscarded(inputEvents, nfa);
+		final List<List<Event>> matches = feedNFA(inputEvents, nfa);
 
-		compareMaps(matches.f0, Lists.<List<Event>>newArrayList(
+		compareMaps(matches, Lists.<List<Event>>newArrayList(
 			Lists.newArrayList(a1, c1, d),
 			Lists.newArrayList(a1, c2, d)
 		));
-		assertEquals(0, matches.f1.size());
 	}
 
 	@Test
@@ -3135,12 +3134,9 @@ public class NFAITCase extends TestLogger {
 
 		NFA<Event> nfa = NFACompiler.compile(pattern, Event.createTypeSerializer(), false);
 
-		final Tuple2<List<List<Event>>, List<List<Event>>> matches = feedNFAWithDiscarded(inputEvents, nfa);
+		final List<List<Event>> matches = feedNFA(inputEvents, nfa);
 
-		assertEquals(0, matches.f0.size());
-		compareMaps(matches.f1, Lists.<List<Event>>newArrayList(
-			Lists.newArrayList(a1, b1)
-		));
+		assertEquals(0, matches.size());
 	}
 
 	@Test
@@ -3189,13 +3185,9 @@ public class NFAITCase extends TestLogger {
 
 		NFA<Event> nfa = NFACompiler.compile(pattern, Event.createTypeSerializer(), false);
 
-		final Tuple2<List<List<Event>>, List<List<Event>>> matches = feedNFAWithDiscarded(inputEvents, nfa);
+		final List<List<Event>> matches = feedNFA(inputEvents, nfa);
 
-		assertEquals(0, matches.f0.size());
-		compareMaps(matches.f1, Lists.<List<Event>>newArrayList(
-			Lists.newArrayList(a1, c1, d, b1),
-			Lists.newArrayList(a1, c2, d, b1)
-		));
+		assertEquals(0, matches.size());
 	}
 
 	@Test
@@ -3244,13 +3236,10 @@ public class NFAITCase extends TestLogger {
 
 		NFA<Event> nfa = NFACompiler.compile(pattern, Event.createTypeSerializer(), false);
 
-		final Tuple2<List<List<Event>>, List<List<Event>>> matches = feedNFAWithDiscarded(inputEvents, nfa);
+		final List<List<Event>> matches = feedNFA(inputEvents, nfa);
 
-		compareMaps(matches.f0,Lists.<List<Event>>newArrayList(
+		compareMaps(matches,Lists.<List<Event>>newArrayList(
 			Lists.newArrayList(a1, c1, d)
-		));
-		compareMaps(matches.f1, Lists.<List<Event>>newArrayList(
-			Lists.newArrayList(a1, b1)
 		));
 	}
 
@@ -3300,13 +3289,10 @@ public class NFAITCase extends TestLogger {
 
 		NFA<Event> nfa = NFACompiler.compile(pattern, Event.createTypeSerializer(), false);
 
-		final Tuple2<List<List<Event>>, List<List<Event>>> matches = feedNFAWithDiscarded(inputEvents, nfa);
+		final List<List<Event>> matches = feedNFA(inputEvents, nfa);
 
-		compareMaps(matches.f0,Lists.<List<Event>>newArrayList(
+		compareMaps(matches,Lists.<List<Event>>newArrayList(
 			Lists.newArrayList(a1, c1, d)
-		));
-		compareMaps(matches.f1, Lists.<List<Event>>newArrayList(
-			Lists.newArrayList(a1, b1)
 		));
 	}
 
@@ -3356,13 +3342,10 @@ public class NFAITCase extends TestLogger {
 
 		NFA<Event> nfa = NFACompiler.compile(pattern, Event.createTypeSerializer(), false);
 
-		final Tuple2<List<List<Event>>, List<List<Event>>> matches = feedNFAWithDiscarded(inputEvents, nfa);
+		final List<List<Event>> matches = feedNFA(inputEvents, nfa);
 
-		compareMaps(matches.f0,Lists.<List<Event>>newArrayList(
+		compareMaps(matches,Lists.<List<Event>>newArrayList(
 			Lists.newArrayList(a1, c1, c2, d)
-		));
-		compareMaps(matches.f1, Lists.<List<Event>>newArrayList(
-			Lists.newArrayList(a1, b1)
 		));
 	}
 
@@ -3430,14 +3413,10 @@ public class NFAITCase extends TestLogger {
 
 		NFA<Event> nfa = NFACompiler.compile(pattern, Event.createTypeSerializer(), false);
 
-		final Tuple2<List<List<Event>>, List<List<Event>>> matches = feedNFAWithDiscarded(inputEvents, nfa);
+		final List<List<Event>> matches = feedNFA(inputEvents, nfa);
 
-		compareMaps(matches.f0,Lists.<List<Event>>newArrayList(
+		compareMaps(matches,Lists.<List<Event>>newArrayList(
 			Lists.newArrayList(a1, c1, e1, f)
-		));
-		compareMaps(matches.f1, Lists.<List<Event>>newArrayList(
-			Lists.newArrayList(a1, b),
-			Lists.newArrayList(a1, c1, d)
 		));
 	}
 
@@ -3503,15 +3482,12 @@ public class NFAITCase extends TestLogger {
 
 		NFA<Event> nfa = NFACompiler.compile(pattern, Event.createTypeSerializer(), false);
 
-		final Tuple2<List<List<Event>>, List<List<Event>>> matches = feedNFAWithDiscarded(inputEvents, nfa);
+		final List<List<Event>> matches = feedNFA(inputEvents, nfa);
 
-		compareMaps(matches.f0,Lists.<List<Event>>newArrayList(
+		compareMaps(matches,Lists.<List<Event>>newArrayList(
 			Lists.newArrayList(a1, c1, e1, f),
 			Lists.newArrayList(a1, c1, e2, f),
 			Lists.newArrayList(a1, c1, f)
-		));
-		compareMaps(matches.f1, Lists.<List<Event>>newArrayList(
-			Lists.newArrayList(a1, b)
 		));
 	}
 
@@ -3579,18 +3555,13 @@ public class NFAITCase extends TestLogger {
 
 		NFA<Event> nfa = NFACompiler.compile(pattern, Event.createTypeSerializer(), false);
 
-		final Tuple2<List<List<Event>>, List<List<Event>>> matches = feedNFAWithDiscarded(inputEvents, nfa);
+		final List<List<Event>> matches = feedNFA(inputEvents, nfa);
 
-		compareMaps(matches.f0,Lists.<List<Event>>newArrayList(
+		compareMaps(matches,Lists.<List<Event>>newArrayList(
 			Lists.newArrayList(a1, c1, c2, e1, e2, f),
 			Lists.newArrayList(a1, c1, c2, e1, f),
 			Lists.newArrayList(a1, c1, e1, e2, f),
 			Lists.newArrayList(a1, c1, e1, f)
-		));
-		compareMaps(matches.f1, Lists.<List<Event>>newArrayList(
-			Lists.newArrayList(a1, b),
-			Lists.newArrayList(a1, c1, d),
-			Lists.newArrayList(a1, c1, c2, d)
 		));
 	}
 
@@ -3656,9 +3627,9 @@ public class NFAITCase extends TestLogger {
 
 		NFA<Event> nfa = NFACompiler.compile(pattern, Event.createTypeSerializer(), false);
 
-		final Tuple2<List<List<Event>>, List<List<Event>>> matches = feedNFAWithDiscarded(inputEvents, nfa);
+		final List<List<Event>> matches = feedNFA(inputEvents, nfa);
 
-		compareMaps(matches.f0,Lists.<List<Event>>newArrayList(
+		compareMaps(matches,Lists.<List<Event>>newArrayList(
 			Lists.newArrayList(a1, c1, c2, e1, e2, f),
 			Lists.newArrayList(a1, c1, c2, e1, f),
 			Lists.newArrayList(a1, c1, c2, e2, f),
@@ -3667,9 +3638,6 @@ public class NFAITCase extends TestLogger {
 			Lists.newArrayList(a1, c1, e2, f),
 			Lists.newArrayList(a1, c1, c2, f),
 			Lists.newArrayList(a1, c1, f)
-		));
-		compareMaps(matches.f1, Lists.<List<Event>>newArrayList(
-			Lists.newArrayList(a1, b)
 		));
 	}
 
@@ -3721,13 +3689,10 @@ public class NFAITCase extends TestLogger {
 
 		NFA<Event> nfa = NFACompiler.compile(pattern, Event.createTypeSerializer(), false);
 
-		final Tuple2<List<List<Event>>, List<List<Event>>> matches = feedNFAWithDiscarded(inputEvents, nfa);
+		final List<List<Event>> matches = feedNFA(inputEvents, nfa);
 
-		compareMaps(matches.f0, Lists.<List<Event>>newArrayList(
+		compareMaps(matches, Lists.<List<Event>>newArrayList(
 			Lists.newArrayList(a2, c2, d)
-		));
-		compareMaps(matches.f1, Lists.<List<Event>>newArrayList(
-			Lists.newArrayList(a1, b1)
 		));
 	}
 
@@ -3799,15 +3764,10 @@ public class NFAITCase extends TestLogger {
 
 		NFA<Event> nfa = NFACompiler.compile(pattern, Event.createTypeSerializer(), false);
 
-		final Tuple2<List<List<Event>>, List<List<Event>>> matches = feedNFAWithDiscarded(inputEvents, nfa);
+		final List<List<Event>> matches = feedNFA(inputEvents, nfa);
 
-		compareMaps(matches.f0,Lists.<List<Event>>newArrayList(
+		compareMaps(matches,Lists.<List<Event>>newArrayList(
 			Lists.newArrayList(a1, f1)
-		));
-		compareMaps(matches.f1, Lists.<List<Event>>newArrayList(
-			Lists.newArrayList(a1, c1, c2, d1),
-			Lists.newArrayList(a1, c1, d1),
-			Lists.newArrayList(a1, d1)
 		));
 	}
 
@@ -3828,28 +3788,22 @@ public class NFAITCase extends TestLogger {
 
 	@Test
 	public void testNotNextAfterZeroOrMoreSkipTillNext() {
-		final Tuple2<List<List<Event>>, List<List<Event>>> matches = testNotNextAfterZeroOrMore(false);
-		compareMaps(matches.f0, Lists.<List<Event>>newArrayList(
+		final List<List<Event>> matches = testNotNextAfterZeroOrMore(false);
+		compareMaps(matches, Lists.<List<Event>>newArrayList(
 			Lists.newArrayList(NotFollowByData.a1, NotFollowByData.d1)
-		));
-		compareMaps(matches.f1, Lists.<List<Event>>newArrayList(
-			Lists.newArrayList(NotFollowByData.a1, NotFollowByData.b1, NotFollowByData.c1)
 		));
 	}
 
 	@Test
 	public void testNotNextAfterZeroOrMoreSkipTillAny() {
-		final Tuple2<List<List<Event>>, List<List<Event>>> matches = testNotNextAfterZeroOrMore(true);
-		compareMaps(matches.f0, Lists.<List<Event>>newArrayList(
+		final List<List<Event>> matches = testNotNextAfterZeroOrMore(true);
+		compareMaps(matches, Lists.<List<Event>>newArrayList(
 			Lists.newArrayList(NotFollowByData.a1, NotFollowByData.b2, NotFollowByData.d1),
 			Lists.newArrayList(NotFollowByData.a1, NotFollowByData.d1)
 		));
-		compareMaps(matches.f1, Lists.<List<Event>>newArrayList(
-			Lists.newArrayList(NotFollowByData.a1, NotFollowByData.b1, NotFollowByData.c1)
-		));
 	}
 
-	private Tuple2<List<List<Event>>, List<List<Event>>> testNotNextAfterZeroOrMore(boolean allMatches) {
+	private List<List<Event>> testNotNextAfterZeroOrMore(boolean allMatches) {
 		List<StreamRecord<Event>> inputEvents = new ArrayList<>();
 
 		int i = 0;
@@ -3896,30 +3850,24 @@ public class NFAITCase extends TestLogger {
 
 		NFA<Event> nfa = NFACompiler.compile(pattern, Event.createTypeSerializer(), false);
 
-		return feedNFAWithDiscarded(inputEvents, nfa);
+		return feedNFA(inputEvents, nfa);
 	}
 
 	@Test
 	public void testNotNextAfterOneOrMoreSkipTillNext() {
-		final Tuple2<List<List<Event>>, List<List<Event>>> matches = testNotNextAfterOneOrMore(false);
-		assertEquals(0, matches.f0.size());
-		compareMaps(matches.f1, Lists.<List<Event>>newArrayList(
-			Lists.newArrayList(NotFollowByData.a1, NotFollowByData.b1, NotFollowByData.c1)
-		));
+		final List<List<Event>> matches = testNotNextAfterOneOrMore(false);
+		assertEquals(0, matches.size());
 	}
 
 	@Test
 	public void testNotNextAfterOneOrMoreSkipTillAny() {
-		final Tuple2<List<List<Event>>, List<List<Event>>> matches = testNotNextAfterOneOrMore(true);
-		compareMaps(matches.f0, Lists.<List<Event>>newArrayList(
+		final List<List<Event>> matches = testNotNextAfterOneOrMore(true);
+		compareMaps(matches, Lists.<List<Event>>newArrayList(
 			Lists.newArrayList(NotFollowByData.a1, NotFollowByData.b2, NotFollowByData.d1)
-		));
-		compareMaps(matches.f1, Lists.<List<Event>>newArrayList(
-			Lists.newArrayList(NotFollowByData.a1, NotFollowByData.b1, NotFollowByData.c1)
 		));
 	}
 
-	private Tuple2<List<List<Event>>, List<List<Event>>> testNotNextAfterOneOrMore(boolean allMatches) {
+	private List<List<Event>> testNotNextAfterOneOrMore(boolean allMatches) {
 		List<StreamRecord<Event>> inputEvents = new ArrayList<>();
 
 		int i = 0;
@@ -3966,32 +3914,22 @@ public class NFAITCase extends TestLogger {
 
 		NFA<Event> nfa = NFACompiler.compile(pattern, Event.createTypeSerializer(), false);
 
-		return feedNFAWithDiscarded(inputEvents, nfa);
+		return feedNFA(inputEvents, nfa);
 	}
 
 	@Test
 	public void testNotFollowedByAfterZeroOrMoreEager() {
-		final Tuple2<List<List<Event>>, List<List<Event>>> matches = testNotFollowedByAfterZeroOrMore(true);
-		assertEquals(0, matches.f0.size());
-		compareMaps(matches.f1, Lists.<List<Event>>newArrayList(
-			Lists.newArrayList(NotFollowByData.a1, NotFollowByData.b1, NotFollowByData.b2, NotFollowByData.c1),
-			Lists.newArrayList(NotFollowByData.a1, NotFollowByData.b1, NotFollowByData.c1),
-			Lists.newArrayList(NotFollowByData.a1, NotFollowByData.c1)
-		));
+		final List<List<Event>> matches = testNotFollowedByAfterZeroOrMore(true);
+		assertEquals(0, matches.size());
 	}
 
 	@Test
 	public void testNotFollowedByAfterZeroOrMoreCombinations() {
-		final Tuple2<List<List<Event>>, List<List<Event>>> matches = testNotFollowedByAfterZeroOrMore(false);
-		assertEquals(0, matches.f0.size());
-		compareMaps(matches.f1, Lists.<List<Event>>newArrayList(
-			Lists.newArrayList(NotFollowByData.a1, NotFollowByData.b1, NotFollowByData.b2, NotFollowByData.c1),
-			Lists.newArrayList(NotFollowByData.a1, NotFollowByData.b1, NotFollowByData.c1),
-			Lists.newArrayList(NotFollowByData.a1, NotFollowByData.c1)
-		));
+		final List<List<Event>> matches = testNotFollowedByAfterZeroOrMore(false);
+		assertEquals(0, matches.size());
 	}
 
-	private Tuple2<List<List<Event>>, List<List<Event>>> testNotFollowedByAfterZeroOrMore(boolean eager) {
+	private List<List<Event>> testNotFollowedByAfterZeroOrMore(boolean eager) {
 		List<StreamRecord<Event>> inputEvents = new ArrayList<>();
 
 		int i = 0;
@@ -4072,24 +4010,19 @@ public class NFAITCase extends TestLogger {
 
 		NFA<Event> nfa = NFACompiler.compile(pattern, Event.createTypeSerializer(), false);
 
-		return feedNFAWithDiscarded(inputEvents, nfa);
+		return feedNFA(inputEvents, nfa);
 	}
 
 	@Test
 	public void testNotFollowedByNextAfterOneOrMoreEager() {
-		final Tuple2<List<List<Event>>, List<List<Event>>> matches = testNotFollowedByAfterOneOrMore(true, false);
-		assertEquals(0, matches.f0.size());
-		compareMaps(matches.f1, Lists.<List<Event>>newArrayList(
-			Lists.newArrayList(NotFollowByData.a1, NotFollowByData.b1, NotFollowByData.c1),
-			Lists.newArrayList(NotFollowByData.a1, NotFollowByData.b1, NotFollowByData.b2, NotFollowByData.c1),
-			Lists.newArrayList(NotFollowByData.a1, NotFollowByData.b1, NotFollowByData.b2, NotFollowByData.b3, NotFollowByData.c1)
-		));
+		final List<List<Event>> matches = testNotFollowedByAfterOneOrMore(true, false);
+		assertEquals(0, matches.size());
 	}
 
 	@Test
 	public void testNotFollowedByAnyAfterOneOrMoreEager() {
-		final Tuple2<List<List<Event>>, List<List<Event>>> matches = testNotFollowedByAfterOneOrMore(true, true);
-		compareMaps(matches.f0, Lists.<List<Event>>newArrayList(
+		final List<List<Event>> matches = testNotFollowedByAfterOneOrMore(true, true);
+		compareMaps(matches, Lists.<List<Event>>newArrayList(
 			Lists.newArrayList(NotFollowByData.a1, NotFollowByData.b4, NotFollowByData.b5, NotFollowByData.b6, NotFollowByData.d1),
 			Lists.newArrayList(NotFollowByData.a1, NotFollowByData.b4, NotFollowByData.b5, NotFollowByData.d1),
 			Lists.newArrayList(NotFollowByData.a1, NotFollowByData.b4, NotFollowByData.d1),
@@ -4097,32 +4030,18 @@ public class NFAITCase extends TestLogger {
 			Lists.newArrayList(NotFollowByData.a1, NotFollowByData.b5, NotFollowByData.d1),
 			Lists.newArrayList(NotFollowByData.a1, NotFollowByData.b6, NotFollowByData.d1)
 		));
-		compareMaps(matches.f1, Lists.<List<Event>>newArrayList(
-			Lists.newArrayList(NotFollowByData.a1, NotFollowByData.b1, NotFollowByData.b2, NotFollowByData.b3, NotFollowByData.c1),
-			Lists.newArrayList(NotFollowByData.a1, NotFollowByData.b1, NotFollowByData.b2, NotFollowByData.c1),
-			Lists.newArrayList(NotFollowByData.a1, NotFollowByData.b1, NotFollowByData.c1),
-			Lists.newArrayList(NotFollowByData.a1, NotFollowByData.b2, NotFollowByData.b3, NotFollowByData.c1),
-			Lists.newArrayList(NotFollowByData.a1, NotFollowByData.b2, NotFollowByData.c1),
-			Lists.newArrayList(NotFollowByData.a1, NotFollowByData.b3, NotFollowByData.c1)
-		));
 	}
 
 	@Test
 	public void testNotFollowedByNextAfterOneOrMoreCombinations() {
-		final Tuple2<List<List<Event>>, List<List<Event>>> matches = testNotFollowedByAfterOneOrMore(false, false);
-		assertEquals(0, matches.f0.size());
-		compareMaps(matches.f1, Lists.<List<Event>>newArrayList(
-			Lists.newArrayList(NotFollowByData.a1, NotFollowByData.b1, NotFollowByData.b2, NotFollowByData.b3, NotFollowByData.c1),
-			Lists.newArrayList(NotFollowByData.a1, NotFollowByData.b1, NotFollowByData.b3, NotFollowByData.c1),
-			Lists.newArrayList(NotFollowByData.a1, NotFollowByData.b1, NotFollowByData.b2, NotFollowByData.c1),
-			Lists.newArrayList(NotFollowByData.a1, NotFollowByData.b1, NotFollowByData.c1)
-		));
+		final List<List<Event>> matches = testNotFollowedByAfterOneOrMore(false, false);
+		assertEquals(0, matches.size());
 	}
 
 	@Test
 	public void testNotFollowedByAnyAfterOneOrMoreCombinations() {
-		final Tuple2<List<List<Event>>, List<List<Event>>> matches = testNotFollowedByAfterOneOrMore(false, true);
-		compareMaps(matches.f0, Lists.<List<Event>>newArrayList(
+		final List<List<Event>> matches = testNotFollowedByAfterOneOrMore(false, true);
+		compareMaps(matches, Lists.<List<Event>>newArrayList(
 			Lists.newArrayList(NotFollowByData.a1, NotFollowByData.b4, NotFollowByData.b5, NotFollowByData.b6, NotFollowByData.d1),
 			Lists.newArrayList(NotFollowByData.a1, NotFollowByData.b4, NotFollowByData.b5, NotFollowByData.d1),
 			Lists.newArrayList(NotFollowByData.a1, NotFollowByData.b4, NotFollowByData.b6, NotFollowByData.d1),
@@ -4131,18 +4050,9 @@ public class NFAITCase extends TestLogger {
 			Lists.newArrayList(NotFollowByData.a1, NotFollowByData.b5, NotFollowByData.d1),
 			Lists.newArrayList(NotFollowByData.a1, NotFollowByData.b6, NotFollowByData.d1)
 		));
-		compareMaps(matches.f1, Lists.<List<Event>>newArrayList(
-			Lists.newArrayList(NotFollowByData.a1, NotFollowByData.b1, NotFollowByData.b2, NotFollowByData.b3, NotFollowByData.c1),
-			Lists.newArrayList(NotFollowByData.a1, NotFollowByData.b1, NotFollowByData.b2, NotFollowByData.c1),
-			Lists.newArrayList(NotFollowByData.a1, NotFollowByData.b1, NotFollowByData.b3, NotFollowByData.c1),
-			Lists.newArrayList(NotFollowByData.a1, NotFollowByData.b1, NotFollowByData.c1),
-			Lists.newArrayList(NotFollowByData.a1, NotFollowByData.b2, NotFollowByData.b3, NotFollowByData.c1),
-			Lists.newArrayList(NotFollowByData.a1, NotFollowByData.b2, NotFollowByData.c1),
-			Lists.newArrayList(NotFollowByData.a1, NotFollowByData.b3, NotFollowByData.c1)
-		));
 	}
 
-	private Tuple2<List<List<Event>>, List<List<Event>>> testNotFollowedByAfterOneOrMore(boolean eager, boolean allMatches) {
+	private List<List<Event>> testNotFollowedByAfterOneOrMore(boolean eager, boolean allMatches) {
 		List<StreamRecord<Event>> inputEvents = new ArrayList<>();
 
 		int i = 0;
@@ -4196,29 +4106,26 @@ public class NFAITCase extends TestLogger {
 
 		NFA<Event> nfa = NFACompiler.compile(pattern, Event.createTypeSerializer(), false);
 
-		return feedNFAWithDiscarded(inputEvents, nfa);
+		return feedNFA(inputEvents, nfa);
 	}
 
 	@Test
 	public void testNotFollowedByAnyBeforeOneOrMoreEager() {
-		final Tuple2<List<List<Event>>, List<List<Event>>> matches = testNotFollowedByBeforeOneOrMore(true, true);
+		final List<List<Event>> matches = testNotFollowedByBeforeOneOrMore(true, true);
 
-		compareMaps(matches.f0, Lists.<List<Event>>newArrayList(
+		compareMaps(matches, Lists.<List<Event>>newArrayList(
 			Lists.newArrayList(NotFollowByData.a1, NotFollowByData.b1, NotFollowByData.b4, NotFollowByData.b5, NotFollowByData.b6, NotFollowByData.d1),
 			Lists.newArrayList(NotFollowByData.a1, NotFollowByData.b1, NotFollowByData.b4, NotFollowByData.b5, NotFollowByData.d1),
 			Lists.newArrayList(NotFollowByData.a1, NotFollowByData.b1, NotFollowByData.b4, NotFollowByData.d1),
 			Lists.newArrayList(NotFollowByData.a1, NotFollowByData.b1, NotFollowByData.d1)
-		));
-		compareMaps(matches.f1, Lists.<List<Event>>newArrayList(
-			Lists.newArrayList(NotFollowByData.a1, NotFollowByData.c1)
 		));
 	}
 
 	@Test
 	public void testNotFollowedByAnyBeforeOneOrMoreCombinations() {
-		final Tuple2<List<List<Event>>, List<List<Event>>> matches = testNotFollowedByBeforeOneOrMore(false, true);
+		final List<List<Event>> matches = testNotFollowedByBeforeOneOrMore(false, true);
 
-		compareMaps(matches.f0, Lists.<List<Event>>newArrayList(
+		compareMaps(matches, Lists.<List<Event>>newArrayList(
 			Lists.newArrayList(NotFollowByData.a1, NotFollowByData.b1, NotFollowByData.b4, NotFollowByData.b5, NotFollowByData.b6, NotFollowByData.d1),
 			Lists.newArrayList(NotFollowByData.a1, NotFollowByData.b1, NotFollowByData.b4, NotFollowByData.b6, NotFollowByData.d1),
 			Lists.newArrayList(NotFollowByData.a1, NotFollowByData.b1, NotFollowByData.b4, NotFollowByData.b5, NotFollowByData.d1),
@@ -4227,30 +4134,26 @@ public class NFAITCase extends TestLogger {
 			Lists.newArrayList(NotFollowByData.a1, NotFollowByData.b1, NotFollowByData.b5, NotFollowByData.d1),
 			Lists.newArrayList(NotFollowByData.a1, NotFollowByData.b1, NotFollowByData.b6, NotFollowByData.d1),
 			Lists.newArrayList(NotFollowByData.a1, NotFollowByData.b1, NotFollowByData.d1)
-		));
-		compareMaps(matches.f1, Lists.<List<Event>>newArrayList(
-			Lists.newArrayList(NotFollowByData.a1, NotFollowByData.c1)
 		));
 	}
 
 	@Test
 	public void testNotFollowedByBeforeOneOrMoreEager() {
-		final Tuple2<List<List<Event>>, List<List<Event>>> matches = testNotFollowedByBeforeOneOrMore(true, false);
+		final List<List<Event>> matches = testNotFollowedByBeforeOneOrMore(true, false);
 
-		compareMaps(matches.f0, Lists.<List<Event>>newArrayList(
+		compareMaps(matches, Lists.<List<Event>>newArrayList(
 			Lists.newArrayList(NotFollowByData.a1, NotFollowByData.b1, NotFollowByData.b4, NotFollowByData.b5, NotFollowByData.b6, NotFollowByData.d1),
 			Lists.newArrayList(NotFollowByData.a1, NotFollowByData.b1, NotFollowByData.b4, NotFollowByData.b5, NotFollowByData.d1),
 			Lists.newArrayList(NotFollowByData.a1, NotFollowByData.b1, NotFollowByData.b4, NotFollowByData.d1),
 			Lists.newArrayList(NotFollowByData.a1, NotFollowByData.b1, NotFollowByData.d1)
 		));
-		assertEquals(0, matches.f1.size());
 	}
 
 	@Test
 	public void testNotFollowedByBeforeOneOrMoreCombinations() {
-		final Tuple2<List<List<Event>>, List<List<Event>>> matches = testNotFollowedByBeforeOneOrMore(false, false);
+		final List<List<Event>> matches = testNotFollowedByBeforeOneOrMore(false, false);
 
-		compareMaps(matches.f0, Lists.<List<Event>>newArrayList(
+		compareMaps(matches, Lists.<List<Event>>newArrayList(
 			Lists.newArrayList(NotFollowByData.a1, NotFollowByData.b1, NotFollowByData.b4, NotFollowByData.b5, NotFollowByData.b6, NotFollowByData.d1),
 			Lists.newArrayList(NotFollowByData.a1, NotFollowByData.b1, NotFollowByData.b4, NotFollowByData.b6, NotFollowByData.d1),
 			Lists.newArrayList(NotFollowByData.a1, NotFollowByData.b1, NotFollowByData.b4, NotFollowByData.b5, NotFollowByData.d1),
@@ -4260,10 +4163,9 @@ public class NFAITCase extends TestLogger {
 			Lists.newArrayList(NotFollowByData.a1, NotFollowByData.b1, NotFollowByData.b6, NotFollowByData.d1),
 			Lists.newArrayList(NotFollowByData.a1, NotFollowByData.b1, NotFollowByData.d1)
 		));
-		assertEquals(0, matches.f1.size());
 	}
 
-	private Tuple2<List<List<Event>>, List<List<Event>>> testNotFollowedByBeforeOneOrMore(boolean eager, boolean allMatches) {
+	private List<List<Event>> testNotFollowedByBeforeOneOrMore(boolean eager, boolean allMatches) {
 		List<StreamRecord<Event>> inputEvents = new ArrayList<>();
 
 		int i = 0;
@@ -4315,27 +4217,24 @@ public class NFAITCase extends TestLogger {
 
 		NFA<Event> nfa = NFACompiler.compile(pattern, Event.createTypeSerializer(), false);
 
-		return feedNFAWithDiscarded(inputEvents, nfa);
+		return feedNFA(inputEvents, nfa);
 	}
 
 	@Test
 	public void testNotFollowedByBeforeZeroOrMoreEagerSkipTillNext() {
-		final Tuple2<List<List<Event>>, List<List<Event>>> matches = testNotFollowedByBeforeZeroOrMore(true, false);
-		compareMaps(matches.f0, Lists.<List<Event>>newArrayList(
+		final List<List<Event>> matches = testNotFollowedByBeforeZeroOrMore(true, false);
+		compareMaps(matches, Lists.<List<Event>>newArrayList(
 			Lists.newArrayList(NotFollowByData.a1, NotFollowByData.b1, NotFollowByData.b4, NotFollowByData.b5, NotFollowByData.b6, NotFollowByData.d1),
 			Lists.newArrayList(NotFollowByData.a1, NotFollowByData.b1, NotFollowByData.b4, NotFollowByData.b5, NotFollowByData.d1),
 			Lists.newArrayList(NotFollowByData.a1, NotFollowByData.b1, NotFollowByData.b4, NotFollowByData.d1),
 			Lists.newArrayList(NotFollowByData.a1, NotFollowByData.b1, NotFollowByData.d1)
-		));
-		compareMaps(matches.f1, Lists.<List<Event>>newArrayList(
-			Lists.newArrayList(NotFollowByData.a1, NotFollowByData.c1)
 		));
 	}
 
 	@Test
 	public void testNotFollowedByBeforeZeroOrMoreCombinationsSkipTillNext() {
-		final Tuple2<List<List<Event>>, List<List<Event>>> matches = testNotFollowedByBeforeZeroOrMore(false, false);
-		compareMaps(matches.f0, Lists.<List<Event>>newArrayList(
+		final List<List<Event>> matches = testNotFollowedByBeforeZeroOrMore(false, false);
+		compareMaps(matches, Lists.<List<Event>>newArrayList(
 			Lists.newArrayList(NotFollowByData.a1, NotFollowByData.b1, NotFollowByData.b4, NotFollowByData.b5, NotFollowByData.b6, NotFollowByData.d1),
 			Lists.newArrayList(NotFollowByData.a1, NotFollowByData.b1, NotFollowByData.b4, NotFollowByData.b5, NotFollowByData.d1),
 			Lists.newArrayList(NotFollowByData.a1, NotFollowByData.b1, NotFollowByData.b4, NotFollowByData.b6, NotFollowByData.d1),
@@ -4344,30 +4243,24 @@ public class NFAITCase extends TestLogger {
 			Lists.newArrayList(NotFollowByData.a1, NotFollowByData.b1, NotFollowByData.b5, NotFollowByData.b6, NotFollowByData.d1),
 			Lists.newArrayList(NotFollowByData.a1, NotFollowByData.b1, NotFollowByData.b5, NotFollowByData.d1),
 			Lists.newArrayList(NotFollowByData.a1, NotFollowByData.b1, NotFollowByData.b6, NotFollowByData.d1)
-		));
-		compareMaps(matches.f1, Lists.<List<Event>>newArrayList(
-			Lists.newArrayList(NotFollowByData.a1, NotFollowByData.c1)
 		));
 	}
 
 	@Test
 	public void testNotFollowedByBeforeZeroOrMoreEagerSkipTillAny() {
-		final Tuple2<List<List<Event>>, List<List<Event>>> matches = testNotFollowedByBeforeZeroOrMore(true, true);
-		compareMaps(matches.f0, Lists.<List<Event>>newArrayList(
+		final List<List<Event>> matches = testNotFollowedByBeforeZeroOrMore(true, true);
+		compareMaps(matches, Lists.<List<Event>>newArrayList(
 			Lists.newArrayList(NotFollowByData.a1, NotFollowByData.b1, NotFollowByData.b4, NotFollowByData.b5, NotFollowByData.b6, NotFollowByData.d1),
 			Lists.newArrayList(NotFollowByData.a1, NotFollowByData.b1, NotFollowByData.b4, NotFollowByData.b5, NotFollowByData.d1),
 			Lists.newArrayList(NotFollowByData.a1, NotFollowByData.b1, NotFollowByData.b4, NotFollowByData.d1),
 			Lists.newArrayList(NotFollowByData.a1, NotFollowByData.b1, NotFollowByData.d1)
 		));
-		compareMaps(matches.f1, Lists.<List<Event>>newArrayList(
-			Lists.newArrayList(NotFollowByData.a1, NotFollowByData.c1)
-		));
 	}
 
 	@Test
 	public void testNotFollowedByBeforeZeroOrMoreCombinationsSkipTillAny() {
-		final Tuple2<List<List<Event>>, List<List<Event>>> matches = testNotFollowedByBeforeZeroOrMore(false, true);
-		compareMaps(matches.f0, Lists.<List<Event>>newArrayList(
+		final List<List<Event>> matches = testNotFollowedByBeforeZeroOrMore(false, true);
+		compareMaps(matches, Lists.<List<Event>>newArrayList(
 			Lists.newArrayList(NotFollowByData.a1, NotFollowByData.b1, NotFollowByData.b4, NotFollowByData.b5, NotFollowByData.b6, NotFollowByData.d1),
 			Lists.newArrayList(NotFollowByData.a1, NotFollowByData.b1, NotFollowByData.b4, NotFollowByData.b5, NotFollowByData.d1),
 			Lists.newArrayList(NotFollowByData.a1, NotFollowByData.b1, NotFollowByData.b4, NotFollowByData.b6, NotFollowByData.d1),
@@ -4377,12 +4270,9 @@ public class NFAITCase extends TestLogger {
 			Lists.newArrayList(NotFollowByData.a1, NotFollowByData.b1, NotFollowByData.b5, NotFollowByData.d1),
 			Lists.newArrayList(NotFollowByData.a1, NotFollowByData.b1, NotFollowByData.b6, NotFollowByData.d1)
 		));
-		compareMaps(matches.f1, Lists.<List<Event>>newArrayList(
-			Lists.newArrayList(NotFollowByData.a1, NotFollowByData.c1)
-		));
 	}
 
-	private Tuple2<List<List<Event>>, List<List<Event>>> testNotFollowedByBeforeZeroOrMore(boolean eager, boolean allMatches) {
+	private List<List<Event>> testNotFollowedByBeforeZeroOrMore(boolean eager, boolean allMatches) {
 		List<StreamRecord<Event>> inputEvents = new ArrayList<>();
 
 		int i = 0;
@@ -4434,7 +4324,7 @@ public class NFAITCase extends TestLogger {
 
 		NFA<Event> nfa = NFACompiler.compile(pattern, Event.createTypeSerializer(), false);
 
-		return feedNFAWithDiscarded(inputEvents, nfa);
+		return feedNFA(inputEvents, nfa);
 	}
 
 	/////////////////////////////////////////       Utility        /////////////////////////////////////////////////
@@ -4445,33 +4335,13 @@ public class NFAITCase extends TestLogger {
 		for (StreamRecord<Event> inputEvent : inputEvents) {
 			Collection<Map<String, Event>> patterns = nfa.process(
 				inputEvent.getValue(),
-				inputEvent.getTimestamp()).getMatches();
+				inputEvent.getTimestamp()).f0;
 
 			for (Map<String, Event> p: patterns) {
 				resultingPatterns.add(new ArrayList<>(p.values()));
 			}
 		}
 		return resultingPatterns;
-	}
-
-	private Tuple2<List<List<Event>>, List<List<Event>>> feedNFAWithDiscarded(List<StreamRecord<Event>> inputEvents, NFA<Event> nfa) {
-		List<List<Event>> resultingPatterns = new ArrayList<>();
-		List<List<Event>> discardedPatterns = new ArrayList<>();
-
-		for (StreamRecord<Event> inputEvent : inputEvents) {
-			final NFAMatches<Event> matches = nfa.process(
-				inputEvent.getValue(),
-				inputEvent.getTimestamp());
-
-			for (Map<String, Event> p: matches.getMatches()) {
-				resultingPatterns.add(new ArrayList<>(p.values()));
-			}
-
-			for (Map<String, Event> d : matches.getDiscardedMatches()) {
-				discardedPatterns.add(new ArrayList<>(d.values()));
-			}
-		}
-		return Tuple2.of(resultingPatterns, discardedPatterns);
 	}
 
 	private void compareMaps(List<List<Event>> actual, List<List<Event>> expected) {

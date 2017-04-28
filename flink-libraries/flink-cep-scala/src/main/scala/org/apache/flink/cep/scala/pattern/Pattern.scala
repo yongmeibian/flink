@@ -224,8 +224,8 @@ class Pattern[T , F <: T](jPattern: JPattern[T, F]) {
   }
 
   /**
-    * Appends a new pattern to the existing one. The new pattern enforces that there is no event matching this pattern
-    * between the preceding pattern and succeeding this one.
+    * Appends a new pattern to the existing one. The new pattern enforces that there is no event
+    * matching this pattern between the preceding pattern and succeeding this one.
     *
     * NOTE: There has to be other pattern after this one.
     *

@@ -191,7 +191,7 @@ public class NFATest extends TestLogger {
 		for (StreamRecord<T> streamEvent : inputs) {
 			Collection<Map<String, T>> matchedPatterns = nfa.process(
 				streamEvent.getValue(),
-				streamEvent.getTimestamp()).getMatches();
+				streamEvent.getTimestamp()).f0;
 
 			actualPatterns.addAll(matchedPatterns);
 		}
