@@ -87,6 +87,17 @@ public class DeweyNumber implements Serializable {
 		return deweyNumber.length;
 	}
 
+	public DeweyNumber getParent() {
+		int[] newDeweyNumber;
+		if (deweyNumber.length > 1) {
+			newDeweyNumber = Arrays.copyOf(deweyNumber, deweyNumber.length - 1);
+		} else {
+			newDeweyNumber = Arrays.copyOf(deweyNumber, deweyNumber.length);
+		}
+
+		return new DeweyNumber(newDeweyNumber);
+	}
+
 	/**
 	 * Creates a new dewey number from this such that its last digit is increased by
 	 * one.

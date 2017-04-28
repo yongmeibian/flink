@@ -95,7 +95,7 @@ public class NFAITCase extends TestLogger {
 		for (StreamRecord<Event> inputEvent: inputEvents) {
 			Collection<Map<String, Event>> patterns = nfa.process(
 				inputEvent.getValue(),
-				inputEvent.getTimestamp()).f0;
+				inputEvent.getTimestamp()).getMatches();
 
 			resultingPatterns.addAll(patterns);
 		}
@@ -142,7 +142,7 @@ public class NFAITCase extends TestLogger {
 		for (StreamRecord<Event> inputEvent : inputEvents) {
 			Collection<Map<String, Event>> patterns = nfa.process(
 				inputEvent.getValue(),
-				inputEvent.getTimestamp()).f0;
+				inputEvent.getTimestamp()).getMatches();
 
 			for (Map<String, Event> foundPattern : patterns) {
 				resultingPatterns.add(new HashSet<>(foundPattern.values()));
@@ -191,7 +191,7 @@ public class NFAITCase extends TestLogger {
 		for (StreamRecord<Event> inputEvent : inputEvents) {
 			Collection<Map<String, Event>> patterns = nfa.process(
 				inputEvent.getValue(),
-				inputEvent.getTimestamp()).f0;
+				inputEvent.getTimestamp()).getMatches();
 
 			for (Map<String, Event> foundPattern : patterns) {
 				resultingPatterns.add(new HashSet<>(foundPattern.values()));
@@ -250,7 +250,7 @@ public class NFAITCase extends TestLogger {
 		for (StreamRecord<Event> event: events) {
 			Collection<Map<String, Event>> patterns = nfa.process(
 					event.getValue(),
-					event.getTimestamp()).f0;
+					event.getTimestamp()).getMatches();
 
 			resultingPatterns.addAll(patterns);
 		}
@@ -327,11 +327,10 @@ public class NFAITCase extends TestLogger {
 		NFA<Event> nfa = NFACompiler.compile(pattern, Event.createTypeSerializer(), true);
 
 		for (StreamRecord<Event> event: events) {
-			Tuple2<Collection<Map<String, Event>>, Collection<Tuple2<Map<String, Event>, Long>>> patterns =
-				nfa.process(event.getValue(), event.getTimestamp());
+			final NFAMatches<Event> patterns = nfa.process(event.getValue(), event.getTimestamp());
 
-			Collection<Map<String, Event>> matchedPatterns = patterns.f0;
-			Collection<Tuple2<Map<String, Event>, Long>> timeoutPatterns = patterns.f1;
+			Collection<Map<String, Event>> matchedPatterns = patterns.getMatches();
+			Collection<Tuple2<Map<String, Event>, Long>> timeoutPatterns = patterns.getTimeoutedMatches();
 
 			resultingPatterns.addAll(matchedPatterns);
 			resultingTimeoutPatterns.addAll(timeoutPatterns);
@@ -400,7 +399,7 @@ public class NFAITCase extends TestLogger {
 		for (StreamRecord<Event> inputEvent: inputEvents) {
 			Collection<Map<String, Event>> patterns = nfa.process(
 				inputEvent.getValue(),
-				inputEvent.getTimestamp()).f0;
+				inputEvent.getTimestamp()).getMatches();
 
 			resultingPatterns.addAll(patterns);
 		}
@@ -489,7 +488,7 @@ public class NFAITCase extends TestLogger {
 		for (StreamRecord<Event> inputEvent : inputEvents) {
 			Collection<Map<String, Event>> patterns = nfa.process(
 				inputEvent.getValue(),
-				inputEvent.getTimestamp()).f0;
+				inputEvent.getTimestamp()).getMatches();
 
 			for (Map<String, Event> foundPattern : patterns) {
 				resultingPatterns.add(new HashSet<>(foundPattern.values()));
@@ -615,7 +614,7 @@ public class NFAITCase extends TestLogger {
 		for (StreamRecord<Event> inputEvent : inputEvents) {
 			Collection<Map<String, Event>> patterns = nfa.process(
 				inputEvent.getValue(),
-				inputEvent.getTimestamp()).f0;
+				inputEvent.getTimestamp()).getMatches();
 
 			for (Map<String, Event> foundPattern : patterns) {
 				resultingPatterns.add(new HashSet<>(foundPattern.values()));
@@ -670,7 +669,7 @@ public class NFAITCase extends TestLogger {
 		for (StreamRecord<Event> inputEvent : inputEvents) {
 			Collection<Map<String, Event>> patterns = nfa.process(
 				inputEvent.getValue(),
-				inputEvent.getTimestamp()).f0;
+				inputEvent.getTimestamp()).getMatches();
 
 			for (Map<String, Event> foundPattern : patterns) {
 				resultingPatterns.add(new HashSet<>(foundPattern.values()));
@@ -720,14 +719,16 @@ public class NFAITCase extends TestLogger {
 			public boolean filter(Event value) throws Exception {
 				return value.getName().equals("a");
 			}
-		}).oneOrMore().allowCombinations().optional().followedByAny("middle-second").where(new SimpleCondition<Event>() {
+		}).oneOrMore().allowCombinations().optional()
+			.followedBy("middle-second").where(new SimpleCondition<Event>() {
 			private static final long serialVersionUID = 5726188262756267490L;
 
 			@Override
 			public boolean filter(Event value) throws Exception {
 				return value.getName().equals("d");
 			}
-		}).oneOrMore().allowCombinations().optional().followedBy("end").where(new SimpleCondition<Event>() {
+		}).oneOrMore().allowCombinations().optional()
+			.followedBy("end").where(new SimpleCondition<Event>() {
 			private static final long serialVersionUID = 5726188262756267490L;
 
 			@Override
@@ -744,7 +745,7 @@ public class NFAITCase extends TestLogger {
 		for (StreamRecord<Event> inputEvent : inputEvents) {
 			Collection<Map<String, Event>> patterns = nfa.process(
 				inputEvent.getValue(),
-				inputEvent.getTimestamp()).f0;
+				inputEvent.getTimestamp()).getMatches();
 
 			for (Map<String, Event> foundPattern : patterns) {
 				resultingPatterns.add(new HashSet<>(foundPattern.values()));
@@ -752,13 +753,11 @@ public class NFAITCase extends TestLogger {
 			}
 		}
 
-		assertEquals(8, allPatterns.size());
+		assertEquals(6, allPatterns.size());
 		assertEquals(Sets.newHashSet(
 			Sets.newHashSet(startEvent, middleEvent1, middleEvent2, middleEvent3, end),
-			Sets.newHashSet(startEvent, middleEvent1, middleEvent3, end),
 			Sets.newHashSet(startEvent, middleEvent1, middleEvent2, end),
 			Sets.newHashSet(startEvent, middleEvent2, middleEvent3, end),
-			Sets.newHashSet(startEvent, middleEvent3, end),
 			Sets.newHashSet(startEvent, middleEvent2, end),
 			Sets.newHashSet(startEvent, middleEvent1, end),
 			Sets.newHashSet(startEvent, end)
@@ -830,7 +829,7 @@ public class NFAITCase extends TestLogger {
 		for (StreamRecord<Event> inputEvent : inputEvents) {
 			Collection<Map<String, Event>> patterns = nfa.process(
 				inputEvent.getValue(),
-				inputEvent.getTimestamp()).f0;
+				inputEvent.getTimestamp()).getMatches();
 
 			for (Map<String, Event> foundPattern : patterns) {
 				resultingPatterns.add(new HashSet<>(foundPattern.values()));
@@ -898,7 +897,7 @@ public class NFAITCase extends TestLogger {
 		for (StreamRecord<Event> inputEvent : inputEvents) {
 			Collection<Map<String, Event>> patterns = nfa.process(
 				inputEvent.getValue(),
-				inputEvent.getTimestamp()).f0;
+				inputEvent.getTimestamp()).getMatches();
 
 			for (Map<String, Event> foundPattern : patterns) {
 				resultingPatterns.add(new HashSet<>(foundPattern.values()));
@@ -1000,7 +999,7 @@ public class NFAITCase extends TestLogger {
 		for (StreamRecord<Event> inputEvent : inputEvents) {
 			Collection<Map<String, Event>> patterns = nfa.process(
 				inputEvent.getValue(),
-				inputEvent.getTimestamp()).f0;
+				inputEvent.getTimestamp()).getMatches();
 
 			for (Map<String, Event> foundPattern : patterns) {
 				resultingPatterns.add(new HashSet<>(foundPattern.values()));
@@ -1054,7 +1053,7 @@ public class NFAITCase extends TestLogger {
 		for (StreamRecord<Event> inputEvent : inputEvents) {
 			Collection<Map<String, Event>> patterns = nfa.process(
 				inputEvent.getValue(),
-				inputEvent.getTimestamp()).f0;
+				inputEvent.getTimestamp()).getMatches();
 
 			for (Map<String, Event> foundPattern : patterns) {
 				resultingPatterns.add(new HashSet<>(foundPattern.values()));
@@ -1122,7 +1121,7 @@ public class NFAITCase extends TestLogger {
 		for (StreamRecord<Event> inputEvent : inputEvents) {
 			Collection<Map<String, Event>> patterns = nfa.process(
 				inputEvent.getValue(),
-				inputEvent.getTimestamp()).f0;
+				inputEvent.getTimestamp()).getMatches();
 
 			for (Map<String, Event> foundPattern : patterns) {
 				resultingPatterns.add(new HashSet<>(foundPattern.values()));
@@ -1232,7 +1231,7 @@ public class NFAITCase extends TestLogger {
 		for (StreamRecord<Event> inputEvent : inputEvents) {
 			Collection<Map<String, Event>> patterns = nfa.process(
 				inputEvent.getValue(),
-				inputEvent.getTimestamp()).f0;
+				inputEvent.getTimestamp()).getMatches();
 
 			for (Map<String, Event> foundPattern : patterns) {
 				resultingPatterns.add(new HashSet<>(foundPattern.values()));
@@ -1543,7 +1542,7 @@ public class NFAITCase extends TestLogger {
 		for (StreamRecord<Event> inputEvent : inputEvents) {
 			Collection<Map<String, Event>> patterns = nfa.process(
 				inputEvent.getValue(),
-				inputEvent.getTimestamp()).f0;
+				inputEvent.getTimestamp()).getMatches();
 
 			for (Map<String, Event> foundPattern : patterns) {
 				resultingPatterns.add(new HashSet<>(foundPattern.values()));
@@ -1596,7 +1595,7 @@ public class NFAITCase extends TestLogger {
 		for (StreamRecord<Event> inputEvent : inputEvents) {
 			Collection<Map<String, Event>> patterns = nfa.process(
 				inputEvent.getValue(),
-				inputEvent.getTimestamp()).f0;
+				inputEvent.getTimestamp()).getMatches();
 
 			for (Map<String, Event> foundPattern : patterns) {
 				resultingPatterns.add(new HashSet<>(foundPattern.values()));
@@ -1690,7 +1689,7 @@ public class NFAITCase extends TestLogger {
 		for (StreamRecord<Event> inputEvent : inputEvents) {
 			Collection<Map<String, Event>> patterns = nfa.process(
 				inputEvent.getValue(),
-				inputEvent.getTimestamp()).f0;
+				inputEvent.getTimestamp()).getMatches();
 
 			for (Map<String, Event> foundPattern : patterns) {
 				resultingPatterns.add(new HashSet<>(foundPattern.values()));
@@ -3033,20 +3032,1446 @@ public class NFAITCase extends TestLogger {
 	}
 
 
-	/////////////////////////////////////////    Utility      ////////////////////////////////
+	/////////////////////////////////////////       Not pattern    /////////////////////////////////////////////////
+
+	@Test
+	public void testNotNext() {
+		List<StreamRecord<Event>> inputEvents = new ArrayList<>();
+
+		Event a1 = new Event(40, "a", 1.0);
+		Event c1 = new Event(41, "c", 2.0);
+		Event b1 = new Event(42, "b", 3.0);
+		Event c2 = new Event(43, "c", 4.0);
+		Event d = new Event(43, "d", 4.0);
+
+		inputEvents.add(new StreamRecord<>(a1, 1));
+		inputEvents.add(new StreamRecord<>(c1, 2));
+		inputEvents.add(new StreamRecord<>(b1, 3));
+		inputEvents.add(new StreamRecord<>(c2, 4));
+		inputEvents.add(new StreamRecord<>(d, 5));
+
+		Pattern<Event, ?> pattern = Pattern.<Event>begin("start").where(new SimpleCondition<Event>() {
+			private static final long serialVersionUID = 5726188262756267490L;
+
+			@Override
+			public boolean filter(Event value) throws Exception {
+				return value.getName().equals("a");
+			}
+		}).notNext("notPattern").where(new SimpleCondition<Event>() {
+			@Override
+			public boolean filter(Event value) throws Exception {
+				return value.getName().equals("b");
+			}
+		}).followedByAny("middle").where(new SimpleCondition<Event>() {
+			private static final long serialVersionUID = 5726188262756267490L;
+
+			@Override
+			public boolean filter(Event value) throws Exception {
+				return value.getName().equals("c");
+			}
+		}).followedBy("end").where(new SimpleCondition<Event>() {
+			private static final long serialVersionUID = 5726188262756267490L;
+
+			@Override
+			public boolean filter(Event value) throws Exception {
+				return value.getName().equals("d");
+			}
+		});
+
+		NFA<Event> nfa = NFACompiler.compile(pattern, Event.createTypeSerializer(), false);
+
+		final Tuple2<List<List<Event>>, List<List<Event>>> matches = feedNFAWithDiscarded(inputEvents, nfa);
+
+		compareMaps(matches.f0, Lists.<List<Event>>newArrayList(
+			Lists.newArrayList(a1, c1, d),
+			Lists.newArrayList(a1, c2, d)
+		));
+		assertEquals(0, matches.f1.size());
+	}
+
+	@Test
+	public void testNotNextNoMatches() {
+		List<StreamRecord<Event>> inputEvents = new ArrayList<>();
+
+		Event a1 = new Event(40, "a", 1.0);
+		Event b1 = new Event(42, "b", 3.0);
+		Event c1 = new Event(41, "c", 2.0);
+		Event c2 = new Event(43, "c", 4.0);
+		Event d = new Event(43, "d", 4.0);
+
+		inputEvents.add(new StreamRecord<>(a1, 1));
+		inputEvents.add(new StreamRecord<>(b1, 2));
+		inputEvents.add(new StreamRecord<>(c1, 3));
+		inputEvents.add(new StreamRecord<>(c2, 4));
+		inputEvents.add(new StreamRecord<>(d, 5));
+
+		Pattern<Event, ?> pattern = Pattern.<Event>begin("start").where(new SimpleCondition<Event>() {
+			private static final long serialVersionUID = 5726188262756267490L;
+
+			@Override
+			public boolean filter(Event value) throws Exception {
+				return value.getName().equals("a");
+			}
+		}).notNext("notPattern").where(new SimpleCondition<Event>() {
+			@Override
+			public boolean filter(Event value) throws Exception {
+				return value.getName().equals("b");
+			}
+		}).followedBy("middle").where(new SimpleCondition<Event>() {
+			private static final long serialVersionUID = 5726188262756267490L;
+
+			@Override
+			public boolean filter(Event value) throws Exception {
+				return value.getName().equals("c");
+			}
+		}).followedBy("end").where(new SimpleCondition<Event>() {
+			private static final long serialVersionUID = 5726188262756267490L;
+
+			@Override
+			public boolean filter(Event value) throws Exception {
+				return value.getName().equals("d");
+			}
+		});
+
+		NFA<Event> nfa = NFACompiler.compile(pattern, Event.createTypeSerializer(), false);
+
+		final Tuple2<List<List<Event>>, List<List<Event>>> matches = feedNFAWithDiscarded(inputEvents, nfa);
+
+		assertEquals(0, matches.f0.size());
+		compareMaps(matches.f1, Lists.<List<Event>>newArrayList(
+			Lists.newArrayList(a1, b1)
+		));
+	}
+
+	@Test
+	public void testNotNextNoMatchesAtTheEnd() {
+		List<StreamRecord<Event>> inputEvents = new ArrayList<>();
+
+		Event a1 = new Event(40, "a", 1.0);
+		Event c1 = new Event(41, "c", 2.0);
+		Event c2 = new Event(43, "c", 4.0);
+		Event d = new Event(43, "d", 4.0);
+		Event b1 = new Event(42, "b", 3.0);
+
+		inputEvents.add(new StreamRecord<>(a1, 1));
+		inputEvents.add(new StreamRecord<>(c1, 2));
+		inputEvents.add(new StreamRecord<>(c2, 3));
+		inputEvents.add(new StreamRecord<>(d, 4));
+		inputEvents.add(new StreamRecord<>(b1, 5));
+
+		Pattern<Event, ?> pattern = Pattern.<Event>begin("start").where(new SimpleCondition<Event>() {
+			private static final long serialVersionUID = 5726188262756267490L;
+
+			@Override
+			public boolean filter(Event value) throws Exception {
+				return value.getName().equals("a");
+			}
+		}).followedByAny("middle").where(new SimpleCondition<Event>() {
+			private static final long serialVersionUID = 5726188262756267490L;
+
+			@Override
+			public boolean filter(Event value) throws Exception {
+				return value.getName().equals("c");
+			}
+		}).followedByAny("end").where(new SimpleCondition<Event>() {
+			private static final long serialVersionUID = 5726188262756267490L;
+
+			@Override
+			public boolean filter(Event value) throws Exception {
+				return value.getName().equals("d");
+			}
+		}).notNext("notPattern").where(new SimpleCondition<Event>() {
+			@Override
+			public boolean filter(Event value) throws Exception {
+				return value.getName().equals("b");
+			}
+		});
+
+		NFA<Event> nfa = NFACompiler.compile(pattern, Event.createTypeSerializer(), false);
+
+		final Tuple2<List<List<Event>>, List<List<Event>>> matches = feedNFAWithDiscarded(inputEvents, nfa);
+
+		assertEquals(0, matches.f0.size());
+		compareMaps(matches.f1, Lists.<List<Event>>newArrayList(
+			Lists.newArrayList(a1, c1, d, b1),
+			Lists.newArrayList(a1, c2, d, b1)
+		));
+	}
+
+	@Test
+	public void testNotFollowedBy() {
+		List<StreamRecord<Event>> inputEvents = new ArrayList<>();
+
+		Event a1 = new Event(40, "a", 1.0);
+		Event c1 = new Event(41, "c", 2.0);
+		Event b1 = new Event(42, "b", 3.0);
+		Event c2 = new Event(43, "c", 4.0);
+		Event d = new Event(43, "d", 4.0);
+
+		inputEvents.add(new StreamRecord<>(a1, 1));
+		inputEvents.add(new StreamRecord<>(c1, 2));
+		inputEvents.add(new StreamRecord<>(b1, 3));
+		inputEvents.add(new StreamRecord<>(c2, 4));
+		inputEvents.add(new StreamRecord<>(d, 5));
+
+		Pattern<Event, ?> pattern = Pattern.<Event>begin("start").where(new SimpleCondition<Event>() {
+			private static final long serialVersionUID = 5726188262756267490L;
+
+			@Override
+			public boolean filter(Event value) throws Exception {
+				return value.getName().equals("a");
+			}
+		}).notFollowedBy("notPattern").where(new SimpleCondition<Event>() {
+			@Override
+			public boolean filter(Event value) throws Exception {
+				return value.getName().equals("b");
+			}
+		}).followedByAny("middle").where(new SimpleCondition<Event>() {
+			private static final long serialVersionUID = 5726188262756267490L;
+
+			@Override
+			public boolean filter(Event value) throws Exception {
+				return value.getName().equals("c");
+			}
+		}).followedBy("end").where(new SimpleCondition<Event>() {
+			private static final long serialVersionUID = 5726188262756267490L;
+
+			@Override
+			public boolean filter(Event value) throws Exception {
+				return value.getName().equals("d");
+			}
+		});
+
+		NFA<Event> nfa = NFACompiler.compile(pattern, Event.createTypeSerializer(), false);
+
+		final Tuple2<List<List<Event>>, List<List<Event>>> matches = feedNFAWithDiscarded(inputEvents, nfa);
+
+		compareMaps(matches.f0,Lists.<List<Event>>newArrayList(
+			Lists.newArrayList(a1, c1, d)
+		));
+		compareMaps(matches.f1, Lists.<List<Event>>newArrayList(
+			Lists.newArrayList(a1, b1)
+		));
+	}
+
+	@Test
+	public void testNotFollowedByBeforeOptional() {
+		List<StreamRecord<Event>> inputEvents = new ArrayList<>();
+
+		Event a1 = new Event(40, "a", 1.0);
+		Event c1 = new Event(41, "c", 2.0);
+		Event b1 = new Event(42, "b", 3.0);
+		Event c2 = new Event(43, "c", 4.0);
+		Event d = new Event(43, "d", 4.0);
+
+		inputEvents.add(new StreamRecord<>(a1, 1));
+		inputEvents.add(new StreamRecord<>(c1, 2));
+		inputEvents.add(new StreamRecord<>(b1, 3));
+		inputEvents.add(new StreamRecord<>(c2, 4));
+		inputEvents.add(new StreamRecord<>(d, 5));
+
+		Pattern<Event, ?> pattern = Pattern.<Event>begin("start").where(new SimpleCondition<Event>() {
+			private static final long serialVersionUID = 5726188262756267490L;
+
+			@Override
+			public boolean filter(Event value) throws Exception {
+				return value.getName().equals("a");
+			}
+		}).notFollowedBy("notPattern").where(new SimpleCondition<Event>() {
+			@Override
+			public boolean filter(Event value) throws Exception {
+				return value.getName().equals("b");
+			}
+		}).followedByAny("middle").where(new SimpleCondition<Event>() {
+			private static final long serialVersionUID = 5726188262756267490L;
+
+			@Override
+			public boolean filter(Event value) throws Exception {
+				return value.getName().equals("c");
+			}
+		}).optional().followedBy("end").where(new SimpleCondition<Event>() {
+			private static final long serialVersionUID = 5726188262756267490L;
+
+			@Override
+			public boolean filter(Event value) throws Exception {
+				return value.getName().equals("d");
+			}
+		});
+
+		NFA<Event> nfa = NFACompiler.compile(pattern, Event.createTypeSerializer(), false);
+
+		final Tuple2<List<List<Event>>, List<List<Event>>> matches = feedNFAWithDiscarded(inputEvents, nfa);
+
+		compareMaps(matches.f0,Lists.<List<Event>>newArrayList(
+			Lists.newArrayList(a1, c1, d)
+		));
+		compareMaps(matches.f1, Lists.<List<Event>>newArrayList(
+			Lists.newArrayList(a1, b1)
+		));
+	}
+
+	@Test
+	public void testNotFollowedByBeforeOptionalTimes() {
+		List<StreamRecord<Event>> inputEvents = new ArrayList<>();
+
+		Event a1 = new Event(40, "a", 1.0);
+		Event c1 = new Event(41, "c", 2.0);
+		Event b1 = new Event(42, "b", 3.0);
+		Event c2 = new Event(43, "c", 4.0);
+		Event d = new Event(43, "d", 4.0);
+
+		inputEvents.add(new StreamRecord<>(a1, 1));
+		inputEvents.add(new StreamRecord<>(c1, 2));
+		inputEvents.add(new StreamRecord<>(b1, 3));
+		inputEvents.add(new StreamRecord<>(c2, 4));
+		inputEvents.add(new StreamRecord<>(d, 5));
+
+		Pattern<Event, ?> pattern = Pattern.<Event>begin("start").where(new SimpleCondition<Event>() {
+			private static final long serialVersionUID = 5726188262756267490L;
+
+			@Override
+			public boolean filter(Event value) throws Exception {
+				return value.getName().equals("a");
+			}
+		}).notFollowedBy("notPattern").where(new SimpleCondition<Event>() {
+			@Override
+			public boolean filter(Event value) throws Exception {
+				return value.getName().equals("b");
+			}
+		}).followedByAny("middle").where(new SimpleCondition<Event>() {
+			private static final long serialVersionUID = 5726188262756267490L;
+
+			@Override
+			public boolean filter(Event value) throws Exception {
+				return value.getName().equals("c");
+			}
+		}).times(2).optional().followedBy("end").where(new SimpleCondition<Event>() {
+			private static final long serialVersionUID = 5726188262756267490L;
+
+			@Override
+			public boolean filter(Event value) throws Exception {
+				return value.getName().equals("d");
+			}
+		});
+
+		NFA<Event> nfa = NFACompiler.compile(pattern, Event.createTypeSerializer(), false);
+
+		final Tuple2<List<List<Event>>, List<List<Event>>> matches = feedNFAWithDiscarded(inputEvents, nfa);
+
+		compareMaps(matches.f0,Lists.<List<Event>>newArrayList(
+			Lists.newArrayList(a1, c1, c2, d)
+		));
+		compareMaps(matches.f1, Lists.<List<Event>>newArrayList(
+			Lists.newArrayList(a1, b1)
+		));
+	}
+
+	@Test
+	public void testNotFollowedByTwoOptionalsDiscarded() {
+		List<StreamRecord<Event>> inputEvents = new ArrayList<>();
+
+		Event a1 = new Event(40, "a", 1.0);
+		Event c1 = new Event(41, "c", 2.0);
+		Event b = new Event(42, "b", 3.0);
+		Event c2 = new Event(43, "c", 4.0);
+		Event e1 = new Event(43, "e", 5.0);
+		Event d = new Event(43, "d", 6.0);
+		Event e2 = new Event(43, "e", 7.0);
+		Event f = new Event(43, "f", 7.0);
+
+		inputEvents.add(new StreamRecord<>(a1, 1));
+		inputEvents.add(new StreamRecord<>(c1, 2));
+		inputEvents.add(new StreamRecord<>(b, 3));
+		inputEvents.add(new StreamRecord<>(c2, 4));
+		inputEvents.add(new StreamRecord<>(e1, 5));
+		inputEvents.add(new StreamRecord<>(d, 6));
+		inputEvents.add(new StreamRecord<>(e2, 7));
+		inputEvents.add(new StreamRecord<>(f, 8));
+
+		Pattern<Event, ?> pattern = Pattern.<Event>begin("start").where(new SimpleCondition<Event>() {
+			private static final long serialVersionUID = 5726188262756267490L;
+
+			@Override
+			public boolean filter(Event value) throws Exception {
+				return value.getName().equals("a");
+			}
+		}).notFollowedBy("notPattern1").where(new SimpleCondition<Event>() {
+			@Override
+			public boolean filter(Event value) throws Exception {
+				return value.getName().equals("b");
+			}
+		}).followedByAny("middle1").where(new SimpleCondition<Event>() {
+			private static final long serialVersionUID = 5726188262756267490L;
+
+			@Override
+			public boolean filter(Event value) throws Exception {
+				return value.getName().equals("c");
+			}
+		}).optional().notFollowedBy("notPattern2").where(new SimpleCondition<Event>() {
+			@Override
+			public boolean filter(Event value) throws Exception {
+				return value.getName().equals("d");
+			}
+		}).followedByAny("middle2").where(new SimpleCondition<Event>() {
+			private static final long serialVersionUID = 5726188262756267490L;
+
+			@Override
+			public boolean filter(Event value) throws Exception {
+				return value.getName().equals("e");
+			}
+		}).optional().followedBy("end").where(new SimpleCondition<Event>() {
+			private static final long serialVersionUID = 5726188262756267490L;
+
+			@Override
+			public boolean filter(Event value) throws Exception {
+				return value.getName().equals("f");
+			}
+		});
+
+		NFA<Event> nfa = NFACompiler.compile(pattern, Event.createTypeSerializer(), false);
+
+		final Tuple2<List<List<Event>>, List<List<Event>>> matches = feedNFAWithDiscarded(inputEvents, nfa);
+
+		compareMaps(matches.f0,Lists.<List<Event>>newArrayList(
+			Lists.newArrayList(a1, c1, e1, f)
+		));
+		compareMaps(matches.f1, Lists.<List<Event>>newArrayList(
+			Lists.newArrayList(a1, b),
+			Lists.newArrayList(a1, c1, d)
+		));
+	}
+
+	@Test
+	public void testNotFollowedByTwoOptionalsAccepted() {
+		List<StreamRecord<Event>> inputEvents = new ArrayList<>();
+
+		Event a1 = new Event(40, "a", 1.0);
+		Event c1 = new Event(41, "c", 2.0);
+		Event b = new Event(42, "b", 3.0);
+		Event c2 = new Event(43, "c", 4.0);
+		Event e1 = new Event(43, "e", 5.0);
+		Event e2 = new Event(43, "e", 7.0);
+		Event f = new Event(43, "f", 7.0);
+
+		inputEvents.add(new StreamRecord<>(a1, 1));
+		inputEvents.add(new StreamRecord<>(c1, 2));
+		inputEvents.add(new StreamRecord<>(b, 3));
+		inputEvents.add(new StreamRecord<>(c2, 4));
+		inputEvents.add(new StreamRecord<>(e1, 5));
+		inputEvents.add(new StreamRecord<>(e2, 7));
+		inputEvents.add(new StreamRecord<>(f, 8));
+
+		Pattern<Event, ?> pattern = Pattern.<Event>begin("start").where(new SimpleCondition<Event>() {
+			private static final long serialVersionUID = 5726188262756267490L;
+
+			@Override
+			public boolean filter(Event value) throws Exception {
+				return value.getName().equals("a");
+			}
+		}).notFollowedBy("notPattern1").where(new SimpleCondition<Event>() {
+			@Override
+			public boolean filter(Event value) throws Exception {
+				return value.getName().equals("b");
+			}
+		}).followedByAny("middle1").where(new SimpleCondition<Event>() {
+			private static final long serialVersionUID = 5726188262756267490L;
+
+			@Override
+			public boolean filter(Event value) throws Exception {
+				return value.getName().equals("c");
+			}
+		}).optional().notFollowedBy("notPattern2").where(new SimpleCondition<Event>() {
+			@Override
+			public boolean filter(Event value) throws Exception {
+				return value.getName().equals("d");
+			}
+		}).followedByAny("middle2").where(new SimpleCondition<Event>() {
+			private static final long serialVersionUID = 5726188262756267490L;
+
+			@Override
+			public boolean filter(Event value) throws Exception {
+				return value.getName().equals("e");
+			}
+		}).optional().followedBy("end").where(new SimpleCondition<Event>() {
+			private static final long serialVersionUID = 5726188262756267490L;
+
+			@Override
+			public boolean filter(Event value) throws Exception {
+				return value.getName().equals("f");
+			}
+		});
+
+		NFA<Event> nfa = NFACompiler.compile(pattern, Event.createTypeSerializer(), false);
+
+		final Tuple2<List<List<Event>>, List<List<Event>>> matches = feedNFAWithDiscarded(inputEvents, nfa);
+
+		compareMaps(matches.f0,Lists.<List<Event>>newArrayList(
+			Lists.newArrayList(a1, c1, e1, f),
+			Lists.newArrayList(a1, c1, e2, f),
+			Lists.newArrayList(a1, c1, f)
+		));
+		compareMaps(matches.f1, Lists.<List<Event>>newArrayList(
+			Lists.newArrayList(a1, b)
+		));
+	}
+
+	@Test
+	public void testNotFollowedByTwoZeroOrMoreDiscarded() {
+		List<StreamRecord<Event>> inputEvents = new ArrayList<>();
+
+		Event a1 = new Event(40, "a", 1.0);
+		Event c1 = new Event(41, "c", 2.0);
+		Event b = new Event(42, "b", 3.0);
+		Event c2 = new Event(43, "c", 4.0);
+		Event e1 = new Event(43, "e", 5.0);
+		Event d = new Event(43, "d", 6.0);
+		Event e2 = new Event(43, "e", 7.0);
+		Event f = new Event(43, "f", 7.0);
+
+		inputEvents.add(new StreamRecord<>(a1, 1));
+		inputEvents.add(new StreamRecord<>(c1, 2));
+		inputEvents.add(new StreamRecord<>(b, 3));
+		inputEvents.add(new StreamRecord<>(c2, 4));
+		inputEvents.add(new StreamRecord<>(e1, 5));
+		inputEvents.add(new StreamRecord<>(d, 6));
+		inputEvents.add(new StreamRecord<>(e2, 7));
+		inputEvents.add(new StreamRecord<>(f, 8));
+
+		Pattern<Event, ?> pattern = Pattern.<Event>begin("start").where(new SimpleCondition<Event>() {
+			private static final long serialVersionUID = 5726188262756267490L;
+
+			@Override
+			public boolean filter(Event value) throws Exception {
+				return value.getName().equals("a");
+			}
+		}).notFollowedBy("notPattern1").where(new SimpleCondition<Event>() {
+			@Override
+			public boolean filter(Event value) throws Exception {
+				return value.getName().equals("b");
+			}
+		}).followedByAny("middle1").where(new SimpleCondition<Event>() {
+			private static final long serialVersionUID = 5726188262756267490L;
+
+			@Override
+			public boolean filter(Event value) throws Exception {
+				return value.getName().equals("c");
+			}
+		}).oneOrMore().optional().notFollowedBy("notPattern2").where(new SimpleCondition<Event>() {
+			@Override
+			public boolean filter(Event value) throws Exception {
+				return value.getName().equals("d");
+			}
+		}).followedByAny("middle2").where(new SimpleCondition<Event>() {
+			private static final long serialVersionUID = 5726188262756267490L;
+
+			@Override
+			public boolean filter(Event value) throws Exception {
+				return value.getName().equals("e");
+			}
+		}).oneOrMore().optional().followedBy("end").where(new SimpleCondition<Event>() {
+			private static final long serialVersionUID = 5726188262756267490L;
+
+			@Override
+			public boolean filter(Event value) throws Exception {
+				return value.getName().equals("f");
+			}
+		});
+
+		NFA<Event> nfa = NFACompiler.compile(pattern, Event.createTypeSerializer(), false);
+
+		final Tuple2<List<List<Event>>, List<List<Event>>> matches = feedNFAWithDiscarded(inputEvents, nfa);
+
+		compareMaps(matches.f0,Lists.<List<Event>>newArrayList(
+			Lists.newArrayList(a1, c1, c2, e1, e2, f),
+			Lists.newArrayList(a1, c1, c2, e1, f),
+			Lists.newArrayList(a1, c1, e1, e2, f),
+			Lists.newArrayList(a1, c1, e1, f)
+		));
+		compareMaps(matches.f1, Lists.<List<Event>>newArrayList(
+			Lists.newArrayList(a1, b),
+			Lists.newArrayList(a1, c1, d),
+			Lists.newArrayList(a1, c1, c2, d)
+		));
+	}
+
+	@Test
+	public void testNotFollowedByTwoZeroOrMoreAccepted() {
+		List<StreamRecord<Event>> inputEvents = new ArrayList<>();
+
+		Event a1 = new Event(40, "a", 1.0);
+		Event c1 = new Event(41, "c", 2.0);
+		Event b = new Event(42, "b", 3.0);
+		Event c2 = new Event(43, "c", 4.0);
+		Event e1 = new Event(43, "e", 5.0);
+		Event e2 = new Event(43, "e", 7.0);
+		Event f = new Event(43, "f", 7.0);
+
+		inputEvents.add(new StreamRecord<>(a1, 1));
+		inputEvents.add(new StreamRecord<>(c1, 2));
+		inputEvents.add(new StreamRecord<>(b, 3));
+		inputEvents.add(new StreamRecord<>(c2, 4));
+		inputEvents.add(new StreamRecord<>(e1, 5));
+		inputEvents.add(new StreamRecord<>(e2, 7));
+		inputEvents.add(new StreamRecord<>(f, 8));
+
+		Pattern<Event, ?> pattern = Pattern.<Event>begin("start").where(new SimpleCondition<Event>() {
+			private static final long serialVersionUID = 5726188262756267490L;
+
+			@Override
+			public boolean filter(Event value) throws Exception {
+				return value.getName().equals("a");
+			}
+		}).notFollowedBy("notPattern1").where(new SimpleCondition<Event>() {
+			@Override
+			public boolean filter(Event value) throws Exception {
+				return value.getName().equals("b");
+			}
+		}).followedByAny("middle1").where(new SimpleCondition<Event>() {
+			private static final long serialVersionUID = 5726188262756267490L;
+
+			@Override
+			public boolean filter(Event value) throws Exception {
+				return value.getName().equals("c");
+			}
+		}).oneOrMore().optional().notFollowedBy("notPattern2").where(new SimpleCondition<Event>() {
+			@Override
+			public boolean filter(Event value) throws Exception {
+				return value.getName().equals("d");
+			}
+		}).followedByAny("middle2").where(new SimpleCondition<Event>() {
+			private static final long serialVersionUID = 5726188262756267490L;
+
+			@Override
+			public boolean filter(Event value) throws Exception {
+				return value.getName().equals("e");
+			}
+		}).oneOrMore().optional().followedBy("end").where(new SimpleCondition<Event>() {
+			private static final long serialVersionUID = 5726188262756267490L;
+
+			@Override
+			public boolean filter(Event value) throws Exception {
+				return value.getName().equals("f");
+			}
+		});
+
+		NFA<Event> nfa = NFACompiler.compile(pattern, Event.createTypeSerializer(), false);
+
+		final Tuple2<List<List<Event>>, List<List<Event>>> matches = feedNFAWithDiscarded(inputEvents, nfa);
+
+		compareMaps(matches.f0,Lists.<List<Event>>newArrayList(
+			Lists.newArrayList(a1, c1, c2, e1, e2, f),
+			Lists.newArrayList(a1, c1, c2, e1, f),
+			Lists.newArrayList(a1, c1, c2, e2, f),
+			Lists.newArrayList(a1, c1, e1, e2, f),
+			Lists.newArrayList(a1, c1, e1, f),
+			Lists.newArrayList(a1, c1, e2, f),
+			Lists.newArrayList(a1, c1, c2, f),
+			Lists.newArrayList(a1, c1, f)
+		));
+		compareMaps(matches.f1, Lists.<List<Event>>newArrayList(
+			Lists.newArrayList(a1, b)
+		));
+	}
+
+	@Test
+	public void testNotFollowedByWithBranchingAtStart() {
+		List<StreamRecord<Event>> inputEvents = new ArrayList<>();
+
+		Event a1 = new Event(40, "a", 1.0);
+		Event b1 = new Event(42, "b", 3.0);
+		Event c1 = new Event(41, "c", 2.0);
+		Event a2 = new Event(41, "a", 4.0);
+		Event c2 = new Event(43, "c", 5.0);
+		Event d = new Event(43, "d", 6.0);
+
+		inputEvents.add(new StreamRecord<>(a1, 1));
+		inputEvents.add(new StreamRecord<>(b1, 2));
+		inputEvents.add(new StreamRecord<>(c1, 3));
+		inputEvents.add(new StreamRecord<>(a2, 4));
+		inputEvents.add(new StreamRecord<>(c2, 5));
+		inputEvents.add(new StreamRecord<>(d, 6));
+
+		Pattern<Event, ?> pattern = Pattern.<Event>begin("start").where(new SimpleCondition<Event>() {
+			private static final long serialVersionUID = 5726188262756267490L;
+
+			@Override
+			public boolean filter(Event value) throws Exception {
+				return value.getName().equals("a");
+			}
+		}).notFollowedBy("notPattern").where(new SimpleCondition<Event>() {
+			@Override
+			public boolean filter(Event value) throws Exception {
+				return value.getName().equals("b");
+			}
+		}).followedBy("middle").where(new SimpleCondition<Event>() {
+			private static final long serialVersionUID = 5726188262756267490L;
+
+			@Override
+			public boolean filter(Event value) throws Exception {
+				return value.getName().equals("c");
+			}
+		}).followedBy("end").where(new SimpleCondition<Event>() {
+			private static final long serialVersionUID = 5726188262756267490L;
+
+			@Override
+			public boolean filter(Event value) throws Exception {
+				return value.getName().equals("d");
+			}
+		});
+
+		NFA<Event> nfa = NFACompiler.compile(pattern, Event.createTypeSerializer(), false);
+
+		final Tuple2<List<List<Event>>, List<List<Event>>> matches = feedNFAWithDiscarded(inputEvents, nfa);
+
+		compareMaps(matches.f0, Lists.<List<Event>>newArrayList(
+			Lists.newArrayList(a2, c2, d)
+		));
+		compareMaps(matches.f1, Lists.<List<Event>>newArrayList(
+			Lists.newArrayList(a1, b1)
+		));
+	}
+
+	@Test
+	public void testNotFollowedByInBetweenZeroOrMore() {
+		List<StreamRecord<Event>> inputEvents = new ArrayList<>();
+
+		double p = 0.0;
+		Event a1 = new Event(40, "a", p++);
+		Event f1 = new Event(41, "f", p++);
+		Event c1 = new Event(41, "c", p++);
+		Event c2 = new Event(42, "c", p++);
+		Event d1 = new Event(43, "d", p++);
+		Event e1 = new Event(43, "e", p++);
+		Event e2 = new Event(43, "e", p++);
+		Event f2 = new Event(43, "f", p);
+
+		int i = 0;
+		inputEvents.add(new StreamRecord<>(a1, i++));
+		inputEvents.add(new StreamRecord<>(f1, i++));
+		inputEvents.add(new StreamRecord<>(c1, i++));
+		inputEvents.add(new StreamRecord<>(c2, i++));
+		inputEvents.add(new StreamRecord<>(d1, i++));
+		inputEvents.add(new StreamRecord<>(e1, i++));
+		inputEvents.add(new StreamRecord<>(e2, i++));
+		inputEvents.add(new StreamRecord<>(f2, i));
+
+		Pattern<Event, ?> pattern = Pattern
+		.<Event>begin("a").where(new SimpleCondition<Event>() {
+			private static final long serialVersionUID = 5726188262756267490L;
+
+			@Override
+			public boolean filter(Event value) throws Exception {
+				return value.getName().equals("a");
+			}
+		})
+		.followedBy("c*").where(new SimpleCondition<Event>() {
+			private static final long serialVersionUID = 5726188262756267490L;
+
+			@Override
+			public boolean filter(Event value) throws Exception {
+				return value.getName().equals("c");
+			}
+		}).oneOrMore().optional()
+		.notFollowedBy("not d").where(new SimpleCondition<Event>() {
+			private static final long serialVersionUID = 5726188262756267490L;
+
+			@Override
+			public boolean filter(Event value) throws Exception {
+				return value.getName().equals("d");
+			}
+		})
+		.followedBy("e*").where(new SimpleCondition<Event>() {
+			private static final long serialVersionUID = 5726188262756267490L;
+
+			@Override
+			public boolean filter(Event value) throws Exception {
+				return value.getName().equals("e");
+			}
+		}).oneOrMore().optional()
+		.followedBy("f").where(new SimpleCondition<Event>() {
+			private static final long serialVersionUID = 5726188262756267490L;
+
+			@Override
+			public boolean filter(Event value) throws Exception {
+				return value.getName().equals("f");
+			}
+		});
+
+		NFA<Event> nfa = NFACompiler.compile(pattern, Event.createTypeSerializer(), false);
+
+		final Tuple2<List<List<Event>>, List<List<Event>>> matches = feedNFAWithDiscarded(inputEvents, nfa);
+
+		compareMaps(matches.f0,Lists.<List<Event>>newArrayList(
+			Lists.newArrayList(a1, f1)
+		));
+		compareMaps(matches.f1, Lists.<List<Event>>newArrayList(
+			Lists.newArrayList(a1, c1, c2, d1),
+			Lists.newArrayList(a1, c1, d1),
+			Lists.newArrayList(a1, d1)
+		));
+	}
+
+	private static class NotFollowByData {
+		static final Event a1 = new Event(40, "a", 1.0);
+		static final Event b1 = new Event(41, "b", 2.0);
+		static final Event b2 = new Event(42, "b", 3.0);
+		static final Event b3 = new Event(42, "b", 4.0);
+		static final Event c1 = new Event(43, "c", 5.0);
+		static final Event b4 = new Event(42, "b", 6.0);
+		static final Event b5 = new Event(42, "b", 7.0);
+		static final Event b6 = new Event(42, "b", 8.0);
+		static final Event d1 = new Event(43, "d", 9.0);
+
+		private NotFollowByData() {
+		}
+	}
+
+	@Test
+	public void testNotNextAfterZeroOrMoreSkipTillNext() {
+		final Tuple2<List<List<Event>>, List<List<Event>>> matches = testNotNextAfterZeroOrMore(false);
+		compareMaps(matches.f0, Lists.<List<Event>>newArrayList(
+			Lists.newArrayList(NotFollowByData.a1, NotFollowByData.d1)
+		));
+		compareMaps(matches.f1, Lists.<List<Event>>newArrayList(
+			Lists.newArrayList(NotFollowByData.a1, NotFollowByData.b1, NotFollowByData.c1)
+		));
+	}
+
+	@Test
+	public void testNotNextAfterZeroOrMoreSkipTillAny() {
+		final Tuple2<List<List<Event>>, List<List<Event>>> matches = testNotNextAfterZeroOrMore(true);
+		compareMaps(matches.f0, Lists.<List<Event>>newArrayList(
+			Lists.newArrayList(NotFollowByData.a1, NotFollowByData.b2, NotFollowByData.d1),
+			Lists.newArrayList(NotFollowByData.a1, NotFollowByData.d1)
+		));
+		compareMaps(matches.f1, Lists.<List<Event>>newArrayList(
+			Lists.newArrayList(NotFollowByData.a1, NotFollowByData.b1, NotFollowByData.c1)
+		));
+	}
+
+	private Tuple2<List<List<Event>>, List<List<Event>>> testNotNextAfterZeroOrMore(boolean allMatches) {
+		List<StreamRecord<Event>> inputEvents = new ArrayList<>();
+
+		int i = 0;
+		inputEvents.add(new StreamRecord<>(NotFollowByData.a1, i++));
+		inputEvents.add(new StreamRecord<>(NotFollowByData.b1, i++));
+		inputEvents.add(new StreamRecord<>(NotFollowByData.c1, i++));
+		inputEvents.add(new StreamRecord<>(NotFollowByData.b2, i++));
+		inputEvents.add(new StreamRecord<>(NotFollowByData.d1, i++));
+
+		Pattern<Event, ?> pattern = Pattern
+			.<Event>begin("a").where(new SimpleCondition<Event>() {
+				private static final long serialVersionUID = 5726188262756267490L;
+
+				@Override
+				public boolean filter(Event value) throws Exception {
+					return value.getName().equals("a");
+				}
+			});
+
+		pattern = (allMatches ? pattern.followedByAny("b*") : pattern.followedBy("b*")).where(new SimpleCondition<Event>() {
+			private static final long serialVersionUID = 5726188262756267490L;
+
+			@Override
+			public boolean filter(Event value) throws Exception {
+				return value.getName().equals("b");
+			}
+		}).oneOrMore().optional()
+			.notNext("not c").where(new SimpleCondition<Event>() {
+				private static final long serialVersionUID = 5726188262756267490L;
+
+				@Override
+				public boolean filter(Event value) throws Exception {
+					return value.getName().equals("c");
+				}
+			})
+			.followedBy("d").where(new SimpleCondition<Event>() {
+				private static final long serialVersionUID = 5726188262756267490L;
+
+				@Override
+				public boolean filter(Event value) throws Exception {
+					return value.getName().equals("d");
+				}
+			});
+
+		NFA<Event> nfa = NFACompiler.compile(pattern, Event.createTypeSerializer(), false);
+
+		return feedNFAWithDiscarded(inputEvents, nfa);
+	}
+
+	@Test
+	public void testNotNextAfterOneOrMoreSkipTillNext() {
+		final Tuple2<List<List<Event>>, List<List<Event>>> matches = testNotNextAfterOneOrMore(false);
+		assertEquals(0, matches.f0.size());
+		compareMaps(matches.f1, Lists.<List<Event>>newArrayList(
+			Lists.newArrayList(NotFollowByData.a1, NotFollowByData.b1, NotFollowByData.c1)
+		));
+	}
+
+	@Test
+	public void testNotNextAfterOneOrMoreSkipTillAny() {
+		final Tuple2<List<List<Event>>, List<List<Event>>> matches = testNotNextAfterOneOrMore(true);
+		compareMaps(matches.f0, Lists.<List<Event>>newArrayList(
+			Lists.newArrayList(NotFollowByData.a1, NotFollowByData.b2, NotFollowByData.d1)
+		));
+		compareMaps(matches.f1, Lists.<List<Event>>newArrayList(
+			Lists.newArrayList(NotFollowByData.a1, NotFollowByData.b1, NotFollowByData.c1)
+		));
+	}
+
+	private Tuple2<List<List<Event>>, List<List<Event>>> testNotNextAfterOneOrMore(boolean allMatches) {
+		List<StreamRecord<Event>> inputEvents = new ArrayList<>();
+
+		int i = 0;
+		inputEvents.add(new StreamRecord<>(NotFollowByData.a1, i++));
+		inputEvents.add(new StreamRecord<>(NotFollowByData.b1, i++));
+		inputEvents.add(new StreamRecord<>(NotFollowByData.c1, i++));
+		inputEvents.add(new StreamRecord<>(NotFollowByData.b2, i++));
+		inputEvents.add(new StreamRecord<>(NotFollowByData.d1, i++));
+
+		Pattern<Event, ?> pattern = Pattern
+			.<Event>begin("a").where(new SimpleCondition<Event>() {
+				private static final long serialVersionUID = 5726188262756267490L;
+
+				@Override
+				public boolean filter(Event value) throws Exception {
+					return value.getName().equals("a");
+				}
+			});
+
+		pattern = (allMatches ? pattern.followedByAny("b*") : pattern.followedBy("b*")).where(new SimpleCondition<Event>() {
+			private static final long serialVersionUID = 5726188262756267490L;
+
+			@Override
+			public boolean filter(Event value) throws Exception {
+				return value.getName().equals("b");
+			}
+		}).oneOrMore()
+			.notNext("not c").where(new SimpleCondition<Event>() {
+				private static final long serialVersionUID = 5726188262756267490L;
+
+				@Override
+				public boolean filter(Event value) throws Exception {
+					return value.getName().equals("c");
+				}
+			})
+			.followedBy("d").where(new SimpleCondition<Event>() {
+				private static final long serialVersionUID = 5726188262756267490L;
+
+				@Override
+				public boolean filter(Event value) throws Exception {
+					return value.getName().equals("d");
+				}
+			});
+
+		NFA<Event> nfa = NFACompiler.compile(pattern, Event.createTypeSerializer(), false);
+
+		return feedNFAWithDiscarded(inputEvents, nfa);
+	}
+
+	@Test
+	public void testNotFollowedByAfterZeroOrMoreEager() {
+		final Tuple2<List<List<Event>>, List<List<Event>>> matches = testNotFollowedByAfterZeroOrMore(true);
+		assertEquals(0, matches.f0.size());
+		compareMaps(matches.f1, Lists.<List<Event>>newArrayList(
+			Lists.newArrayList(NotFollowByData.a1, NotFollowByData.b1, NotFollowByData.b2, NotFollowByData.c1),
+			Lists.newArrayList(NotFollowByData.a1, NotFollowByData.b1, NotFollowByData.c1),
+			Lists.newArrayList(NotFollowByData.a1, NotFollowByData.c1)
+		));
+	}
+
+	@Test
+	public void testNotFollowedByAfterZeroOrMoreCombinations() {
+		final Tuple2<List<List<Event>>, List<List<Event>>> matches = testNotFollowedByAfterZeroOrMore(false);
+		assertEquals(0, matches.f0.size());
+		compareMaps(matches.f1, Lists.<List<Event>>newArrayList(
+			Lists.newArrayList(NotFollowByData.a1, NotFollowByData.b1, NotFollowByData.b2, NotFollowByData.c1),
+			Lists.newArrayList(NotFollowByData.a1, NotFollowByData.b1, NotFollowByData.c1),
+			Lists.newArrayList(NotFollowByData.a1, NotFollowByData.c1)
+		));
+	}
+
+	private Tuple2<List<List<Event>>, List<List<Event>>> testNotFollowedByAfterZeroOrMore(boolean eager) {
+		List<StreamRecord<Event>> inputEvents = new ArrayList<>();
+
+		int i = 0;
+		inputEvents.add(new StreamRecord<>(NotFollowByData.a1, i++));
+		inputEvents.add(new StreamRecord<>(NotFollowByData.b1, i++));
+		inputEvents.add(new StreamRecord<>(NotFollowByData.b2, i++));
+		inputEvents.add(new StreamRecord<>(NotFollowByData.c1, i++));
+		inputEvents.add(new StreamRecord<>(NotFollowByData.b3, i++));
+		inputEvents.add(new StreamRecord<>(NotFollowByData.b4, i++));
+		inputEvents.add(new StreamRecord<>(NotFollowByData.d1, i));
+
+		Pattern<Event, ?> pattern = eager ? Pattern
+			.<Event>begin("a").where(new SimpleCondition<Event>() {
+				private static final long serialVersionUID = 5726188262756267490L;
+
+				@Override
+				public boolean filter(Event value) throws Exception {
+					return value.getName().equals("a");
+				}
+			})
+			.followedBy("b*").where(new SimpleCondition<Event>() {
+				private static final long serialVersionUID = 5726188262756267490L;
+
+				@Override
+				public boolean filter(Event value) throws Exception {
+					return value.getName().equals("b");
+				}
+			}).oneOrMore().optional()
+			.notFollowedBy("not c").where(new SimpleCondition<Event>() {
+				private static final long serialVersionUID = 5726188262756267490L;
+
+				@Override
+				public boolean filter(Event value) throws Exception {
+					return value.getName().equals("c");
+				}
+			})
+			.followedBy("d").where(new SimpleCondition<Event>() {
+				private static final long serialVersionUID = 5726188262756267490L;
+
+				@Override
+				public boolean filter(Event value) throws Exception {
+					return value.getName().equals("d");
+				}
+			})
+			: Pattern
+			.<Event>begin("a").where(new SimpleCondition<Event>() {
+				private static final long serialVersionUID = 5726188262756267490L;
+
+				@Override
+				public boolean filter(Event value) throws Exception {
+					return value.getName().equals("a");
+				}
+			})
+			.followedBy("b*").where(new SimpleCondition<Event>() {
+				private static final long serialVersionUID = 5726188262756267490L;
+
+				@Override
+				public boolean filter(Event value) throws Exception {
+					return value.getName().equals("b");
+				}
+			}).oneOrMore().optional().allowCombinations()
+			.notFollowedBy("not c").where(new SimpleCondition<Event>() {
+				private static final long serialVersionUID = 5726188262756267490L;
+
+				@Override
+				public boolean filter(Event value) throws Exception {
+					return value.getName().equals("c");
+				}
+			})
+			.followedBy("d").where(new SimpleCondition<Event>() {
+				private static final long serialVersionUID = 5726188262756267490L;
+
+				@Override
+				public boolean filter(Event value) throws Exception {
+					return value.getName().equals("d");
+				}
+			});
+
+		NFA<Event> nfa = NFACompiler.compile(pattern, Event.createTypeSerializer(), false);
+
+		return feedNFAWithDiscarded(inputEvents, nfa);
+	}
+
+	@Test
+	public void testNotFollowedByNextAfterOneOrMoreEager() {
+		final Tuple2<List<List<Event>>, List<List<Event>>> matches = testNotFollowedByAfterOneOrMore(true, false);
+		assertEquals(0, matches.f0.size());
+		compareMaps(matches.f1, Lists.<List<Event>>newArrayList(
+			Lists.newArrayList(NotFollowByData.a1, NotFollowByData.b1, NotFollowByData.c1),
+			Lists.newArrayList(NotFollowByData.a1, NotFollowByData.b1, NotFollowByData.b2, NotFollowByData.c1),
+			Lists.newArrayList(NotFollowByData.a1, NotFollowByData.b1, NotFollowByData.b2, NotFollowByData.b3, NotFollowByData.c1)
+		));
+	}
+
+	@Test
+	public void testNotFollowedByAnyAfterOneOrMoreEager() {
+		final Tuple2<List<List<Event>>, List<List<Event>>> matches = testNotFollowedByAfterOneOrMore(true, true);
+		compareMaps(matches.f0, Lists.<List<Event>>newArrayList(
+			Lists.newArrayList(NotFollowByData.a1, NotFollowByData.b4, NotFollowByData.b5, NotFollowByData.b6, NotFollowByData.d1),
+			Lists.newArrayList(NotFollowByData.a1, NotFollowByData.b4, NotFollowByData.b5, NotFollowByData.d1),
+			Lists.newArrayList(NotFollowByData.a1, NotFollowByData.b4, NotFollowByData.d1),
+			Lists.newArrayList(NotFollowByData.a1, NotFollowByData.b5, NotFollowByData.b6, NotFollowByData.d1),
+			Lists.newArrayList(NotFollowByData.a1, NotFollowByData.b5, NotFollowByData.d1),
+			Lists.newArrayList(NotFollowByData.a1, NotFollowByData.b6, NotFollowByData.d1)
+		));
+		compareMaps(matches.f1, Lists.<List<Event>>newArrayList(
+			Lists.newArrayList(NotFollowByData.a1, NotFollowByData.b1, NotFollowByData.b2, NotFollowByData.b3, NotFollowByData.c1),
+			Lists.newArrayList(NotFollowByData.a1, NotFollowByData.b1, NotFollowByData.b2, NotFollowByData.c1),
+			Lists.newArrayList(NotFollowByData.a1, NotFollowByData.b1, NotFollowByData.c1),
+			Lists.newArrayList(NotFollowByData.a1, NotFollowByData.b2, NotFollowByData.b3, NotFollowByData.c1),
+			Lists.newArrayList(NotFollowByData.a1, NotFollowByData.b2, NotFollowByData.c1),
+			Lists.newArrayList(NotFollowByData.a1, NotFollowByData.b3, NotFollowByData.c1)
+		));
+	}
+
+	@Test
+	public void testNotFollowedByNextAfterOneOrMoreCombinations() {
+		final Tuple2<List<List<Event>>, List<List<Event>>> matches = testNotFollowedByAfterOneOrMore(false, false);
+		assertEquals(0, matches.f0.size());
+		compareMaps(matches.f1, Lists.<List<Event>>newArrayList(
+			Lists.newArrayList(NotFollowByData.a1, NotFollowByData.b1, NotFollowByData.b2, NotFollowByData.b3, NotFollowByData.c1),
+			Lists.newArrayList(NotFollowByData.a1, NotFollowByData.b1, NotFollowByData.b3, NotFollowByData.c1),
+			Lists.newArrayList(NotFollowByData.a1, NotFollowByData.b1, NotFollowByData.b2, NotFollowByData.c1),
+			Lists.newArrayList(NotFollowByData.a1, NotFollowByData.b1, NotFollowByData.c1)
+		));
+	}
+
+	@Test
+	public void testNotFollowedByAnyAfterOneOrMoreCombinations() {
+		final Tuple2<List<List<Event>>, List<List<Event>>> matches = testNotFollowedByAfterOneOrMore(false, true);
+		compareMaps(matches.f0, Lists.<List<Event>>newArrayList(
+			Lists.newArrayList(NotFollowByData.a1, NotFollowByData.b4, NotFollowByData.b5, NotFollowByData.b6, NotFollowByData.d1),
+			Lists.newArrayList(NotFollowByData.a1, NotFollowByData.b4, NotFollowByData.b5, NotFollowByData.d1),
+			Lists.newArrayList(NotFollowByData.a1, NotFollowByData.b4, NotFollowByData.b6, NotFollowByData.d1),
+			Lists.newArrayList(NotFollowByData.a1, NotFollowByData.b4, NotFollowByData.d1),
+			Lists.newArrayList(NotFollowByData.a1, NotFollowByData.b5, NotFollowByData.b6, NotFollowByData.d1),
+			Lists.newArrayList(NotFollowByData.a1, NotFollowByData.b5, NotFollowByData.d1),
+			Lists.newArrayList(NotFollowByData.a1, NotFollowByData.b6, NotFollowByData.d1)
+		));
+		compareMaps(matches.f1, Lists.<List<Event>>newArrayList(
+			Lists.newArrayList(NotFollowByData.a1, NotFollowByData.b1, NotFollowByData.b2, NotFollowByData.b3, NotFollowByData.c1),
+			Lists.newArrayList(NotFollowByData.a1, NotFollowByData.b1, NotFollowByData.b2, NotFollowByData.c1),
+			Lists.newArrayList(NotFollowByData.a1, NotFollowByData.b1, NotFollowByData.b3, NotFollowByData.c1),
+			Lists.newArrayList(NotFollowByData.a1, NotFollowByData.b1, NotFollowByData.c1),
+			Lists.newArrayList(NotFollowByData.a1, NotFollowByData.b2, NotFollowByData.b3, NotFollowByData.c1),
+			Lists.newArrayList(NotFollowByData.a1, NotFollowByData.b2, NotFollowByData.c1),
+			Lists.newArrayList(NotFollowByData.a1, NotFollowByData.b3, NotFollowByData.c1)
+		));
+	}
+
+	private Tuple2<List<List<Event>>, List<List<Event>>> testNotFollowedByAfterOneOrMore(boolean eager, boolean allMatches) {
+		List<StreamRecord<Event>> inputEvents = new ArrayList<>();
+
+		int i = 0;
+		inputEvents.add(new StreamRecord<>(NotFollowByData.a1, i++));
+		inputEvents.add(new StreamRecord<>(NotFollowByData.b1, i++));
+		inputEvents.add(new StreamRecord<>(NotFollowByData.b2, i++));
+		inputEvents.add(new StreamRecord<>(NotFollowByData.b3, i++));
+		inputEvents.add(new StreamRecord<>(NotFollowByData.c1, i++));
+		inputEvents.add(new StreamRecord<>(NotFollowByData.b4, i++));
+		inputEvents.add(new StreamRecord<>(NotFollowByData.b5, i++));
+		inputEvents.add(new StreamRecord<>(NotFollowByData.b6, i++));
+		inputEvents.add(new StreamRecord<>(NotFollowByData.d1, i));
+
+		Pattern<Event, ?> pattern = Pattern
+			.<Event>begin("a").where(new SimpleCondition<Event>() {
+				private static final long serialVersionUID = 5726188262756267490L;
+
+				@Override
+				public boolean filter(Event value) throws Exception {
+					return value.getName().equals("a");
+				}
+			});
+
+		pattern = (allMatches ? pattern.followedByAny("b*") : pattern.followedBy("b*"))
+			.where(new SimpleCondition<Event>() {
+				private static final long serialVersionUID = 5726188262756267490L;
+
+				@Override
+				public boolean filter(Event value) throws Exception {
+					return value.getName().equals("b");
+				}
+			});
+
+		pattern = (eager ? pattern.oneOrMore() : pattern.oneOrMore().allowCombinations())
+			.notFollowedBy("not c").where(new SimpleCondition<Event>() {
+				private static final long serialVersionUID = 5726188262756267490L;
+
+				@Override
+				public boolean filter(Event value) throws Exception {
+					return value.getName().equals("c");
+				}
+			})
+			.followedBy("d").where(new SimpleCondition<Event>() {
+				private static final long serialVersionUID = 5726188262756267490L;
+
+				@Override
+				public boolean filter(Event value) throws Exception {
+					return value.getName().equals("d");
+				}
+			});
+
+		NFA<Event> nfa = NFACompiler.compile(pattern, Event.createTypeSerializer(), false);
+
+		return feedNFAWithDiscarded(inputEvents, nfa);
+	}
+
+	@Test
+	public void testNotFollowedByAnyBeforeOneOrMoreEager() {
+		final Tuple2<List<List<Event>>, List<List<Event>>> matches = testNotFollowedByBeforeOneOrMore(true, true);
+
+		compareMaps(matches.f0, Lists.<List<Event>>newArrayList(
+			Lists.newArrayList(NotFollowByData.a1, NotFollowByData.b1, NotFollowByData.b4, NotFollowByData.b5, NotFollowByData.b6, NotFollowByData.d1),
+			Lists.newArrayList(NotFollowByData.a1, NotFollowByData.b1, NotFollowByData.b4, NotFollowByData.b5, NotFollowByData.d1),
+			Lists.newArrayList(NotFollowByData.a1, NotFollowByData.b1, NotFollowByData.b4, NotFollowByData.d1),
+			Lists.newArrayList(NotFollowByData.a1, NotFollowByData.b1, NotFollowByData.d1)
+		));
+		compareMaps(matches.f1, Lists.<List<Event>>newArrayList(
+			Lists.newArrayList(NotFollowByData.a1, NotFollowByData.c1)
+		));
+	}
+
+	@Test
+	public void testNotFollowedByAnyBeforeOneOrMoreCombinations() {
+		final Tuple2<List<List<Event>>, List<List<Event>>> matches = testNotFollowedByBeforeOneOrMore(false, true);
+
+		compareMaps(matches.f0, Lists.<List<Event>>newArrayList(
+			Lists.newArrayList(NotFollowByData.a1, NotFollowByData.b1, NotFollowByData.b4, NotFollowByData.b5, NotFollowByData.b6, NotFollowByData.d1),
+			Lists.newArrayList(NotFollowByData.a1, NotFollowByData.b1, NotFollowByData.b4, NotFollowByData.b6, NotFollowByData.d1),
+			Lists.newArrayList(NotFollowByData.a1, NotFollowByData.b1, NotFollowByData.b4, NotFollowByData.b5, NotFollowByData.d1),
+			Lists.newArrayList(NotFollowByData.a1, NotFollowByData.b1, NotFollowByData.b4, NotFollowByData.d1),
+			Lists.newArrayList(NotFollowByData.a1, NotFollowByData.b1, NotFollowByData.b5, NotFollowByData.b6, NotFollowByData.d1),
+			Lists.newArrayList(NotFollowByData.a1, NotFollowByData.b1, NotFollowByData.b5, NotFollowByData.d1),
+			Lists.newArrayList(NotFollowByData.a1, NotFollowByData.b1, NotFollowByData.b6, NotFollowByData.d1),
+			Lists.newArrayList(NotFollowByData.a1, NotFollowByData.b1, NotFollowByData.d1)
+		));
+		compareMaps(matches.f1, Lists.<List<Event>>newArrayList(
+			Lists.newArrayList(NotFollowByData.a1, NotFollowByData.c1)
+		));
+	}
+
+	@Test
+	public void testNotFollowedByBeforeOneOrMoreEager() {
+		final Tuple2<List<List<Event>>, List<List<Event>>> matches = testNotFollowedByBeforeOneOrMore(true, false);
+
+		compareMaps(matches.f0, Lists.<List<Event>>newArrayList(
+			Lists.newArrayList(NotFollowByData.a1, NotFollowByData.b1, NotFollowByData.b4, NotFollowByData.b5, NotFollowByData.b6, NotFollowByData.d1),
+			Lists.newArrayList(NotFollowByData.a1, NotFollowByData.b1, NotFollowByData.b4, NotFollowByData.b5, NotFollowByData.d1),
+			Lists.newArrayList(NotFollowByData.a1, NotFollowByData.b1, NotFollowByData.b4, NotFollowByData.d1),
+			Lists.newArrayList(NotFollowByData.a1, NotFollowByData.b1, NotFollowByData.d1)
+		));
+		assertEquals(0, matches.f1.size());
+	}
+
+	@Test
+	public void testNotFollowedByBeforeOneOrMoreCombinations() {
+		final Tuple2<List<List<Event>>, List<List<Event>>> matches = testNotFollowedByBeforeOneOrMore(false, false);
+
+		compareMaps(matches.f0, Lists.<List<Event>>newArrayList(
+			Lists.newArrayList(NotFollowByData.a1, NotFollowByData.b1, NotFollowByData.b4, NotFollowByData.b5, NotFollowByData.b6, NotFollowByData.d1),
+			Lists.newArrayList(NotFollowByData.a1, NotFollowByData.b1, NotFollowByData.b4, NotFollowByData.b6, NotFollowByData.d1),
+			Lists.newArrayList(NotFollowByData.a1, NotFollowByData.b1, NotFollowByData.b4, NotFollowByData.b5, NotFollowByData.d1),
+			Lists.newArrayList(NotFollowByData.a1, NotFollowByData.b1, NotFollowByData.b4, NotFollowByData.d1),
+			Lists.newArrayList(NotFollowByData.a1, NotFollowByData.b1, NotFollowByData.b5, NotFollowByData.b6, NotFollowByData.d1),
+			Lists.newArrayList(NotFollowByData.a1, NotFollowByData.b1, NotFollowByData.b5, NotFollowByData.d1),
+			Lists.newArrayList(NotFollowByData.a1, NotFollowByData.b1, NotFollowByData.b6, NotFollowByData.d1),
+			Lists.newArrayList(NotFollowByData.a1, NotFollowByData.b1, NotFollowByData.d1)
+		));
+		assertEquals(0, matches.f1.size());
+	}
+
+	private Tuple2<List<List<Event>>, List<List<Event>>> testNotFollowedByBeforeOneOrMore(boolean eager, boolean allMatches) {
+		List<StreamRecord<Event>> inputEvents = new ArrayList<>();
+
+		int i = 0;
+		inputEvents.add(new StreamRecord<>(NotFollowByData.a1, i++));
+		inputEvents.add(new StreamRecord<>(NotFollowByData.b1, i++));
+		inputEvents.add(new StreamRecord<>(NotFollowByData.c1, i++));
+		inputEvents.add(new StreamRecord<>(NotFollowByData.b4, i++));
+		inputEvents.add(new StreamRecord<>(NotFollowByData.b5, i++));
+		inputEvents.add(new StreamRecord<>(NotFollowByData.b6, i++));
+		inputEvents.add(new StreamRecord<>(NotFollowByData.d1, i));
+
+		Pattern<Event, ?> pattern = Pattern
+			.<Event>begin("a").where(new SimpleCondition<Event>() {
+				private static final long serialVersionUID = 5726188262756267490L;
+
+				@Override
+				public boolean filter(Event value) throws Exception {
+					return value.getName().equals("a");
+				}
+			})
+			.notFollowedBy("not c").where(new SimpleCondition<Event>() {
+				private static final long serialVersionUID = 5726188262756267490L;
+
+				@Override
+				public boolean filter(Event value) throws Exception {
+					return value.getName().equals("c");
+				}
+			});
+
+		pattern = (allMatches ? pattern.followedByAny("b*") : pattern.followedBy("b*"))
+			.where(new SimpleCondition<Event>() {
+				private static final long serialVersionUID = 5726188262756267490L;
+
+				@Override
+				public boolean filter(Event value) throws Exception {
+					return value.getName().equals("b");
+				}
+			}).oneOrMore();
+
+		pattern = (eager ? pattern : pattern.allowCombinations())
+			.followedBy("d").where(new SimpleCondition<Event>() {
+				private static final long serialVersionUID = 5726188262756267490L;
+
+				@Override
+				public boolean filter(Event value) throws Exception {
+					return value.getName().equals("d");
+				}
+			});
+
+		NFA<Event> nfa = NFACompiler.compile(pattern, Event.createTypeSerializer(), false);
+
+		return feedNFAWithDiscarded(inputEvents, nfa);
+	}
+
+	@Test
+	public void testNotFollowedByBeforeZeroOrMoreEagerSkipTillNext() {
+		final Tuple2<List<List<Event>>, List<List<Event>>> matches = testNotFollowedByBeforeZeroOrMore(true, false);
+		compareMaps(matches.f0, Lists.<List<Event>>newArrayList(
+			Lists.newArrayList(NotFollowByData.a1, NotFollowByData.b1, NotFollowByData.b4, NotFollowByData.b5, NotFollowByData.b6, NotFollowByData.d1),
+			Lists.newArrayList(NotFollowByData.a1, NotFollowByData.b1, NotFollowByData.b4, NotFollowByData.b5, NotFollowByData.d1),
+			Lists.newArrayList(NotFollowByData.a1, NotFollowByData.b1, NotFollowByData.b4, NotFollowByData.d1),
+			Lists.newArrayList(NotFollowByData.a1, NotFollowByData.b1, NotFollowByData.d1)
+		));
+		compareMaps(matches.f1, Lists.<List<Event>>newArrayList(
+			Lists.newArrayList(NotFollowByData.a1, NotFollowByData.c1)
+		));
+	}
+
+	@Test
+	public void testNotFollowedByBeforeZeroOrMoreCombinationsSkipTillNext() {
+		final Tuple2<List<List<Event>>, List<List<Event>>> matches = testNotFollowedByBeforeZeroOrMore(false, false);
+		compareMaps(matches.f0, Lists.<List<Event>>newArrayList(
+			Lists.newArrayList(NotFollowByData.a1, NotFollowByData.b1, NotFollowByData.b4, NotFollowByData.b5, NotFollowByData.b6, NotFollowByData.d1),
+			Lists.newArrayList(NotFollowByData.a1, NotFollowByData.b1, NotFollowByData.b4, NotFollowByData.b5, NotFollowByData.d1),
+			Lists.newArrayList(NotFollowByData.a1, NotFollowByData.b1, NotFollowByData.b4, NotFollowByData.b6, NotFollowByData.d1),
+			Lists.newArrayList(NotFollowByData.a1, NotFollowByData.b1, NotFollowByData.b4, NotFollowByData.d1),
+			Lists.newArrayList(NotFollowByData.a1, NotFollowByData.b1, NotFollowByData.d1),
+			Lists.newArrayList(NotFollowByData.a1, NotFollowByData.b1, NotFollowByData.b5, NotFollowByData.b6, NotFollowByData.d1),
+			Lists.newArrayList(NotFollowByData.a1, NotFollowByData.b1, NotFollowByData.b5, NotFollowByData.d1),
+			Lists.newArrayList(NotFollowByData.a1, NotFollowByData.b1, NotFollowByData.b6, NotFollowByData.d1)
+		));
+		compareMaps(matches.f1, Lists.<List<Event>>newArrayList(
+			Lists.newArrayList(NotFollowByData.a1, NotFollowByData.c1)
+		));
+	}
+
+	@Test
+	public void testNotFollowedByBeforeZeroOrMoreEagerSkipTillAny() {
+		final Tuple2<List<List<Event>>, List<List<Event>>> matches = testNotFollowedByBeforeZeroOrMore(true, true);
+		compareMaps(matches.f0, Lists.<List<Event>>newArrayList(
+			Lists.newArrayList(NotFollowByData.a1, NotFollowByData.b1, NotFollowByData.b4, NotFollowByData.b5, NotFollowByData.b6, NotFollowByData.d1),
+			Lists.newArrayList(NotFollowByData.a1, NotFollowByData.b1, NotFollowByData.b4, NotFollowByData.b5, NotFollowByData.d1),
+			Lists.newArrayList(NotFollowByData.a1, NotFollowByData.b1, NotFollowByData.b4, NotFollowByData.d1),
+			Lists.newArrayList(NotFollowByData.a1, NotFollowByData.b1, NotFollowByData.d1)
+		));
+		compareMaps(matches.f1, Lists.<List<Event>>newArrayList(
+			Lists.newArrayList(NotFollowByData.a1, NotFollowByData.c1)
+		));
+	}
+
+	@Test
+	public void testNotFollowedByBeforeZeroOrMoreCombinationsSkipTillAny() {
+		final Tuple2<List<List<Event>>, List<List<Event>>> matches = testNotFollowedByBeforeZeroOrMore(false, true);
+		compareMaps(matches.f0, Lists.<List<Event>>newArrayList(
+			Lists.newArrayList(NotFollowByData.a1, NotFollowByData.b1, NotFollowByData.b4, NotFollowByData.b5, NotFollowByData.b6, NotFollowByData.d1),
+			Lists.newArrayList(NotFollowByData.a1, NotFollowByData.b1, NotFollowByData.b4, NotFollowByData.b5, NotFollowByData.d1),
+			Lists.newArrayList(NotFollowByData.a1, NotFollowByData.b1, NotFollowByData.b4, NotFollowByData.b6, NotFollowByData.d1),
+			Lists.newArrayList(NotFollowByData.a1, NotFollowByData.b1, NotFollowByData.b4, NotFollowByData.d1),
+			Lists.newArrayList(NotFollowByData.a1, NotFollowByData.b1, NotFollowByData.d1),
+			Lists.newArrayList(NotFollowByData.a1, NotFollowByData.b1, NotFollowByData.b5, NotFollowByData.b6, NotFollowByData.d1),
+			Lists.newArrayList(NotFollowByData.a1, NotFollowByData.b1, NotFollowByData.b5, NotFollowByData.d1),
+			Lists.newArrayList(NotFollowByData.a1, NotFollowByData.b1, NotFollowByData.b6, NotFollowByData.d1)
+		));
+		compareMaps(matches.f1, Lists.<List<Event>>newArrayList(
+			Lists.newArrayList(NotFollowByData.a1, NotFollowByData.c1)
+		));
+	}
+
+	private Tuple2<List<List<Event>>, List<List<Event>>> testNotFollowedByBeforeZeroOrMore(boolean eager, boolean allMatches) {
+		List<StreamRecord<Event>> inputEvents = new ArrayList<>();
+
+		int i = 0;
+		inputEvents.add(new StreamRecord<>(NotFollowByData.a1, i++));
+		inputEvents.add(new StreamRecord<>(NotFollowByData.b1, i++));
+		inputEvents.add(new StreamRecord<>(NotFollowByData.c1, i++));
+		inputEvents.add(new StreamRecord<>(NotFollowByData.b4, i++));
+		inputEvents.add(new StreamRecord<>(NotFollowByData.b5, i++));
+		inputEvents.add(new StreamRecord<>(NotFollowByData.b6, i++));
+		inputEvents.add(new StreamRecord<>(NotFollowByData.d1, i));
+
+		Pattern<Event, ?> pattern = Pattern
+			.<Event>begin("a").where(new SimpleCondition<Event>() {
+				private static final long serialVersionUID = 5726188262756267490L;
+
+				@Override
+				public boolean filter(Event value) throws Exception {
+					return value.getName().equals("a");
+				}
+			})
+			.notFollowedBy("not c").where(new SimpleCondition<Event>() {
+				private static final long serialVersionUID = 5726188262756267490L;
+
+				@Override
+				public boolean filter(Event value) throws Exception {
+					return value.getName().equals("c");
+				}
+			});
+
+		pattern = (allMatches ? pattern.followedByAny("b*") : pattern.followedBy("b*"))
+			.where(new SimpleCondition<Event>() {
+				private static final long serialVersionUID = 5726188262756267490L;
+
+				@Override
+				public boolean filter(Event value) throws Exception {
+					return value.getName().equals("b");
+				}
+			}).oneOrMore().optional();
+
+		pattern = (eager ? pattern : pattern.allowCombinations())
+			.followedBy("d").where(new SimpleCondition<Event>() {
+				private static final long serialVersionUID = 5726188262756267490L;
+
+				@Override
+				public boolean filter(Event value) throws Exception {
+					return value.getName().equals("d");
+				}
+			});
+
+		NFA<Event> nfa = NFACompiler.compile(pattern, Event.createTypeSerializer(), false);
+
+		return feedNFAWithDiscarded(inputEvents, nfa);
+	}
+
+	/////////////////////////////////////////       Utility        /////////////////////////////////////////////////
+
 	private List<List<Event>> feedNFA(List<StreamRecord<Event>> inputEvents, NFA<Event> nfa) {
 		List<List<Event>> resultingPatterns = new ArrayList<>();
 
 		for (StreamRecord<Event> inputEvent : inputEvents) {
 			Collection<Map<String, Event>> patterns = nfa.process(
 				inputEvent.getValue(),
-				inputEvent.getTimestamp()).f0;
+				inputEvent.getTimestamp()).getMatches();
 
 			for (Map<String, Event> p: patterns) {
 				resultingPatterns.add(new ArrayList<>(p.values()));
 			}
 		}
 		return resultingPatterns;
+	}
+
+	private Tuple2<List<List<Event>>, List<List<Event>>> feedNFAWithDiscarded(List<StreamRecord<Event>> inputEvents, NFA<Event> nfa) {
+		List<List<Event>> resultingPatterns = new ArrayList<>();
+		List<List<Event>> discardedPatterns = new ArrayList<>();
+
+		for (StreamRecord<Event> inputEvent : inputEvents) {
+			final NFAMatches<Event> matches = nfa.process(
+				inputEvent.getValue(),
+				inputEvent.getTimestamp());
+
+			for (Map<String, Event> p: matches.getMatches()) {
+				resultingPatterns.add(new ArrayList<>(p.values()));
+			}
+
+			for (Map<String, Event> d : matches.getDiscardedMatches()) {
+				discardedPatterns.add(new ArrayList<>(d.values()));
+			}
+		}
+		return Tuple2.of(resultingPatterns, discardedPatterns);
 	}
 
 	private void compareMaps(List<List<Event>> actual, List<List<Event>> expected) {

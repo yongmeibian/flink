@@ -18,6 +18,7 @@
 
 package org.apache.flink.cep;
 
+import java.util.Map;
 import org.apache.flink.api.common.functions.MapFunction;
 import org.apache.flink.api.java.functions.KeySelector;
 import org.apache.flink.api.java.tuple.Tuple2;
@@ -31,7 +32,6 @@ import org.apache.flink.streaming.api.functions.AssignerWithPunctuatedWatermarks
 import org.apache.flink.streaming.api.watermark.Watermark;
 import org.apache.flink.streaming.api.windowing.time.Time;
 import org.apache.flink.streaming.util.StreamingMultipleProgramsTestBase;
-
 import org.apache.flink.types.Either;
 import org.apache.flink.util.OutputTag;
 import org.junit.After;
@@ -39,8 +39,6 @@ import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
-
-import java.util.Map;
 
 @SuppressWarnings("serial")
 public class CEPITCase extends StreamingMultipleProgramsTestBase {
@@ -50,6 +48,9 @@ public class CEPITCase extends StreamingMultipleProgramsTestBase {
 
 	private String lateEventPath;
 	private String expectedLateEvents;
+
+	private String discardedPatternsPath;
+	private String expectedDiscardedPatterns;
 
 	@Rule
 	public TemporaryFolder tempFolder = new TemporaryFolder();
@@ -61,12 +62,16 @@ public class CEPITCase extends StreamingMultipleProgramsTestBase {
 
 		lateEventPath = tempFolder.newFile().toURI().toString();
 		expectedLateEvents = "";
+
+		discardedPatternsPath = tempFolder.newFile().toURI().toString();
+		expectedDiscardedPatterns = "";
 	}
 
 	@After
 	public void after() throws Exception {
 		compareResultsByLinesInMemory(expected, resultPath);
 		compareResultsByLinesInMemory(expectedLateEvents, lateEventPath);
+		compareResultsByLinesInMemory(expectedDiscardedPatterns, discardedPatternsPath);
 	}
 
 	/**
@@ -675,4 +680,6 @@ public class CEPITCase extends StreamingMultipleProgramsTestBase {
 		expected = "1,2,3\n1,2,8\n1,7,8\n6,7,8";
 		env.execute();
 	}
+
+
 }
