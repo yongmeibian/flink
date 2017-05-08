@@ -3606,6 +3606,99 @@ public class NFAITCase extends TestLogger {
 	}
 
 	@Test
+	public void testNotAfterOpt() {
+		List<StreamRecord<Event>> inputEvents = new ArrayList<>();
+
+		Event f = new Event(40, "f", 1.0);
+		Event g1 = new Event(40, "g", 2.0);
+		Event g2 = new Event(40, "g", 3.0);
+		Event a1 = new Event(40, "a", 4.0);
+		Event b1 = new Event(42, "b", 5.0);
+		Event c = new Event(41, "c", 6.0);
+		Event h = new Event(41, "h", 11.0);
+		Event a2 = new Event(40, "a", 7.0);
+		Event b2 = new Event(42, "b", 8.0);
+		Event d = new Event(43, "d", 9.0);
+		Event e = new Event(44, "e", 10.0);
+
+		inputEvents.add(new StreamRecord<>(f, 0));
+		inputEvents.add(new StreamRecord<>(g1, 1));
+		inputEvents.add(new StreamRecord<>(g2, 2));
+		inputEvents.add(new StreamRecord<>(a1, 3));
+		inputEvents.add(new StreamRecord<>(b1, 4));
+		inputEvents.add(new StreamRecord<>(c, 5));
+		inputEvents.add(new StreamRecord<>(h, 6));
+		inputEvents.add(new StreamRecord<>(a2, 7));
+		inputEvents.add(new StreamRecord<>(b2, 8));
+		inputEvents.add(new StreamRecord<>(e, 9));
+		inputEvents.add(new StreamRecord<>(d, 10));
+
+		Pattern<Event, ?> pattern = Pattern.<Event>begin("dummy").where(new SimpleCondition<Event>() {
+			private static final long serialVersionUID = 5726188262756267490L;
+
+			@Override
+			public boolean filter(Event value) throws Exception {
+				return value.getName().equals("f");
+			}
+		}).followedBy("st-1").where(new SimpleCondition<Event>() {
+			private static final long serialVersionUID = -6913980632538046451L;
+
+			@Override
+			public boolean filter(Event value) throws Exception {
+				return value.getName().equals("g");
+			}
+		}).oneOrMore().followedBy("st-2").where(new SimpleCondition<Event>() {
+			private static final long serialVersionUID = -6913980632538046451L;
+
+			@Override
+			public boolean filter(Event value) throws Exception {
+				return value.getName().equals("a");
+			}
+		}).oneOrMore().optional().notFollowedBy("notPattern").where(new SimpleCondition<Event>() {
+			private static final long serialVersionUID = 3332196998905139891L;
+
+			@Override
+			public boolean filter(Event value) throws Exception {
+				return value.getName().equals("h");
+			}
+		}).followedByAny("middle").where(new SimpleCondition<Event>() {
+			private static final long serialVersionUID = -6913980632538046451L;
+
+			@Override
+			public boolean filter(Event value) throws Exception {
+				return value.getName().equals("b");
+			}
+		}).optional().notFollowedBy("notPattern").where(new SimpleCondition<Event>() {
+			private static final long serialVersionUID = 3332196998905139891L;
+
+			@Override
+			public boolean filter(Event value) throws Exception {
+				return value.getName().equals("c");
+			}
+		}).followedBy("nd").where(new SimpleCondition<Event>() {
+			private static final long serialVersionUID = 5726188262756267490L;
+
+			@Override
+			public boolean filter(Event value) throws Exception {
+				return value.getName().equals("d");
+			}
+		});
+
+		NFA<Event> nfa = NFACompiler.compile(pattern, Event.createTypeSerializer(), false);
+
+		final List<List<Event>> matches = feedNFA(inputEvents, nfa);
+
+		compareMaps(matches, Lists.<List<Event>>newArrayList(
+			Lists.newArrayList(f, g1, g2, a1, a2, b2, d),
+			Lists.newArrayList(f, g1, g2, a1, b2, d),
+			Lists.newArrayList(f, g1, a1, a2, b2, d),
+			Lists.newArrayList(f, g1, a1, b2, d),
+			Lists.newArrayList(f, g1, g2, b2, d),
+			Lists.newArrayList(f, g1, b2, d)
+		));
+	}
+
+	@Test
 	public void testNotFollowedByTwoOptionalsDiscarded() {
 		List<StreamRecord<Event>> inputEvents = new ArrayList<>();
 

@@ -184,6 +184,22 @@ public class NFACompilerTest extends TestLogger {
 		assertEquals(1, endStateCount);
 	}
 
+	@Test
+	public void testOptionalBeforeNotFound() {
+		final Pattern<Event, Event> pattern = Pattern.<Event>begin("start").where(startFilter).oneOrMore()
+			.followedBy("next").where(startFilter).optional()
+			.followedBy("next1").where(startFilter).optional()
+			.followedBy("next2").where(startFilter).optional()
+			.followedBy("next3").where(startFilter).optional()
+			.notFollowedBy("not").where(startFilter)
+			.followedBy("end").where(endFilter);
+
+		final NFACompiler.NFAFactoryCompiler<Event> eventNFAFactoryCompiler = new NFACompiler.NFAFactoryCompiler<>(
+			pattern);
+
+		assertTrue(eventNFAFactoryCompiler.shouldConvertToSubpatterns(pattern, false));
+	}
+
 	private <T> Set<Tuple2<String, StateTransitionAction>> unfoldTransitions(final State<T> state) {
 		final Set<Tuple2<String, StateTransitionAction>> transitions = new HashSet<>();
 		for (StateTransition<T> transition : state.getStateTransitions()) {
