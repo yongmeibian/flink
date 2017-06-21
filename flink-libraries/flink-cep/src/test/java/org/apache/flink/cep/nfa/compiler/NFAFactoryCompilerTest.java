@@ -18,10 +18,7 @@
 
 package org.apache.flink.cep.nfa.compiler;
 
-import org.apache.flink.api.common.ExecutionConfig;
-import org.apache.flink.api.common.typeutils.TypeSerializer;
 import org.apache.flink.api.java.tuple.Tuple2;
-import org.apache.flink.api.java.typeutils.TypeExtractor;
 import org.apache.flink.cep.Event;
 import org.apache.flink.cep.SubEvent;
 import org.apache.flink.cep.nfa.NFA;
@@ -43,13 +40,14 @@ import java.util.Map;
 import java.util.Set;
 
 import static com.google.common.collect.Sets.newHashSet;
+import static org.apache.flink.cep.nfa.NFATestUtilities.compile;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
 /**
- * Tests for {@link NFACompiler}.
+ * Tests for {@link NFAFactoryCompiler}.
  */
-public class NFACompilerTest extends TestLogger {
+public class NFAFactoryCompilerTest extends TestLogger {
 
 	private static final SimpleCondition<Event> startFilter = new SimpleCondition<Event>() {
 		private static final long serialVersionUID = 3314714776170474221L;
@@ -69,9 +67,6 @@ public class NFACompilerTest extends TestLogger {
 		}
 	};
 
-	private static final TypeSerializer<Event> serializer = TypeExtractor.createTypeInfo(Event.class)
-		.createSerializer(new ExecutionConfig());
-
 	@Rule
 	public ExpectedException expectedException = ExpectedException.none();
 
@@ -87,7 +82,7 @@ public class NFACompilerTest extends TestLogger {
 			.followedBy("start").where(new TestFilter());
 
 		// here we must have an exception because of the two "start" patterns with the same name.
-		NFACompiler.compile(invalidPattern, Event.createTypeSerializer(), false);
+		compile(invalidPattern, false);
 	}
 
 	@Test
@@ -102,7 +97,7 @@ public class NFACompilerTest extends TestLogger {
 			.notFollowedBy("end").where(new TestFilter());
 
 		// here we must have an exception because of the two "start" patterns with the same name.
-		NFACompiler.compile(invalidPattern, Event.createTypeSerializer(), false);
+		compile(invalidPattern, false);
 	}
 
 	/**
@@ -128,7 +123,7 @@ public class NFACompilerTest extends TestLogger {
 			.followedBy("middle").subtype(SubEvent.class)
 			.next("end").where(endFilter);
 
-		NFA<Event> nfa = NFACompiler.compile(pattern, serializer, false);
+		NFA<Event> nfa = compile(pattern, false);
 
 		Set<State<Event>> states = nfa.getStates();
 		assertEquals(4, states.size());
@@ -158,11 +153,11 @@ public class NFACompilerTest extends TestLogger {
 		State<Event> endState = stateMap.get("end");
 		final Set<Tuple2<String, StateTransitionAction>> endTransitions = unfoldTransitions(endState);
 		assertEquals(newHashSet(
-			Tuple2.of(NFACompiler.ENDING_STATE_NAME, StateTransitionAction.TAKE)
+			Tuple2.of(NFAFactoryCompiler.ENDING_STATE_NAME, StateTransitionAction.TAKE)
 		), endTransitions);
 
-		assertTrue(stateMap.containsKey(NFACompiler.ENDING_STATE_NAME));
-		State<Event> endingState = stateMap.get(NFACompiler.ENDING_STATE_NAME);
+		assertTrue(stateMap.containsKey(NFAFactoryCompiler.ENDING_STATE_NAME));
+		State<Event> endingState = stateMap.get(NFAFactoryCompiler.ENDING_STATE_NAME);
 		assertTrue(endingState.isFinal());
 		assertEquals(0, endingState.getStateTransitions().size());
 	}
@@ -174,7 +169,7 @@ public class NFACompilerTest extends TestLogger {
 			.followedBy("oneOrMore").where(startFilter).oneOrMore()
 			.followedBy("end").where(endFilter);
 
-		final NFACompiler.NFAFactoryCompiler<Event> nfaFactoryCompiler = new NFACompiler.NFAFactoryCompiler<>(pattern);
+		final NFAFactoryCompiler<Event> nfaFactoryCompiler = new NFAFactoryCompiler<>(pattern);
 		nfaFactoryCompiler.compileFactory();
 
 		int endStateCount = 0;

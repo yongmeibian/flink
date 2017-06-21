@@ -26,8 +26,8 @@ import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.api.java.typeutils.runtime.kryo.KryoSerializer;
 import org.apache.flink.cep.Event;
 import org.apache.flink.cep.SubEvent;
-import org.apache.flink.cep.nfa.NFA;
-import org.apache.flink.cep.nfa.compiler.NFACompiler;
+import org.apache.flink.cep.nfa.compiler.NFAFactory;
+import org.apache.flink.cep.nfa.compiler.NFAFactoryCompiler;
 import org.apache.flink.cep.pattern.Pattern;
 import org.apache.flink.cep.pattern.conditions.IterativeCondition;
 import org.apache.flink.cep.pattern.conditions.SimpleCondition;
@@ -243,7 +243,7 @@ public class CEPOperatorTest extends TestLogger {
 				Event.createTypeSerializer(),
 				false,
 				IntSerializer.INSTANCE,
-				new NFAFactory(true),
+				createTestNFAFactory(true),
 				true),
 			keySelector,
 			BasicTypeInfo.INT_TYPE_INFO);
@@ -409,7 +409,7 @@ public class CEPOperatorTest extends TestLogger {
 				Event.createTypeSerializer(),
 				false,
 				IntSerializer.INSTANCE,
-				new ComplexNFAFactory(),
+				createComplexNFAFactory(),
 				true);
 		OneInputStreamOperatorTestHarness<Event, Map<String, List<Event>>> harness = getCepTestHarness(operator);
 
@@ -627,15 +627,7 @@ public class CEPOperatorTest extends TestLogger {
 				Event.createTypeSerializer(),
 				false,
 				IntSerializer.INSTANCE,
-				new NFACompiler.NFAFactory<Event>() {
-
-					private static final long serialVersionUID = 477082663248051994L;
-
-					@Override
-					public NFA<Event> createNFA() {
-						return NFACompiler.compile(pattern, Event.createTypeSerializer(), false);
-					}
-				},
+				NFAFactoryCompiler.compileFactory(pattern, Event.createTypeSerializer(), false),
 				true);
 
 		OneInputStreamOperatorTestHarness<Event, Map<String, List<Event>>> harness = getCepTestHarness(operator);
@@ -732,7 +724,7 @@ public class CEPOperatorTest extends TestLogger {
 			Event.createTypeSerializer(),
 			isProcessingTime,
 			IntSerializer.INSTANCE,
-			new NFAFactory(),
+			createTestNFAFactory(false),
 			true);
 	}
 
@@ -801,103 +793,68 @@ public class CEPOperatorTest extends TestLogger {
 		}
 	}
 
-	private static class NFAFactory implements NFACompiler.NFAFactory<Event> {
+	private NFAFactory<Event> createTestNFAFactory(boolean handleTimeout) {
+		Pattern<Event, ?> pattern = Pattern.<Event>begin("start").where(new SimpleCondition<Event>() {
+			private static final long serialVersionUID = 5726188262756267490L;
 
-		private static final long serialVersionUID = 1173020762472766713L;
+			@Override
+			public boolean filter(Event value) throws Exception {
+				return value.getName().equals("start");
+			}
+		})
+			.followedByAny("middle").subtype(SubEvent.class).where(new SimpleCondition<SubEvent>() {
+				private static final long serialVersionUID = 6215754202506583964L;
 
-		private final boolean handleTimeout;
+				@Override
+				public boolean filter(SubEvent value) throws Exception {
+					return value.getVolume() > 5.0;
+				}
+			})
+			.followedByAny("end").where(new SimpleCondition<Event>() {
+				private static final long serialVersionUID = 7056763917392056548L;
 
-		private NFAFactory() {
-			this(false);
-		}
-
-		private NFAFactory(boolean handleTimeout) {
-			this.handleTimeout = handleTimeout;
-		}
-
-		@Override
-		public NFA<Event> createNFA() {
-
-			Pattern<Event, ?> pattern = Pattern.<Event>begin("start").where(new SimpleCondition<Event>() {
-						private static final long serialVersionUID = 5726188262756267490L;
-
-						@Override
-						public boolean filter(Event value) throws Exception {
-							return value.getName().equals("start");
-						}
-					})
-					.followedByAny("middle").subtype(SubEvent.class).where(new SimpleCondition<SubEvent>() {
-						private static final long serialVersionUID = 6215754202506583964L;
-
-						@Override
-						public boolean filter(SubEvent value) throws Exception {
-							return value.getVolume() > 5.0;
-						}
-					})
-					.followedByAny("end").where(new SimpleCondition<Event>() {
-						private static final long serialVersionUID = 7056763917392056548L;
-
-						@Override
-						public boolean filter(Event value) throws Exception {
-							return value.getName().equals("end");
-						}
-					})
-					// add a window timeout to test whether timestamps of elements in the
-					// priority queue in CEP operator are correctly checkpointed/restored
-					.within(Time.milliseconds(10L));
-
-			return NFACompiler.compile(pattern, Event.createTypeSerializer(), handleTimeout);
-		}
+				@Override
+				public boolean filter(Event value) throws Exception {
+					return value.getName().equals("end");
+				}
+			})
+			// add a window timeout to test whether timestamps of elements in the
+			// priority queue in CEP operator are correctly checkpointed/restored
+			.within(Time.milliseconds(10L));
+		return NFAFactoryCompiler.compileFactory(pattern, Event.createTypeSerializer(), handleTimeout);
 	}
 
-	private static class ComplexNFAFactory implements NFACompiler.NFAFactory<Event> {
+	private NFAFactory<Event> createComplexNFAFactory() {
+		Pattern<Event, ?> pattern = Pattern.<Event>begin("start").where(new SimpleCondition<Event>() {
+			private static final long serialVersionUID = 5726188262756267490L;
 
-		private static final long serialVersionUID = 1173020762472766713L;
+			@Override
+			public boolean filter(Event value) throws Exception {
+				return value.getName().equals("c");
+			}
+		}).followedBy("middle1").where(new SimpleCondition<Event>() {
+			private static final long serialVersionUID = 5726188262756267490L;
 
-		private final boolean handleTimeout;
+			@Override
+			public boolean filter(Event value) throws Exception {
+				return value.getName().equals("a");
+			}
+		}).oneOrMore().optional().followedBy("middle2").where(new SimpleCondition<Event>() {
+			private static final long serialVersionUID = 5726188262756267490L;
 
-		private ComplexNFAFactory() {
-			this(false);
-		}
+			@Override
+			public boolean filter(Event value) throws Exception {
+				return value.getName().equals("b");
+			}
+		}).optional().followedBy("end").where(new SimpleCondition<Event>() {
+			private static final long serialVersionUID = 5726188262756267490L;
 
-		private ComplexNFAFactory(boolean handleTimeout) {
-			this.handleTimeout = handleTimeout;
-		}
-
-		@Override
-		public NFA<Event> createNFA() {
-
-			Pattern<Event, ?> pattern = Pattern.<Event>begin("start").where(new SimpleCondition<Event>() {
-				private static final long serialVersionUID = 5726188262756267490L;
-
-				@Override
-				public boolean filter(Event value) throws Exception {
-					return value.getName().equals("c");
-				}
-			}).followedBy("middle1").where(new SimpleCondition<Event>() {
-				private static final long serialVersionUID = 5726188262756267490L;
-
-				@Override
-				public boolean filter(Event value) throws Exception {
-					return value.getName().equals("a");
-				}
-			}).oneOrMore().optional().followedBy("middle2").where(new SimpleCondition<Event>() {
-				private static final long serialVersionUID = 5726188262756267490L;
-
-				@Override
-				public boolean filter(Event value) throws Exception {
-					return value.getName().equals("b");
-				}
-			}).optional().followedBy("end").where(new SimpleCondition<Event>() {
-				private static final long serialVersionUID = 5726188262756267490L;
-
-				@Override
-				public boolean filter(Event value) throws Exception {
-					return value.getName().equals("a");
-				}
-			}).within(Time.milliseconds(10L));
-
-			return NFACompiler.compile(pattern, Event.createTypeSerializer(), handleTimeout);
-		}
+			@Override
+			public boolean filter(Event value) throws Exception {
+				return value.getName().equals("a");
+			}
+		}).within(Time.milliseconds(10L));
+		return NFAFactoryCompiler.compileFactory(pattern, Event.createTypeSerializer(), false);
 	}
+
 }

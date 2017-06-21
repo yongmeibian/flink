@@ -19,6 +19,8 @@
 package org.apache.flink.cep.nfa;
 
 import org.apache.flink.cep.Event;
+import org.apache.flink.cep.nfa.compiler.NFAFactoryCompiler;
+import org.apache.flink.cep.pattern.Pattern;
 import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
 
 import com.google.common.primitives.Doubles;
@@ -35,6 +37,10 @@ import java.util.Map;
  * Base method for IT tests of {@link NFA}. It provides utility methods.
  */
 public class NFATestUtilities {
+
+	public static NFA<Event> compile(Pattern<Event, ?> pattern, boolean timeoutHandling) {
+		return NFAFactoryCompiler.compileFactory(pattern, Event.createTypeSerializer(), timeoutHandling).createNFA();
+	}
 
 	public static List<List<Event>> feedNFA(List<StreamRecord<Event>> inputEvents, NFA<Event> nfa) {
 		List<List<Event>> resultingPatterns = new ArrayList<>();

@@ -34,7 +34,7 @@ import org.apache.flink.api.common.typeutils.base.ListSerializer;
 import org.apache.flink.api.common.typeutils.base.LongSerializer;
 import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.cep.nfa.NFA;
-import org.apache.flink.cep.nfa.compiler.NFACompiler;
+import org.apache.flink.cep.nfa.compiler.NFAFactory;
 import org.apache.flink.core.fs.FSDataInputStream;
 import org.apache.flink.core.memory.DataInputView;
 import org.apache.flink.core.memory.DataInputViewStreamWrapper;
@@ -99,7 +99,7 @@ public abstract class AbstractKeyedCEPPatternOperator<IN, KEY, OUT>
 	private transient ValueState<NFA<IN>> nfaOperatorState;
 	private transient MapState<Long, List<IN>> elementQueueState;
 
-	private final NFACompiler.NFAFactory<IN> nfaFactory;
+	private final NFAFactory<IN> nfaFactory;
 
 	private transient InternalTimerService<VoidNamespace> timerService;
 
@@ -119,7 +119,7 @@ public abstract class AbstractKeyedCEPPatternOperator<IN, KEY, OUT>
 			final TypeSerializer<IN> inputSerializer,
 			final boolean isProcessingTime,
 			final TypeSerializer<KEY> keySerializer,
-			final NFACompiler.NFAFactory<IN> nfaFactory,
+			final NFAFactory<IN> nfaFactory,
 			final boolean migratingFromOldKeyedOperator) {
 
 		this.inputSerializer = Preconditions.checkNotNull(inputSerializer);

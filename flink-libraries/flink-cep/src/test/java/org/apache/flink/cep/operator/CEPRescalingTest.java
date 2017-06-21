@@ -23,8 +23,8 @@ import org.apache.flink.api.common.typeinfo.BasicTypeInfo;
 import org.apache.flink.api.java.functions.KeySelector;
 import org.apache.flink.cep.Event;
 import org.apache.flink.cep.SubEvent;
-import org.apache.flink.cep.nfa.NFA;
-import org.apache.flink.cep.nfa.compiler.NFACompiler;
+import org.apache.flink.cep.nfa.compiler.NFAFactory;
+import org.apache.flink.cep.nfa.compiler.NFAFactoryCompiler;
 import org.apache.flink.cep.pattern.Pattern;
 import org.apache.flink.cep.pattern.conditions.SimpleCondition;
 import org.apache.flink.runtime.state.KeyGroupRangeAssignment;
@@ -376,7 +376,7 @@ public class CEPRescalingTest {
 				Event.createTypeSerializer(),
 				false,
 				BasicTypeInfo.INT_TYPE_INFO.createSerializer(new ExecutionConfig()),
-				new NFAFactory(),
+				createTestNFAFactory(),
 				true),
 			keySelector,
 			BasicTypeInfo.INT_TYPE_INFO,
@@ -385,53 +385,35 @@ public class CEPRescalingTest {
 			subtaskIdx);
 	}
 
-	private static class NFAFactory implements NFACompiler.NFAFactory<Event> {
+	private NFAFactory<Event> createTestNFAFactory() {
+		Pattern<Event, ?> pattern = Pattern.<Event>begin("start").where(new SimpleCondition<Event>() {
+			private static final long serialVersionUID = 5726188262756267490L;
 
-		private static final long serialVersionUID = 1173020762472766713L;
+			@Override
+			public boolean filter(Event value) throws Exception {
+				return value.getName().equals("start");
+			}
+		})
+			.followedBy("middle").subtype(SubEvent.class).where(new SimpleCondition<SubEvent>() {
+				private static final long serialVersionUID = 6215754202506583964L;
 
-		private final boolean handleTimeout;
-
-		private NFAFactory() {
-			this(false);
-		}
-
-		private NFAFactory(boolean handleTimeout) {
-			this.handleTimeout = handleTimeout;
-		}
-
-		@Override
-		public NFA<Event> createNFA() {
-
-			Pattern<Event, ?> pattern = Pattern.<Event>begin("start").where(new SimpleCondition<Event>() {
-				private static final long serialVersionUID = 5726188262756267490L;
+				@Override
+				public boolean filter(SubEvent value) throws Exception {
+					return value.getVolume() > 5.0;
+				}
+			})
+			.followedBy("end").where(new SimpleCondition<Event>() {
+				private static final long serialVersionUID = 7056763917392056548L;
 
 				@Override
 				public boolean filter(Event value) throws Exception {
-					return value.getName().equals("start");
+					return value.getName().equals("end");
 				}
 			})
-				.followedBy("middle").subtype(SubEvent.class).where(new SimpleCondition<SubEvent>() {
-					private static final long serialVersionUID = 6215754202506583964L;
-
-					@Override
-					public boolean filter(SubEvent value) throws Exception {
-						return value.getVolume() > 5.0;
-					}
-				})
-				.followedBy("end").where(new SimpleCondition<Event>() {
-					private static final long serialVersionUID = 7056763917392056548L;
-
-					@Override
-					public boolean filter(Event value) throws Exception {
-						return value.getName().equals("end");
-					}
-				})
-				// add a window timeout to test whether timestamps of elements in the
-				// priority queue in CEP operator are correctly checkpointed/restored
-				.within(Time.milliseconds(10L));
-
-			return NFACompiler.compile(pattern, Event.createTypeSerializer(), handleTimeout);
-		}
+			// add a window timeout to test whether timestamps of elements in the
+			// priority queue in CEP operator are correctly checkpointed/restored
+			.within(Time.milliseconds(10L));
+		return NFAFactoryCompiler.compileFactory(pattern, Event.createTypeSerializer(), false);
 	}
 
 	/**

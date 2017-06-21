@@ -32,7 +32,8 @@ import org.apache.flink.api.common.typeutils.base.TypeSerializerSingleton;
 import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.api.java.typeutils.runtime.DataInputViewStream;
 import org.apache.flink.cep.NonDuplicatingTypeSerializer;
-import org.apache.flink.cep.nfa.compiler.NFACompiler;
+import org.apache.flink.cep.nfa.compiler.NFAFactory;
+import org.apache.flink.cep.nfa.compiler.NFAFactoryCompiler;
 import org.apache.flink.cep.nfa.compiler.NFAStateNameHandler;
 import org.apache.flink.cep.pattern.conditions.IterativeCondition;
 import org.apache.flink.core.memory.DataInputView;
@@ -120,7 +121,7 @@ public class NFA<T> implements Serializable {
 
 	/**
 	 * A set of all the valid NFA states, as returned by the
-	 * {@link NFACompiler NFACompiler}.
+	 * {@link NFAFactory NFAFactory}.
 	 * These are directly derived from the user-specified pattern.
 	 */
 	private Set<State<T>> states;
@@ -730,8 +731,10 @@ public class NFA<T> implements Serializable {
 	}
 
 	/**
-	 * Needed for backward compatibility. First migrates the {@link State} graph see {@link NFACompiler#migrateGraph(State)}.
-	 * Than recreates the {@link ComputationState}s with the new {@link State} graph.
+	 * Needed for backward compatibility. First migrates the {@link State} graph see
+	 * {@link NFAFactoryCompiler#migrateGraph(State)}. Than recreates the {@link ComputationState}s with the new
+	 * {@link State} graph.
+	 *
 	 * @param readStates computation states read from snapshot
 	 * @return collection of migrated computation states
 	 */
@@ -747,7 +750,7 @@ public class NFA<T> implements Serializable {
 				}
 			}).getState();
 
-		final Map<String, State<T>> convertedStates = NFACompiler.migrateGraph(startState);
+		final Map<String, State<T>> convertedStates = NFAFactoryCompiler.migrateGraph(startState);
 
 		for (ComputationState<T> readState : readStates) {
 			if (!readState.isStartState()) {

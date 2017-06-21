@@ -23,8 +23,8 @@ import org.apache.flink.api.common.typeutils.base.IntSerializer;
 import org.apache.flink.api.java.functions.KeySelector;
 import org.apache.flink.cep.Event;
 import org.apache.flink.cep.SubEvent;
-import org.apache.flink.cep.nfa.NFA;
-import org.apache.flink.cep.nfa.compiler.NFACompiler;
+import org.apache.flink.cep.nfa.compiler.NFAFactory;
+import org.apache.flink.cep.nfa.compiler.NFAFactoryCompiler;
 import org.apache.flink.cep.pattern.Pattern;
 import org.apache.flink.cep.pattern.conditions.SimpleCondition;
 import org.apache.flink.streaming.api.watermark.Watermark;
@@ -104,7 +104,7 @@ public class CEPMigrationTest {
 								Event.createTypeSerializer(),
 								false,
 								IntSerializer.INSTANCE,
-								new NFAFactory(),
+								createTestNFAFactory(),
 								true),
 						keySelector,
 						BasicTypeInfo.INT_TYPE_INFO);
@@ -154,7 +154,7 @@ public class CEPMigrationTest {
 								Event.createTypeSerializer(),
 								false,
 								IntSerializer.INSTANCE,
-								new NFAFactory(),
+								createTestNFAFactory(),
 								true),
 						keySelector,
 						BasicTypeInfo.INT_TYPE_INFO);
@@ -223,7 +223,7 @@ public class CEPMigrationTest {
 					Event.createTypeSerializer(),
 					false,
 					IntSerializer.INSTANCE,
-					new NFAFactory(),
+					createTestNFAFactory(),
 					true),
 				keySelector,
 				BasicTypeInfo.INT_TYPE_INFO);
@@ -283,7 +283,7 @@ public class CEPMigrationTest {
 								Event.createTypeSerializer(),
 								false,
 								IntSerializer.INSTANCE,
-								new NFAFactory(),
+								createTestNFAFactory(),
 								true),
 						keySelector,
 						BasicTypeInfo.INT_TYPE_INFO);
@@ -331,7 +331,7 @@ public class CEPMigrationTest {
 								Event.createTypeSerializer(),
 								false,
 								IntSerializer.INSTANCE,
-								new NFAFactory(),
+								createTestNFAFactory(),
 								true),
 						keySelector,
 						BasicTypeInfo.INT_TYPE_INFO);
@@ -414,7 +414,7 @@ public class CEPMigrationTest {
 					Event.createTypeSerializer(),
 					false,
 					IntSerializer.INSTANCE,
-					new NFAFactory(),
+					createTestNFAFactory(),
 					true),
 				keySelector,
 				BasicTypeInfo.INT_TYPE_INFO);
@@ -473,7 +473,7 @@ public class CEPMigrationTest {
 								Event.createTypeSerializer(),
 								false,
 								IntSerializer.INSTANCE,
-								new SinglePatternNFAFactory(),
+								createSinglePatternNFAFactory(),
 								true),
 						keySelector,
 						BasicTypeInfo.INT_TYPE_INFO);
@@ -512,7 +512,7 @@ public class CEPMigrationTest {
 								Event.createTypeSerializer(),
 								false,
 								IntSerializer.INSTANCE,
-								new SinglePatternNFAFactory(),
+								createSinglePatternNFAFactory(),
 								true),
 						keySelector,
 						BasicTypeInfo.INT_TYPE_INFO);
@@ -551,59 +551,23 @@ public class CEPMigrationTest {
 		}
 	}
 
-	private static class SinglePatternNFAFactory implements NFACompiler.NFAFactory<Event> {
-
-		private static final long serialVersionUID = 1173020762472766713L;
-
-		private final boolean handleTimeout;
-
-		private SinglePatternNFAFactory() {
-			this(false);
-		}
-
-		private SinglePatternNFAFactory(boolean handleTimeout) {
-			this.handleTimeout = handleTimeout;
-		}
-
-		@Override
-		public NFA<Event> createNFA() {
-
-			Pattern<Event, ?> pattern = Pattern.<Event>begin("start").where(new StartFilter())
-					.within(Time.milliseconds(10L));
-
-			return NFACompiler.compile(pattern, Event.createTypeSerializer(), handleTimeout);
-		}
+	private NFAFactory<Event> createSinglePatternNFAFactory() {
+		Pattern<Event, ?> pattern = Pattern.<Event>begin("start").where(new StartFilter())
+			.within(Time.milliseconds(10L));
+		return NFAFactoryCompiler.compileFactory(pattern, Event.createTypeSerializer(), false);
 	}
 
-	private static class NFAFactory implements NFACompiler.NFAFactory<Event> {
-
-		private static final long serialVersionUID = 1173020762472766713L;
-
-		private final boolean handleTimeout;
-
-		private NFAFactory() {
-			this(false);
-		}
-
-		private NFAFactory(boolean handleTimeout) {
-			this.handleTimeout = handleTimeout;
-		}
-
-		@Override
-		public NFA<Event> createNFA() {
-
-			Pattern<Event, ?> pattern = Pattern.<Event>begin("start").where(new StartFilter())
-					.followedByAny("middle")
-					.subtype(SubEvent.class)
-					.where(new MiddleFilter())
-					.followedByAny("end")
-					.where(new EndFilter())
-					// add a window timeout to test whether timestamps of elements in the
-					// priority queue in CEP operator are correctly checkpointed/restored
-					.within(Time.milliseconds(10L));
-
-			return NFACompiler.compile(pattern, Event.createTypeSerializer(), handleTimeout);
-		}
+	private NFAFactory<Event> createTestNFAFactory() {
+		Pattern<Event, ?> pattern = Pattern.<Event>begin("start").where(new StartFilter())
+			.followedByAny("middle")
+			.subtype(SubEvent.class)
+			.where(new MiddleFilter())
+			.followedByAny("end")
+			.where(new EndFilter())
+			// add a window timeout to test whether timestamps of elements in the
+			// priority queue in CEP operator are correctly checkpointed/restored
+			.within(Time.milliseconds(10L));
+		return NFAFactoryCompiler.compileFactory(pattern, Event.createTypeSerializer(), false);
 	}
 
 	private static class StartFilter extends SimpleCondition<Event> {

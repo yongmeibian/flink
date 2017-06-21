@@ -19,7 +19,6 @@
 package org.apache.flink.cep.nfa;
 
 import org.apache.flink.cep.Event;
-import org.apache.flink.cep.nfa.compiler.NFACompiler;
 import org.apache.flink.cep.pattern.Pattern;
 import org.apache.flink.cep.pattern.conditions.BooleanConditions;
 import org.apache.flink.cep.pattern.conditions.IterativeCondition;
@@ -43,6 +42,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import static org.apache.flink.cep.nfa.NFATestUtilities.compile;
 import static org.junit.Assert.assertEquals;
 
 /**
@@ -279,8 +279,7 @@ public class NFATest extends TestLogger {
 		patterns.add(pattern3);
 
 		for (Pattern<Event, ?> p: patterns) {
-			NFACompiler.NFAFactory<Event> nfaFactory = NFACompiler.compileFactory(p, Event.createTypeSerializer(), false);
-			NFA<Event> nfa = nfaFactory.createNFA();
+			NFA<Event> nfa = compile(p, false);
 
 			Event a = new Event(40, "a", 1.0);
 			Event b = new Event(41, "b", 2.0);
