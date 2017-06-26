@@ -18,24 +18,7 @@
 
 package org.apache.flink.cep.scala.pattern.proto
 
-import org.apache.flink.cep.pattern.Quantifier
-import org.apache.flink.cep.pattern.Quantifier.Times
-import org.apache.flink.util.Preconditions
-
-class SingletonPattern[T, F <: T](val name: String) extends Pattern[T, F] {
-
-  def oneOrMore: OneOrMorePattern[T, F] = {
-    new OneOrMorePattern(name)
-  }
-
-  def times(times: Int): TimesPattern[T, F] = {
-    Preconditions.checkArgument(times > 0, "You should give a positive number greater than 0.")
-    new TimesPattern(name, Times.of(times))
-  }
-
-  def times(from: Int, to: Int): TimesPattern[T, F] = {
-    new TimesPattern(name, Times.of(from, to))
-  }
-
-  override def getQuantifierProperty: Quantifier.QuantifierProperty = Quantifier.QuantifierProperty.SINGLE
+case class OrPattern[T, F <: T](left: ConditionPattern[_ <: F], right: ConditionPattern[_ <: F])
+  extends SingletonPattern[T, F] {
+  override def pattern: Pattern[T, F] = this
 }

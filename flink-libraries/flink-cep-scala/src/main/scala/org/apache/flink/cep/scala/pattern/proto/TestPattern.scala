@@ -18,5 +18,24 @@
 
 package org.apache.flink.cep.scala.pattern.proto
 
-trait PatternSequenceElement[T, F <: T] {
+import org.apache.flink.cep.scala.pattern.proto.Pattern._
+
+object TestPattern {
+
+  case class Event()
+
+  case class SubEvent()
+
+  def main(args: Array[String]): Unit = {
+    val pattern =
+      g("first")(
+        g("inner")(
+          p[Event]("start").where(a => true).oneOrMore.allowCombinations ->>
+          p[Event]("a")
+        )
+      ) ->>
+        p[Event]("c").where(c => false)
+
+    pattern
+  }
 }

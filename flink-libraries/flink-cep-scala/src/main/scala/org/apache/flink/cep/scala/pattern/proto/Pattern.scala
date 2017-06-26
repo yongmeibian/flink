@@ -18,84 +18,29 @@
 
 package org.apache.flink.cep.scala.pattern.proto
 
-import org.apache.flink.api.java.ClosureCleaner
-import org.apache.flink.cep.pattern.Quantifier.QuantifierProperty
-import org.apache.flink.cep.pattern.conditions._
-import org.apache.flink.util.Preconditions
+trait Pattern[T, F <: T] {
+}
 
-trait Pattern[T, F <: T] extends PatternSequenceElement[T, F]{
+object Pattern {
+  def begin[T](patternName: String) = new ConditionPattern[T](patternName)
 
-  /** The condition an event has to satisfy to be considered a matched. */
-  private var condition: IterativeCondition[F] = _
+  def p[T](patternName: String) = new ConditionPattern[T](patternName)
 
-  def name : String
+  def beginSequence[T, F <: T](pattern: Pattern[T, F]): SequencePattern[T, F] = new
+      SequencePattern[T, F](
+    pattern)
 
-  def getCondition: IterativeCondition[F] = this.condition
+  def s[T, F <: T](pattern: Pattern[T, F]): SequencePattern[T, F] = new SequencePattern[T, F](
+    pattern)
 
-  def getQuantifierProperty : QuantifierProperty
+  def group[T, F <: T](name: String)(patterns: SequencePattern[T, F]) = new GroupPattern(patterns, name)
 
-  /**
-    * Adds a condition that has to be satisfied by an event
-    * in order to be considered a match. If another condition has already been
-    * set, the new one is going to be combined with the previous with a
-    * logical {@code AND}. In other case, this is going to be the only
-    * condition.
-    *
-    * @param condition The condition as an { @link IterativeCondition}.
-    * @return The pattern with the new condition is set.
-    */
-  def where(condition: IterativeCondition[F]): Pattern[T, F] = {
-    Preconditions.checkNotNull(condition, "The condition cannot be null.")
-    ClosureCleaner.clean(condition, true)
-    if (this.condition == null) {
-      this.condition = condition
-    } else {
-      this.condition = new AndCondition[F](this.condition, condition)
-    }
-    this
+  def g[T, F <: T](name: String)(patterns: SequencePattern[T, F]) = new GroupPattern(patterns, name)
+
+  implicit def toSequencePattern[T, F <: T](pattern: Pattern[T, F]): SequencePattern[T, F] = {
+    s(pattern)
   }
-
-  /**
-    * Adds a condition that has to be satisfied by an event
-    * in order to be considered a match. If another condition has already been
-    * set, the new one is going to be combined with the previous with a
-    * logical {@code OR}. In other case, this is going to be the only
-    * condition.
-    *
-    * @param condition The condition as an { @link IterativeCondition}.
-    * @return The pattern with the new condition is set.
-    */
-  def or(condition: IterativeCondition[F]): Pattern[T, F] = {
-    Preconditions.checkNotNull(condition, "The condition cannot be null.")
-    ClosureCleaner.clean(condition, true)
-    if (this.condition == null) {
-      this.condition = condition
-    } else {
-      this.condition = new OrCondition[F](this.condition, condition)
-    }
-    this
-  }
-
-  /**
-    * Applies a subtype constraint on the current pattern. This means that an event has
-    * to be of the given subtype in order to be matched.
-    *
-    * @param subtypeClass Class of the subtype
-    * @param <            S> Type of the subtype
-    * @return The same pattern with the new subtype constraint
-    */
-  def subtype[S <: F](subtypeClass: Class[S]): Pattern[T, S] = {
-    Preconditions.checkNotNull(subtypeClass, "The class cannot be null.")
-    if (condition == null) {
-      this.condition = new SubtypeCondition[F](subtypeClass)
-    } else {
-      this.condition = new AndCondition[F](condition, new SubtypeCondition[F](subtypeClass))
-    }
-    @SuppressWarnings(Array("unchecked")) val result = this
-                                                       .asInstanceOf[Pattern[T, S]]
-    result
-  }
-
-
 
 }
+
+

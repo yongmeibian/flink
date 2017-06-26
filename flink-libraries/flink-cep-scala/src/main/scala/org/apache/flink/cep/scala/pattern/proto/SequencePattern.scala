@@ -21,66 +21,45 @@ package org.apache.flink.cep.scala.pattern.proto
 import org.apache.flink.cep.pattern.Quantifier.{ConsumingStrategy, Times}
 import org.apache.flink.util.Preconditions
 
-sealed trait PatternGroup[T, F <: T]
-  extends PatternSequenceElement[T, F] with Iterable[Pattern[T, _ <: T]] {
+class SequencePattern[T, F <: T] extends Iterable[(ConsumingStrategy, Pattern[T, _ <: T])] {
 
   private var patterns: List[(ConsumingStrategy, Pattern[T, _ <: T])] = List()
+
+  def this(pattern: Pattern[T, F]) {
+    this()
+    next(pattern)
+  }
 
   override def iterator: Iterator[(ConsumingStrategy, Pattern[T, _ <: T])] =
     patterns.reverse.toIterator
 
-  def next(pattern: Pattern[T, F]): PatternGroup[T, F] = {
+  def next(pattern: Pattern[T, F]): SequencePattern[T, F] = {
     patterns :+ (ConsumingStrategy.STRICT, pattern)
     this
   }
 
-  def followedBy(pattern: Pattern[T, F]): PatternGroup[T, F] = {
+  def followedBy(pattern: Pattern[_ <: T, F]): SequencePattern[_<:T, F] = {
     patterns :+ (ConsumingStrategy.SKIP_TILL_NEXT, pattern)
     this
   }
 
-  def followedByAny(pattern: Pattern[T, F]): PatternGroup[T, F] = {
+  def ->>(pattern: Pattern[_ <: T, F]): SequencePattern[_<:T, F] = {
+    followedBy(pattern)
+  }
+
+  def followedByAny(pattern: Pattern[T, F]): SequencePattern[T, F] = {
     patterns :+ (ConsumingStrategy.SKIP_TILL_ANY, pattern)
     this
   }
 
-  def notNext(pattern: Pattern[T, F]): PatternGroup[T, F] = {
+  def notNext(pattern: Pattern[T, F]): SequencePattern[T, F] = {
     patterns :+ (ConsumingStrategy.NOT_NEXT, pattern)
     this
   }
 
-  def notFollowedBy(pattern: Pattern[T, F]): PatternGroup[T, F] = {
+  def notFollowedBy(pattern: Pattern[T, F]): SequencePattern[T, F] = {
     patterns :+ (ConsumingStrategy.NOT_FOLLOW, pattern)
     this
   }
 
-}
-
-class SinglePatternGroup[T, F <: T] extends PatternGroup[T, F] {
-  def oneOrMore: OneOrMorePatternGroup[T, F] = {
-    new OneOrMorePatternGroup
-  }
-
-  def times(times: Int): TimesPatternGroup[T, F] = {
-    Preconditions.checkArgument(times > 0, "You should give a positive number greater than 0.")
-    new TimesPatternGroup(Times.of(times))
-  }
-
-  def times(from: Int, to: Int): TimesPatternGroup[T, F] = {
-    new TimesPatternGroup(Times.of(from, to))
-  }
-}
-
-class TimesPatternGroup[T, F <: T](val times: Times) extends PatternGroup[T, F] {
-
-}
-
-
-class OneOrMorePatternGroup[T, F <: T] extends PatternGroup[T, F] {
-
-}
-
-
-object PatternGroup {
-  def begin[T](pattern: Pattern[T, T]): PatternGroup[T, T] = new SinglePatternGroup[T, T]()
 }

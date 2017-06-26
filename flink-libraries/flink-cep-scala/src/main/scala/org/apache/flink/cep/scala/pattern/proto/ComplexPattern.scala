@@ -18,9 +18,11 @@
 
 package org.apache.flink.cep.scala.pattern.proto
 
-import org.apache.flink.cep.pattern.Quantifier.ConsumingStrategy
+import org.apache.flink.cep.pattern.Quantifier.{ConsumingStrategy, Times}
 
 trait ComplexPattern[T, F <: T] extends Pattern[T, F] {
+
+  def pattern: Pattern[T, F]
 
   private var innerConsumingStrategy: ConsumingStrategy = ConsumingStrategy.SKIP_TILL_NEXT
 
@@ -37,3 +39,29 @@ trait ComplexPattern[T, F <: T] extends Pattern[T, F] {
   }
 
 }
+
+case class OneOrMorePattern[T, F <: T](pattern: Pattern[T, F]) extends ComplexPattern[T, F]{
+}
+
+trait SingletonPattern[T, F <: T] extends Pattern[T, F] {
+
+  def pattern: Pattern[T, F]
+
+  def oneOrMore: OneOrMorePattern[T, F] = {
+    new OneOrMorePattern(pattern)
+  }
+
+  def times(times: Int): TimesPattern[T, F] = {
+//    Preconditions.checkArgument(times > 0, "You should give a positive number greater than 0.")
+    new TimesPattern(pattern, Times.of(times))
+  }
+
+  def times(from: Int, to: Int): TimesPattern[T, F] = {
+    new TimesPattern(pattern, Times.of(from, to))
+  }
+}
+
+
+case class TimesPattern[T, F <: T](pattern: Pattern[T, F], times: Times) extends ComplexPattern[T, F] {
+}
+

@@ -378,7 +378,7 @@ class Pattern[T , F <: T](jPattern: JPattern[T, F]) {
     * @return A new pattern which is appended to this one
     */
   def followedBy(pattern: Pattern[T, F]): GroupPattern[T, F] =
-    GroupPattern[T, F](jPattern.followedBy(pattern.jPattern))
+    GroupPattern[T, F](jPattern.followedBy(pattern.wrappedPattern))
 
   /**
     * Appends a new pattern to the existing one. The new pattern enforces non-strict
@@ -389,7 +389,7 @@ class Pattern[T , F <: T](jPattern: JPattern[T, F]) {
     * @return A new pattern which is appended to this one
     */
   def followedByAny(pattern: Pattern[T, F]): GroupPattern[T, F] =
-    GroupPattern[T, F](jPattern.followedByAny(pattern.jPattern))
+    GroupPattern[T, F](jPattern.followedByAny(pattern.wrappedPattern))
 
   /**
     * Appends a new pattern to the existing one. The new pattern enforces strict
@@ -401,7 +401,7 @@ class Pattern[T , F <: T](jPattern: JPattern[T, F]) {
     * @return A new pattern which is appended to this one
     */
   def next(pattern: Pattern[T, F]): GroupPattern[T, F] =
-    GroupPattern[T, F](jPattern.next(pattern.jPattern))
+    GroupPattern[T, F](jPattern.next(pattern.wrappedPattern))
 
 }
 

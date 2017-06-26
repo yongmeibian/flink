@@ -18,9 +18,6 @@
 
 package org.apache.flink.cep.scala.pattern.proto
 
-import org.apache.flink.cep.pattern.Quantifier
-import org.apache.flink.cep.pattern.Quantifier.Times
-
-class TimesPattern[T, F <: T](val name: String, val times: Times) extends ComplexPattern[T, F] {
-  override def getQuantifierProperty: Quantifier.QuantifierProperty = Quantifier.QuantifierProperty.TIMES
+case class GroupPattern[T, F <: T](patterns: SequencePattern[T,F], name: String) extends SingletonPattern[T,F] {
+  override def pattern: Pattern[T, F] = this
 }
