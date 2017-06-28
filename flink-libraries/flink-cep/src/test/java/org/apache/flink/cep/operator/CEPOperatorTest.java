@@ -19,6 +19,7 @@
 package org.apache.flink.cep.operator;
 
 import org.apache.flink.api.common.ExecutionConfig;
+import org.apache.flink.api.common.state.ValueState;
 import org.apache.flink.api.common.typeinfo.BasicTypeInfo;
 import org.apache.flink.api.common.typeutils.base.IntSerializer;
 import org.apache.flink.api.java.functions.KeySelector;
@@ -47,6 +48,12 @@ import org.junit.Assert;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
+import org.junit.runner.RunWith;
+import org.mockito.Mockito;
+import org.powermock.api.mockito.PowerMockito;
+import org.powermock.core.classloader.annotations.PowerMockIgnore;
+import org.powermock.modules.junit4.PowerMockRunner;
+import org.powermock.reflect.Whitebox;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -62,6 +69,8 @@ import static org.junit.Assert.assertTrue;
 /**
  * Tests for {@link KeyedCEPPatternOperator} and {@link TimeoutKeyedCEPPatternOperator}.
  */
+@RunWith(PowerMockRunner.class)
+@PowerMockIgnore({"javax.*", "org.apache.log4j.*"})
 public class CEPOperatorTest extends TestLogger {
 
 	@Rule
@@ -316,53 +325,20 @@ public class CEPOperatorTest extends TestLogger {
 
 			harness.open();
 
+			final ValueState nfaOperatorState = Whitebox.<ValueState>getInternalState(operator, "nfaOperatorState");
+			final ValueState nfaOperatorStateSpy = Mockito.spy(nfaOperatorState);
+			Whitebox.setInternalState(operator, "nfaOperatorState", nfaOperatorStateSpy);
+
 			Event startEvent = new Event(42, "c", 1.0);
 			SubEvent middleEvent = new SubEvent(42, "a", 1.0, 10.0);
 			Event endEvent = new Event(42, "b", 1.0);
 
 			harness.processElement(new StreamRecord<>(startEvent, 1L));
-
-			// simulate snapshot/restore with some elements in internal sorting queue
-			OperatorStateHandles snapshot = harness.snapshot(0L, 0L);
-			harness.close();
-
-			operator = new KeyedCEPPatternOperator<>(
-				Event.createTypeSerializer(),
-				true,
-				IntSerializer.INSTANCE,
-				new SimpleNFAFactory(),
-				true);
-			harness = getCepTestHarness(operator);
-
-			rocksDBStateBackend = new RocksDBStateBackend(new MemoryStateBackend());
-			rocksDBStateBackend.setDbStoragePath(rocksDbPath);
-			harness.setStateBackend(rocksDBStateBackend);
-			harness.setup();
-			harness.initializeState(snapshot);
-			harness.open();
-
 			harness.processElement(new StreamRecord<>(new Event(42, "d", 1.0), 4L));
-			OperatorStateHandles snapshot2 = harness.snapshot(0L, 0L);
-			harness.close();
-
-			operator = new KeyedCEPPatternOperator<>(
-				Event.createTypeSerializer(),
-				true,
-				IntSerializer.INSTANCE,
-				new SimpleNFAFactory(),
-				true);
-			harness = getCepTestHarness(operator);
-
-			rocksDBStateBackend = new RocksDBStateBackend(new MemoryStateBackend());
-			rocksDBStateBackend.setDbStoragePath(rocksDbPath);
-			harness.setStateBackend(rocksDBStateBackend);
-			harness.setup();
-			harness.initializeState(snapshot2);
-			harness.open();
-
 			harness.processElement(new StreamRecord<Event>(middleEvent, 4L));
 			harness.processElement(new StreamRecord<>(endEvent, 4L));
 
+			Mockito.verify(nfaOperatorStateSpy, Mockito.times(3)).update(Mockito.any());
 			// get and verify the output
 
 			Queue<Object> result = harness.getOutput();
