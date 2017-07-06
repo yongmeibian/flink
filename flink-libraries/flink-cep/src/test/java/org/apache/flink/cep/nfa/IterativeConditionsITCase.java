@@ -135,7 +135,7 @@ public class IterativeConditionsITCase extends TestLogger {
 				}
 			});
 
-		NFA<Event> nfa = NFACompiler.compile(pattern, Event.createTypeSerializer(), false);
+		NFA<Event> nfa = NFACompiler.compile(pattern, false);
 
 		return feedNFA(inputEvents, nfa);
 	}
@@ -222,7 +222,7 @@ public class IterativeConditionsITCase extends TestLogger {
 				}
 			});
 
-		NFA<Event> nfa = NFACompiler.compile(pattern, Event.createTypeSerializer(), false);
+		NFA<Event> nfa = NFACompiler.compile(pattern, false);
 
 		return feedNFA(inputEvents, nfa);
 	}
@@ -278,7 +278,7 @@ public class IterativeConditionsITCase extends TestLogger {
 			}
 		});
 
-		NFA<Event> nfa = NFACompiler.compile(pattern, Event.createTypeSerializer(), false);
+		NFA<Event> nfa = NFACompiler.compile(pattern, false);
 
 		List<List<Event>> resultingPatterns = feedNFA(inputEvents, nfa);
 
@@ -345,7 +345,7 @@ public class IterativeConditionsITCase extends TestLogger {
 			}
 		});
 
-		NFA<Event> nfa = NFACompiler.compile(pattern, Event.createTypeSerializer(), false);
+		NFA<Event> nfa = NFACompiler.compile(pattern, false);
 
 		List<List<Event>> resultingPatterns = feedNFA(inputEvents, nfa);
 
@@ -402,7 +402,7 @@ public class IterativeConditionsITCase extends TestLogger {
 			}
 		});
 
-		NFA<Event> nfa = NFACompiler.compile(pattern, Event.createTypeSerializer(), false);
+		NFA<Event> nfa = NFACompiler.compile(pattern, false);
 
 		List<List<Event>> resultingPatterns = feedNFA(inputEvents, nfa);
 

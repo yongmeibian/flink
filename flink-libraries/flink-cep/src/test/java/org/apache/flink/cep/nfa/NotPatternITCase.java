@@ -87,7 +87,7 @@ public class NotPatternITCase extends TestLogger {
 			}
 		});
 
-		NFA<Event> nfa = NFACompiler.compile(pattern, Event.createTypeSerializer(), false);
+		NFA<Event> nfa = NFACompiler.compile(pattern, false);
 
 		final List<List<Event>> matches = feedNFA(inputEvents, nfa);
 
@@ -143,7 +143,7 @@ public class NotPatternITCase extends TestLogger {
 			}
 		});
 
-		NFA<Event> nfa = NFACompiler.compile(pattern, Event.createTypeSerializer(), false);
+		NFA<Event> nfa = NFACompiler.compile(pattern, false);
 
 		final List<List<Event>> matches = feedNFA(inputEvents, nfa);
 
@@ -196,7 +196,7 @@ public class NotPatternITCase extends TestLogger {
 			}
 		});
 
-		NFA<Event> nfa = NFACompiler.compile(pattern, Event.createTypeSerializer(), false);
+		NFA<Event> nfa = NFACompiler.compile(pattern, false);
 
 		final List<List<Event>> matches = feedNFA(inputEvents, nfa);
 
@@ -249,7 +249,7 @@ public class NotPatternITCase extends TestLogger {
 			}
 		});
 
-		NFA<Event> nfa = NFACompiler.compile(pattern, Event.createTypeSerializer(), false);
+		NFA<Event> nfa = NFACompiler.compile(pattern, false);
 
 		final List<List<Event>> matches = feedNFA(inputEvents, nfa);
 
@@ -304,7 +304,7 @@ public class NotPatternITCase extends TestLogger {
 			}
 		});
 
-		NFA<Event> nfa = NFACompiler.compile(pattern, Event.createTypeSerializer(), false);
+		NFA<Event> nfa = NFACompiler.compile(pattern, false);
 
 		final List<List<Event>> matches = feedNFA(inputEvents, nfa);
 
@@ -359,7 +359,7 @@ public class NotPatternITCase extends TestLogger {
 			}
 		});
 
-		NFA<Event> nfa = NFACompiler.compile(pattern, Event.createTypeSerializer(), false);
+		NFA<Event> nfa = NFACompiler.compile(pattern, false);
 
 		final List<List<Event>> matches = feedNFA(inputEvents, nfa);
 
@@ -416,7 +416,7 @@ public class NotPatternITCase extends TestLogger {
 			}
 		});
 
-		NFA<Event> nfa = NFACompiler.compile(pattern, Event.createTypeSerializer(), false);
+		NFA<Event> nfa = NFACompiler.compile(pattern, false);
 
 		final List<List<Event>> matches = feedNFA(inputEvents, nfa);
 
@@ -475,7 +475,7 @@ public class NotPatternITCase extends TestLogger {
 			}
 		});
 
-		NFA<Event> nfa = NFACompiler.compile(pattern, Event.createTypeSerializer(), false);
+		NFA<Event> nfa = NFACompiler.compile(pattern, false);
 
 		final List<List<Event>> matches = feedNFA(inputEvents, nfa);
 
@@ -519,7 +519,7 @@ public class NotPatternITCase extends TestLogger {
 			}
 		}).optional();
 
-		NFA<Event> nfa = NFACompiler.compile(pattern, Event.createTypeSerializer(), false);
+		NFA<Event> nfa = NFACompiler.compile(pattern, false);
 
 		final List<List<Event>> matches = feedNFA(inputEvents, nfa);
 
@@ -575,7 +575,7 @@ public class NotPatternITCase extends TestLogger {
 			}
 		});
 
-		NFA<Event> nfa = NFACompiler.compile(pattern, Event.createTypeSerializer(), false);
+		NFA<Event> nfa = NFACompiler.compile(pattern, false);
 
 		final List<List<Event>> matches = feedNFA(inputEvents, nfa);
 
@@ -632,7 +632,7 @@ public class NotPatternITCase extends TestLogger {
 			}
 		});
 
-		NFA<Event> nfa = NFACompiler.compile(pattern, Event.createTypeSerializer(), false);
+		NFA<Event> nfa = NFACompiler.compile(pattern, false);
 
 		final List<List<Event>> matches = feedNFA(inputEvents, nfa);
 
@@ -715,7 +715,7 @@ public class NotPatternITCase extends TestLogger {
 				}
 			});
 
-		NFA<Event> nfa = NFACompiler.compile(pattern, Event.createTypeSerializer(), false);
+		NFA<Event> nfa = NFACompiler.compile(pattern, false);
 
 		return feedNFA(inputEvents, nfa);
 	}
@@ -811,7 +811,7 @@ public class NotPatternITCase extends TestLogger {
 				}
 			});
 
-		NFA<Event> nfa = NFACompiler.compile(pattern, Event.createTypeSerializer(), false);
+		NFA<Event> nfa = NFACompiler.compile(pattern, false);
 
 		return feedNFA(inputEvents, nfa);
 	}
@@ -922,7 +922,7 @@ public class NotPatternITCase extends TestLogger {
 				}
 			});
 
-		NFA<Event> nfa = NFACompiler.compile(pattern, Event.createTypeSerializer(), false);
+		NFA<Event> nfa = NFACompiler.compile(pattern, false);
 
 		return feedNFA(inputEvents, nfa);
 	}
@@ -1029,7 +1029,7 @@ public class NotPatternITCase extends TestLogger {
 				}
 			});
 
-		NFA<Event> nfa = NFACompiler.compile(pattern, Event.createTypeSerializer(), false);
+		NFA<Event> nfa = NFACompiler.compile(pattern, false);
 
 		return feedNFA(inputEvents, nfa);
 	}

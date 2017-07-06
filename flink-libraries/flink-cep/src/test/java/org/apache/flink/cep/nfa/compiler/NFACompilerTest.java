@@ -87,7 +87,7 @@ public class NFACompilerTest extends TestLogger {
 			.followedBy("start").where(new TestFilter());
 
 		// here we must have an exception because of the two "start" patterns with the same name.
-		NFACompiler.compile(invalidPattern, Event.createTypeSerializer(), false);
+		NFACompiler.compile(invalidPattern, false);
 	}
 
 	@Test
@@ -102,7 +102,7 @@ public class NFACompilerTest extends TestLogger {
 			.notFollowedBy("end").where(new TestFilter());
 
 		// here we must have an exception because of the two "start" patterns with the same name.
-		NFACompiler.compile(invalidPattern, Event.createTypeSerializer(), false);
+		NFACompiler.compile(invalidPattern, false);
 	}
 
 	/**
@@ -128,7 +128,7 @@ public class NFACompilerTest extends TestLogger {
 			.followedBy("middle").subtype(SubEvent.class)
 			.next("end").where(endFilter);
 
-		NFA<Event> nfa = NFACompiler.compile(pattern, serializer, false);
+		NFA<Event> nfa = NFACompiler.compile(pattern, false);
 
 		Set<State<Event>> states = nfa.getStates();
 		assertEquals(4, states.size());

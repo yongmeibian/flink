@@ -868,7 +868,7 @@ public class CEPOperatorTest extends TestLogger {
 
 					@Override
 					public NFA<Event> createNFA() {
-						return NFACompiler.compile(pattern, Event.createTypeSerializer(), false);
+						return NFACompiler.compile(pattern, false);
 					}
 				},
 				true);
@@ -1081,7 +1081,7 @@ public class CEPOperatorTest extends TestLogger {
 					// priority queue in CEP operator are correctly checkpointed/restored
 					.within(Time.milliseconds(10L));
 
-			return NFACompiler.compile(pattern, Event.createTypeSerializer(), handleTimeout);
+			return NFACompiler.compile(pattern, handleTimeout);
 		}
 	}
 
@@ -1132,7 +1132,7 @@ public class CEPOperatorTest extends TestLogger {
 				}
 			}).within(Time.milliseconds(10L));
 
-			return NFACompiler.compile(pattern, Event.createTypeSerializer(), handleTimeout);
+			return NFACompiler.compile(pattern, handleTimeout);
 		}
 	}
 
@@ -1176,7 +1176,7 @@ public class CEPOperatorTest extends TestLogger {
 				}
 			}).within(Time.milliseconds(10L));
 
-			return NFACompiler.compile(pattern, Event.createTypeSerializer(), handleTimeout);
+			return NFACompiler.compile(pattern, handleTimeout);
 		}
 	}
 }
