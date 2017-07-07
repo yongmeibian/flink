@@ -34,13 +34,13 @@ import org.apache.flink.cep.pattern.conditions.IterativeCondition;
 import org.apache.flink.cep.pattern.conditions.NotCondition;
 import org.apache.flink.streaming.api.windowing.time.Time;
 
-import java.io.Serializable;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Compiler class containing methods to compile a {@link Pattern} into a {@link NFA} or a
@@ -81,11 +81,11 @@ public class NFACompiler {
 		boolean timeoutHandling) {
 		if (pattern == null) {
 			// return a factory for empty NFAs
-			return new NFAFactoryImpl<>(0, Collections.<State<T>>emptyList(), timeoutHandling);
+			return new NFAFactory<>(0, Collections.<State<T>>emptySet(), timeoutHandling);
 		} else {
 			final NFAFactoryCompiler<T> nfaFactoryCompiler = new NFAFactoryCompiler<>(pattern);
 			nfaFactoryCompiler.compileFactory();
-			return new NFAFactoryImpl<>(nfaFactoryCompiler.getWindowTime(), nfaFactoryCompiler.getStates(), timeoutHandling);
+			return new NFAFactory<>(nfaFactoryCompiler.getWindowTime(), nfaFactoryCompiler.getStates(), timeoutHandling);
 		}
 	}
 
@@ -99,7 +99,7 @@ public class NFACompiler {
 
 		private final NFAStateNameHandler stateNameHandler = new NFAStateNameHandler();
 		private final Map<String, State<T>> stopStates = new HashMap<>();
-		private final List<State<T>> states = new ArrayList<>();
+		private final Set<State<T>> states = new HashSet<>();
 
 		private long windowTime = 0;
 		private GroupPattern<T, ?> currentGroupPattern;
@@ -131,7 +131,7 @@ public class NFACompiler {
 			createStartState(sinkState);
 		}
 
-		List<State<T>> getStates() {
+		Set<State<T>> getStates() {
 			return states;
 		}
 
@@ -846,48 +846,4 @@ public class NFACompiler {
 		}
 	}
 
-	/**
-	 * Factory interface for {@link NFA}.
-	 *
-	 * @param <T> Type of the input events which are processed by the NFA
-	 */
-	public interface NFAFactory<T> extends Serializable {
-		NFA<T> createNFA();
-	}
-
-	/**
-	 * Implementation of the {@link NFAFactory} interface.
-	 *
-	 * <p>The implementation takes the input type serializer, the window time and the set of
-	 * states and their transitions to be able to create an NFA from them.
-	 *
-	 * @param <T> Type of the input events which are processed by the NFA
-	 */
-	private static class NFAFactoryImpl<T> implements NFAFactory<T> {
-
-		private static final long serialVersionUID = 8939783698296714379L;
-
-		private final long windowTime;
-		private final Collection<State<T>> states;
-		private final boolean timeoutHandling;
-
-		private NFAFactoryImpl(
-			long windowTime,
-			Collection<State<T>> states,
-			boolean timeoutHandling) {
-
-			this.windowTime = windowTime;
-			this.states = states;
-			this.timeoutHandling = timeoutHandling;
-		}
-
-		@Override
-		public NFA<T> createNFA() {
-			NFA<T> result =  new NFA<>(windowTime, timeoutHandling);
-
-			result.addStates(states);
-
-			return result;
-		}
-	}
 }

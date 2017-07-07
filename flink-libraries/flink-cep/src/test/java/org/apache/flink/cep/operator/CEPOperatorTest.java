@@ -19,7 +19,7 @@
 package org.apache.flink.cep.operator;
 
 import org.apache.flink.api.common.ExecutionConfig;
-import org.apache.flink.api.common.state.ValueState;
+import org.apache.flink.api.common.state.MapState;
 import org.apache.flink.api.common.typeinfo.BasicTypeInfo;
 import org.apache.flink.api.common.typeutils.base.IntSerializer;
 import org.apache.flink.api.java.functions.KeySelector;
@@ -29,8 +29,8 @@ import org.apache.flink.cep.Event;
 import org.apache.flink.cep.PatternSelectFunction;
 import org.apache.flink.cep.PatternTimeoutFunction;
 import org.apache.flink.cep.SubEvent;
-import org.apache.flink.cep.nfa.NFA;
 import org.apache.flink.cep.nfa.compiler.NFACompiler;
+import org.apache.flink.cep.nfa.compiler.NFAFactory;
 import org.apache.flink.cep.pattern.Pattern;
 import org.apache.flink.cep.pattern.conditions.IterativeCondition;
 import org.apache.flink.cep.pattern.conditions.SimpleCondition;
@@ -65,6 +65,7 @@ import java.util.Queue;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
+import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.validateMockitoUsage;
 
 /**
@@ -251,15 +252,14 @@ public class CEPOperatorTest extends TestLogger {
 
 		final OutputTag<Tuple2<Map<String, List<Event>>, Long>> timedOut =
 			new OutputTag<Tuple2<Map<String, List<Event>>, Long>>("timedOut") {};
-		final KeyedOneInputStreamOperatorTestHarness<Integer, Event, Map<String, List<Event>>> harness =
-			new KeyedOneInputStreamOperatorTestHarness<>(
-				new SelectTimeoutCepOperator<>(
-					Event.createTypeSerializer(),
-					false,
-					IntSerializer.INSTANCE,
-					new NFAFactory(true),
-					true,
-					null,
+		final KeyedOneInputStreamOperatorTestHarness<Integer, Event, Map<String, List<Event>>> harness = new KeyedOneInputStreamOperatorTestHarness<>(
+			new SelectTimeoutCepOperator<>(
+				Event.createTypeSerializer(),
+				false,
+				IntSerializer.INSTANCE,
+				nfaFactory(true),
+				true,
+			null,
 					new PatternSelectFunction<Event, Map<String, List<Event>>>() {
 						@Override
 						public Map<String, List<Event>> select(Map<String, List<Event>> pattern) throws Exception {
@@ -325,7 +325,7 @@ public class CEPOperatorTest extends TestLogger {
 
 		SelectCepOperator<Event, Integer, Map<String, List<Event>>> operator = CepOperatorTestUtilities.getKeyedCepOpearator(
 			true,
-			new SimpleNFAFactory());
+			simpleNFAFactory());
 		OneInputStreamOperatorTestHarness<Event, Map<String, List<Event>>> harness = CepOperatorTestUtilities.getCepTestHarness(
 			operator);
 
@@ -342,7 +342,7 @@ public class CEPOperatorTest extends TestLogger {
 			OperatorStateHandles snapshot = harness.snapshot(0L, 0L);
 			harness.close();
 
-			operator = CepOperatorTestUtilities.getKeyedCepOpearator(true, new SimpleNFAFactory());
+			operator = CepOperatorTestUtilities.getKeyedCepOpearator(true, simpleNFAFactory());
 			harness = CepOperatorTestUtilities.getCepTestHarness(operator);
 
 			harness.setup();
@@ -353,7 +353,7 @@ public class CEPOperatorTest extends TestLogger {
 			OperatorStateHandles snapshot2 = harness.snapshot(0L, 0L);
 			harness.close();
 
-			operator = CepOperatorTestUtilities.getKeyedCepOpearator(true, new SimpleNFAFactory());
+			operator = CepOperatorTestUtilities.getKeyedCepOpearator(true, simpleNFAFactory());
 			harness = CepOperatorTestUtilities.getCepTestHarness(operator);
 
 			harness.setup();
@@ -384,7 +384,7 @@ public class CEPOperatorTest extends TestLogger {
 
 		SelectCepOperator<Event, Integer, Map<String, List<Event>>> operator = CepOperatorTestUtilities.getKeyedCepOpearator(
 			true,
-			new SimpleNFAFactory());
+			simpleNFAFactory());
 		OneInputStreamOperatorTestHarness<Event, Map<String, List<Event>>> harness = CepOperatorTestUtilities.getCepTestHarness(
 			operator);
 
@@ -403,7 +403,7 @@ public class CEPOperatorTest extends TestLogger {
 			OperatorStateHandles snapshot = harness.snapshot(0L, 0L);
 			harness.close();
 
-			operator = CepOperatorTestUtilities.getKeyedCepOpearator(true, new SimpleNFAFactory());
+			operator = CepOperatorTestUtilities.getKeyedCepOpearator(true, simpleNFAFactory());
 			harness = CepOperatorTestUtilities.getCepTestHarness(operator);
 
 			rocksDBStateBackend = new RocksDBStateBackend(new MemoryStateBackend());
@@ -417,7 +417,7 @@ public class CEPOperatorTest extends TestLogger {
 			OperatorStateHandles snapshot2 = harness.snapshot(0L, 0L);
 			harness.close();
 
-			operator = CepOperatorTestUtilities.getKeyedCepOpearator(true, new SimpleNFAFactory());
+			operator = CepOperatorTestUtilities.getKeyedCepOpearator(true, simpleNFAFactory());
 			harness = CepOperatorTestUtilities.getCepTestHarness(operator);
 
 			rocksDBStateBackend = new RocksDBStateBackend(new MemoryStateBackend());
@@ -446,14 +446,14 @@ public class CEPOperatorTest extends TestLogger {
 	public void testKeyedCEPOperatorNFAUpdateTimes() throws Exception {
 		SelectCepOperator<Event, Integer, Map<String, List<Event>>> operator = CepOperatorTestUtilities.getKeyedCepOpearator(
 			true,
-			new SimpleNFAFactory());
+			simpleNFAFactory());
 		OneInputStreamOperatorTestHarness<Event, Map<String, List<Event>>> harness = CepOperatorTestUtilities.getCepTestHarness(operator);
 
 		try {
 			harness.open();
 
-			final ValueState nfaOperatorState = (ValueState) Whitebox.<ValueState>getInternalState(operator, "nfaOperatorState");
-			final ValueState nfaOperatorStateSpy = Mockito.spy(nfaOperatorState);
+			final MapState nfaOperatorState = (MapState) Whitebox.<MapState>getInternalState(operator, "nfaOperatorState");
+			final MapState nfaOperatorStateSpy = Mockito.spy(nfaOperatorState);
 			Whitebox.setInternalState(operator, "nfaOperatorState", nfaOperatorStateSpy);
 
 			Event startEvent = new Event(42, "c", 1.0);
@@ -466,7 +466,7 @@ public class CEPOperatorTest extends TestLogger {
 			harness.processElement(new StreamRecord<>(endEvent, 4L));
 
 			// verify the number of invocations NFA is updated
-			Mockito.verify(nfaOperatorStateSpy, Mockito.times(2)).update(Mockito.any());
+			Mockito.verify(nfaOperatorStateSpy, Mockito.times(2)).put(eq("DEFAULT_NFA"), Mockito.any());
 
 			// get and verify the output
 			Queue<Object> result = harness.getOutput();
@@ -488,7 +488,7 @@ public class CEPOperatorTest extends TestLogger {
 
 		SelectCepOperator<Event, Integer, Map<String, List<Event>>> operator = CepOperatorTestUtilities.getKeyedCepOpearator(
 			true,
-			new SimpleNFAFactory());
+			simpleNFAFactory());
 		OneInputStreamOperatorTestHarness<Event, Map<String, List<Event>>> harness = CepOperatorTestUtilities.getCepTestHarness(
 			operator);
 
@@ -497,8 +497,8 @@ public class CEPOperatorTest extends TestLogger {
 
 			harness.open();
 
-			final ValueState nfaOperatorState = (ValueState) Whitebox.<ValueState>getInternalState(operator, "nfaOperatorState");
-			final ValueState nfaOperatorStateSpy = Mockito.spy(nfaOperatorState);
+			final MapState nfaOperatorState = (MapState) Whitebox.<MapState>getInternalState(operator, "nfaOperatorState");
+			final MapState nfaOperatorStateSpy = Mockito.spy(nfaOperatorState);
 			Whitebox.setInternalState(operator, "nfaOperatorState", nfaOperatorStateSpy);
 
 			Event startEvent = new Event(42, "c", 1.0);
@@ -511,7 +511,7 @@ public class CEPOperatorTest extends TestLogger {
 			harness.processElement(new StreamRecord<>(endEvent, 4L));
 
 			// verify the number of invocations NFA is updated
-			Mockito.verify(nfaOperatorStateSpy, Mockito.times(2)).update(Mockito.any());
+			Mockito.verify(nfaOperatorStateSpy, Mockito.times(2)).put(eq("DEFAULT_NFA"), Mockito.any());
 
 			// get and verify the output
 			Queue<Object> result = harness.getOutput();
@@ -635,7 +635,7 @@ public class CEPOperatorTest extends TestLogger {
 
 		SelectCepOperator<Event, Integer, Map<String, List<Event>>> operator = CepOperatorTestUtilities.getKeyedCepOpearator(
 			false,
-			new ComplexNFAFactory());
+			complexNFAFactory());
 		OneInputStreamOperatorTestHarness<Event, Map<String, List<Event>>> harness = CepOperatorTestUtilities.getCepTestHarness(operator);
 
 		try {
@@ -850,14 +850,7 @@ public class CEPOperatorTest extends TestLogger {
 
 		SelectCepOperator<Event, Integer, Map<String, List<Event>>> operator = CepOperatorTestUtilities.getKeyedCepOpearator(
 			false,
-			new NFACompiler.NFAFactory<Event>() {
-				private static final long serialVersionUID = 477082663248051994L;
-
-				@Override
-				public NFA<Event> createNFA() {
-					return NFACompiler.compile(pattern, false);
-				}
-			});
+			NFACompiler.compileFactory(pattern, false));
 
 		OneInputStreamOperatorTestHarness<Event, Map<String, List<Event>>> harness = CepOperatorTestUtilities.getCepTestHarness(operator);
 
@@ -1047,13 +1040,13 @@ public class CEPOperatorTest extends TestLogger {
 
 	private SelectCepOperator<Event, Integer, Map<String, List<Event>>> getKeyedCepOperator(
 		boolean isProcessingTime) {
-		return CepOperatorTestUtilities.getKeyedCepOpearator(isProcessingTime, new NFAFactory());
+		return CepOperatorTestUtilities.getKeyedCepOpearator(isProcessingTime, nfaFactory(false));
 	}
 
 	private SelectCepOperator<Event, Integer, Map<String, List<Event>>> getKeyedCepOperatorWithComparator(
 		boolean isProcessingTime) {
 
-		return CepOperatorTestUtilities.getKeyedCepOpearator(isProcessingTime, new NFAFactory(), new org.apache.flink.cep.EventComparator<Event>() {
+		return CepOperatorTestUtilities.getKeyedCepOpearator(isProcessingTime, nfaFactory(false), new org.apache.flink.cep.EventComparator<Event>() {
 			@Override
 			public int compare(Event o1, Event o2) {
 				return Double.compare(o1.getPrice(), o2.getPrice());
@@ -1065,15 +1058,15 @@ public class CEPOperatorTest extends TestLogger {
 		Assert.assertEquals(expected.size(), actual.size());
 
 		for (List<Event> p: actual) {
-			Collections.sort(p, new EventComparator());
+			p.sort(new EventComparator());
 		}
 
 		for (List<Event> p: expected) {
-			Collections.sort(p, new EventComparator());
+			p.sort(new EventComparator());
 		}
 
-		Collections.sort(actual, new ListEventComparator());
-		Collections.sort(expected, new ListEventComparator());
+		actual.sort(new ListEventComparator());
+		expected.sort(new ListEventComparator());
 		Assert.assertArrayEquals(expected.toArray(), actual.toArray());
 	}
 
@@ -1121,150 +1114,99 @@ public class CEPOperatorTest extends TestLogger {
 	}
 
 	private SelectCepOperator<Event, Integer, Map<String, List<Event>>> getKeyedCepOpearator(boolean isProcessingTime) {
-		return CepOperatorTestUtilities.getKeyedCepOpearator(isProcessingTime, new CEPOperatorTest.NFAFactory());
+		return CepOperatorTestUtilities.getKeyedCepOpearator(isProcessingTime, nfaFactory(false));
 	}
 
-	private static class NFAFactory implements NFACompiler.NFAFactory<Event> {
+	private static NFAFactory<Event> nfaFactory(boolean handleTimeout) {
+		Pattern<Event, ?> pattern = Pattern.<Event>begin("start").where(new SimpleCondition<Event>() {
+			private static final long serialVersionUID = 5726188262756267490L;
 
-		private static final long serialVersionUID = 1173020762472766713L;
+			@Override
+			public boolean filter(Event value) throws Exception {
+				return value.getName().equals("start");
+			}
+		})
+			.followedByAny("middle").subtype(SubEvent.class).where(new SimpleCondition<SubEvent>() {
+				private static final long serialVersionUID = 6215754202506583964L;
 
-		private final boolean handleTimeout;
+				@Override
+				public boolean filter(SubEvent value) throws Exception {
+					return value.getVolume() > 5.0;
+				}
+			})
+			.followedByAny("end").where(new SimpleCondition<Event>() {
+				private static final long serialVersionUID = 7056763917392056548L;
 
-		private NFAFactory() {
-			this(false);
-		}
+				@Override
+				public boolean filter(Event value) throws Exception {
+					return value.getName().equals("end");
+				}
+			})
+			// add a window timeout to test whether timestamps of elements in the
+			// priority queue in CEP operator are correctly checkpointed/restored
+			.within(Time.milliseconds(10L));
 
-		private NFAFactory(boolean handleTimeout) {
-			this.handleTimeout = handleTimeout;
-		}
-
-		@Override
-		public NFA<Event> createNFA() {
-
-			Pattern<Event, ?> pattern = Pattern.<Event>begin("start").where(new SimpleCondition<Event>() {
-						private static final long serialVersionUID = 5726188262756267490L;
-
-						@Override
-						public boolean filter(Event value) throws Exception {
-							return value.getName().equals("start");
-						}
-					})
-					.followedByAny("middle").subtype(SubEvent.class).where(new SimpleCondition<SubEvent>() {
-						private static final long serialVersionUID = 6215754202506583964L;
-
-						@Override
-						public boolean filter(SubEvent value) throws Exception {
-							return value.getVolume() > 5.0;
-						}
-					})
-					.followedByAny("end").where(new SimpleCondition<Event>() {
-						private static final long serialVersionUID = 7056763917392056548L;
-
-						@Override
-						public boolean filter(Event value) throws Exception {
-							return value.getName().equals("end");
-						}
-					})
-					// add a window timeout to test whether timestamps of elements in the
-					// priority queue in CEP operator are correctly checkpointed/restored
-					.within(Time.milliseconds(10L));
-
-			return NFACompiler.compile(pattern, handleTimeout);
-		}
+		return NFACompiler.compileFactory(pattern, handleTimeout);
 	}
 
-	private static class ComplexNFAFactory implements NFACompiler.NFAFactory<Event> {
+	private static NFAFactory<Event> complexNFAFactory() {
+		Pattern<Event, ?> pattern = Pattern.<Event>begin("start").where(new SimpleCondition<Event>() {
+			private static final long serialVersionUID = 5726188262756267490L;
 
-		private static final long serialVersionUID = 1173020762472766713L;
+			@Override
+			public boolean filter(Event value) throws Exception {
+				return value.getName().equals("c");
+			}
+		}).followedBy("middle1").where(new SimpleCondition<Event>() {
+			private static final long serialVersionUID = 5726188262756267490L;
 
-		private final boolean handleTimeout;
+			@Override
+			public boolean filter(Event value) throws Exception {
+				return value.getName().equals("a");
+			}
+		}).oneOrMore().optional().followedBy("middle2").where(new SimpleCondition<Event>() {
+			private static final long serialVersionUID = 5726188262756267490L;
 
-		private ComplexNFAFactory() {
-			this(false);
-		}
+			@Override
+			public boolean filter(Event value) throws Exception {
+				return value.getName().equals("b");
+			}
+		}).optional().followedBy("end").where(new SimpleCondition<Event>() {
+			private static final long serialVersionUID = 5726188262756267490L;
 
-		private ComplexNFAFactory(boolean handleTimeout) {
-			this.handleTimeout = handleTimeout;
-		}
+			@Override
+			public boolean filter(Event value) throws Exception {
+				return value.getName().equals("a");
+			}
+		}).within(Time.milliseconds(10L));
 
-		@Override
-		public NFA<Event> createNFA() {
-
-			Pattern<Event, ?> pattern = Pattern.<Event>begin("start").where(new SimpleCondition<Event>() {
-				private static final long serialVersionUID = 5726188262756267490L;
-
-				@Override
-				public boolean filter(Event value) throws Exception {
-					return value.getName().equals("c");
-				}
-			}).followedBy("middle1").where(new SimpleCondition<Event>() {
-				private static final long serialVersionUID = 5726188262756267490L;
-
-				@Override
-				public boolean filter(Event value) throws Exception {
-					return value.getName().equals("a");
-				}
-			}).oneOrMore().optional().followedBy("middle2").where(new SimpleCondition<Event>() {
-				private static final long serialVersionUID = 5726188262756267490L;
-
-				@Override
-				public boolean filter(Event value) throws Exception {
-					return value.getName().equals("b");
-				}
-			}).optional().followedBy("end").where(new SimpleCondition<Event>() {
-				private static final long serialVersionUID = 5726188262756267490L;
-
-				@Override
-				public boolean filter(Event value) throws Exception {
-					return value.getName().equals("a");
-				}
-			}).within(Time.milliseconds(10L));
-
-			return NFACompiler.compile(pattern, handleTimeout);
-		}
+		return NFACompiler.compileFactory(pattern, false);
 	}
 
-	private static class SimpleNFAFactory implements NFACompiler.NFAFactory<Event> {
+	private static NFAFactory<Event> simpleNFAFactory() {
+		Pattern<Event, ?> pattern = Pattern.<Event>begin("start").where(new SimpleCondition<Event>() {
+			private static final long serialVersionUID = 5726188262756267490L;
 
-		private static final long serialVersionUID = 1173020762472766713L;
+			@Override
+			public boolean filter(Event value) throws Exception {
+				return value.getName().equals("c");
+			}
+		}).followedBy("middle").where(new SimpleCondition<Event>() {
+			private static final long serialVersionUID = 5726188262756267490L;
 
-		private final boolean handleTimeout;
+			@Override
+			public boolean filter(Event value) throws Exception {
+				return value.getName().equals("a");
+			}
+		}).followedBy("end").where(new SimpleCondition<Event>() {
+			private static final long serialVersionUID = 5726188262756267490L;
 
-		private SimpleNFAFactory() {
-			this(false);
-		}
+			@Override
+			public boolean filter(Event value) throws Exception {
+				return value.getName().equals("b");
+			}
+		}).within(Time.milliseconds(10L));
 
-		private SimpleNFAFactory(boolean handleTimeout) {
-			this.handleTimeout = handleTimeout;
-		}
-
-		@Override
-		public NFA<Event> createNFA() {
-
-			Pattern<Event, ?> pattern = Pattern.<Event>begin("start").where(new SimpleCondition<Event>() {
-				private static final long serialVersionUID = 5726188262756267490L;
-
-				@Override
-				public boolean filter(Event value) throws Exception {
-					return value.getName().equals("c");
-				}
-			}).followedBy("middle").where(new SimpleCondition<Event>() {
-				private static final long serialVersionUID = 5726188262756267490L;
-
-				@Override
-				public boolean filter(Event value) throws Exception {
-					return value.getName().equals("a");
-				}
-			}).followedBy("end").where(new SimpleCondition<Event>() {
-				private static final long serialVersionUID = 5726188262756267490L;
-
-				@Override
-				public boolean filter(Event value) throws Exception {
-					return value.getName().equals("b");
-				}
-			}).within(Time.milliseconds(10L));
-
-			return NFACompiler.compile(pattern, handleTimeout);
-		}
+		return NFACompiler.compileFactory(pattern, false);
 	}
 }

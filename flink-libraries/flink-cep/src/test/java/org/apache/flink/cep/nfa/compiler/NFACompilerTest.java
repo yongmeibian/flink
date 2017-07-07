@@ -24,7 +24,6 @@ import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.api.java.typeutils.TypeExtractor;
 import org.apache.flink.cep.Event;
 import org.apache.flink.cep.SubEvent;
-import org.apache.flink.cep.nfa.NFA;
 import org.apache.flink.cep.nfa.State;
 import org.apache.flink.cep.nfa.StateTransition;
 import org.apache.flink.cep.nfa.StateTransitionAction;
@@ -129,9 +128,9 @@ public class NFACompilerTest extends TestLogger {
 			.followedBy("middle").subtype(SubEvent.class)
 			.next("end").where(endFilter);
 
-		NFA<Event> nfa = NFACompiler.compile(pattern, false);
+		final NFAFactory<Event> nfaFactory = NFACompiler.compileFactory(pattern, false);
 
-		Set<State<Event>> states = nfa.getStates();
+		Set<State<Event>> states = nfaFactory.getStates();
 		assertEquals(4, states.size());
 
 		Map<String, State<Event>> stateMap = new HashMap<>();

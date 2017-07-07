@@ -25,7 +25,7 @@ import org.apache.flink.api.java.functions.KeySelector;
 import org.apache.flink.cep.Event;
 import org.apache.flink.cep.EventComparator;
 import org.apache.flink.cep.PatternSelectFunction;
-import org.apache.flink.cep.nfa.compiler.NFACompiler;
+import org.apache.flink.cep.nfa.compiler.NFAFactory;
 import org.apache.flink.streaming.util.KeyedOneInputStreamOperatorTestHarness;
 import org.apache.flink.streaming.util.OneInputStreamOperatorTestHarness;
 
@@ -59,20 +59,20 @@ public class CepOperatorTestUtilities {
 
 	public static SelectCepOperator<Event, Integer, Map<String, List<Event>>> getKeyedCepOpearator(
 		boolean isProcessingTime,
-		NFACompiler.NFAFactory<Event> nfaFactory) {
+		NFAFactory<Event> nfaFactory) {
 		return getKeyedCepOpearator(isProcessingTime, nfaFactory, IntSerializer.INSTANCE, null);
 	}
 
 	public static SelectCepOperator<Event, Integer, Map<String, List<Event>>> getKeyedCepOpearator(
 		boolean isProcessingTime,
-		NFACompiler.NFAFactory<Event> nfaFactory,
+		NFAFactory<Event> nfaFactory,
 		EventComparator<Event> comparator) {
 		return getKeyedCepOpearator(isProcessingTime, nfaFactory, IntSerializer.INSTANCE, comparator);
 	}
 
 	public static <K> SelectCepOperator<Event, K, Map<String, List<Event>>> getKeyedCepOpearator(
 		boolean isProcessingTime,
-		NFACompiler.NFAFactory<Event> nfaFactory,
+		NFAFactory<Event> nfaFactory,
 		TypeSerializer<K> keySerializer,
 		EventComparator<Event> comparator) {
 
@@ -81,7 +81,7 @@ public class CepOperatorTestUtilities {
 
 	public static <K> SelectCepOperator<Event, K, Map<String, List<Event>>> getKeyedCepOpearator(
 		boolean isProcessingTime,
-		NFACompiler.NFAFactory<Event> nfaFactory,
+		NFAFactory<Event> nfaFactory,
 		TypeSerializer<K> keySerializer) {
 
 		return getKeyedCepOpearator(isProcessingTime, nfaFactory, keySerializer, true, null);
@@ -89,7 +89,7 @@ public class CepOperatorTestUtilities {
 
 	public static <K> SelectCepOperator<Event, K, Map<String, List<Event>>> getKeyedCepOpearator(
 		boolean isProcessingTime,
-		NFACompiler.NFAFactory<Event> nfaFactory,
+		NFAFactory<Event> nfaFactory,
 		TypeSerializer<K> keySerializer,
 		boolean migratingFromOldKeyedOperator,
 		EventComparator<Event> comparator) {

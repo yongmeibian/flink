@@ -27,10 +27,11 @@ import org.apache.flink.api.common.state.ValueStateDescriptor;
 import org.apache.flink.api.common.typeutils.TypeSerializer;
 import org.apache.flink.api.common.typeutils.base.ListSerializer;
 import org.apache.flink.api.common.typeutils.base.LongSerializer;
+import org.apache.flink.api.common.typeutils.base.StringSerializer;
 import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.cep.EventComparator;
 import org.apache.flink.cep.nfa.NFA;
-import org.apache.flink.cep.nfa.compiler.NFACompiler;
+import org.apache.flink.cep.nfa.compiler.NFAFactory;
 import org.apache.flink.runtime.state.StateInitializationContext;
 import org.apache.flink.runtime.state.VoidNamespace;
 import org.apache.flink.runtime.state.VoidNamespaceSerializer;
@@ -42,7 +43,6 @@ import org.apache.flink.streaming.api.operators.Triggerable;
 import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
 import org.apache.flink.util.Preconditions;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
@@ -74,13 +74,17 @@ public abstract class AbstractKeyedCEPPatternOperator<IN, KEY, OUT, F extends Fu
 
 	///////////////			State			//////////////
 
-	private static final String NFA_OPERATOR_STATE_NAME = "nfaOperatorStateName";
+	private static final String NFA_OPERATOR_STATE_NAME = "nfaOperatorMapStateName";
+	private static final String DEFAULT_NFA_FACTORY_STATE_NAME = "nfaOperatorStateName";
 	private static final String EVENT_QUEUE_STATE_NAME = "eventQueuesStateName";
+	private static final String NFA_FACTORY_STATE_NAME = "nfaFactoryStateName";
 
-	private transient ValueState<NFA<IN>> nfaOperatorState;
+	private transient MapState<String, NFA<IN>> nfaOperatorState;
 	private transient MapState<Long, List<IN>> elementQueueState;
+	private transient ValueState<NFA<IN>> defaultNfaOperatorState;
 
-	private final NFACompiler.NFAFactory<IN> nfaFactory;
+	private transient MapState<String, NFAFactory<IN>> nfaFactoryState;
+	private final NFAFactory<IN> nfaFactory;
 
 	private transient InternalTimerService<VoidNamespace> timerService;
 
@@ -96,7 +100,7 @@ public abstract class AbstractKeyedCEPPatternOperator<IN, KEY, OUT, F extends Fu
 			final TypeSerializer<IN> inputSerializer,
 			final boolean isProcessingTime,
 			final TypeSerializer<KEY> keySerializer,
-			final NFACompiler.NFAFactory<IN> nfaFactory,
+			final NFAFactory<IN> nfaFactory,
 			final boolean migratingFromOldKeyedOperator,
 			final EventComparator<IN> comparator,
 			final F function) {
@@ -112,11 +116,19 @@ public abstract class AbstractKeyedCEPPatternOperator<IN, KEY, OUT, F extends Fu
 	public void initializeState(StateInitializationContext context) throws Exception {
 		super.initializeState(context);
 
+		if (defaultNfaOperatorState == null) {
+			defaultNfaOperatorState = getRuntimeContext().getState(
+				new ValueStateDescriptor<>(DEFAULT_NFA_FACTORY_STATE_NAME, new NFA.NFASerializer<IN>(inputSerializer))
+			);
+		}
+
 		if (nfaOperatorState == null) {
-			nfaOperatorState = getRuntimeContext().getState(
-				new ValueStateDescriptor<>(
-						NFA_OPERATOR_STATE_NAME,
-						new NFA.NFASerializer<>(inputSerializer)));
+			nfaOperatorState = getRuntimeContext().getMapState(
+				new MapStateDescriptor<>(
+					NFA_OPERATOR_STATE_NAME,
+					StringSerializer.INSTANCE,
+					new NFA.NFAWithoutStatesSerializer<>(inputSerializer)
+				));
 		}
 
 		if (elementQueueState == null) {
@@ -126,6 +138,16 @@ public abstract class AbstractKeyedCEPPatternOperator<IN, KEY, OUT, F extends Fu
 							LongSerializer.INSTANCE,
 							new ListSerializer<>(inputSerializer)
 					)
+			);
+		}
+
+		if (nfaFactoryState == null) {
+			nfaFactoryState = getRuntimeContext().getMapState(
+				new MapStateDescriptor<String, NFAFactory<IN>>(
+					NFA_FACTORY_STATE_NAME,
+					StringSerializer.INSTANCE,
+					new NFAFactory.NFAFactorySerializer<>()
+				)
 			);
 		}
 	}
@@ -143,11 +165,10 @@ public abstract class AbstractKeyedCEPPatternOperator<IN, KEY, OUT, F extends Fu
 	@Override
 	public void processElement(StreamRecord<IN> element) throws Exception {
 		if (isProcessingTime) {
-			if (comparator == null) {
-				// there can be no out of order elements in processing time
-				NFA<IN> nfa = getNFA();
+			if (comparator == null) {// there can be no out of order elements in processing time
+				NFA<IN> nfa = getNFA(DUMMY_NFA_KEY);
 				processEvent(nfa, element.getValue(), getProcessingTimeService().getCurrentProcessingTime());
-				updateNFA(nfa);
+				updateNFA(DUMMY_NFA_KEY, nfa);
 			} else {
 				long currentTime = timerService.currentProcessingTime();
 				bufferEvent(element.getValue(), currentTime);
@@ -155,7 +176,6 @@ public abstract class AbstractKeyedCEPPatternOperator<IN, KEY, OUT, F extends Fu
 				// register a timer for the next millisecond to sort and emit buffered data
 				timerService.registerProcessingTimeTimer(VoidNamespace.INSTANCE, currentTime + 1);
 			}
-
 		} else {
 
 			long timestamp = element.getTimestamp();
@@ -205,6 +225,8 @@ public abstract class AbstractKeyedCEPPatternOperator<IN, KEY, OUT, F extends Fu
 		elementQueueState.put(currentTime, elementsForTimestamp);
 	}
 
+	private static final String DUMMY_NFA_KEY = "DEFAULT_NFA";
+
 	@Override
 	public void onEventTime(InternalTimer<KEY, VoidNamespace> timer) throws Exception {
 
@@ -218,7 +240,7 @@ public abstract class AbstractKeyedCEPPatternOperator<IN, KEY, OUT, F extends Fu
 
 		// STEP 1
 		PriorityQueue<Long> sortedTimestamps = getSortedTimestamps();
-		NFA<IN> nfa = getNFA();
+		NFA<IN> nfa = getNFA(DUMMY_NFA_KEY);
 
 		// STEP 2
 		while (!sortedTimestamps.isEmpty() && sortedTimestamps.peek() <= timerService.currentWatermark()) {
@@ -236,7 +258,7 @@ public abstract class AbstractKeyedCEPPatternOperator<IN, KEY, OUT, F extends Fu
 		if (sortedTimestamps.isEmpty()) {
 			elementQueueState.clear();
 		}
-		updateNFA(nfa);
+		updateNFA(DUMMY_NFA_KEY, nfa);
 
 		if (!sortedTimestamps.isEmpty() || !nfa.isEmpty()) {
 			saveRegisterWatermarkTimer();
@@ -256,7 +278,7 @@ public abstract class AbstractKeyedCEPPatternOperator<IN, KEY, OUT, F extends Fu
 
 		// STEP 1
 		PriorityQueue<Long> sortedTimestamps = getSortedTimestamps();
-		NFA<IN> nfa = getNFA();
+		NFA<IN> nfa = getNFA(DUMMY_NFA_KEY);
 
 		// STEP 2
 		while (!sortedTimestamps.isEmpty()) {
@@ -271,7 +293,7 @@ public abstract class AbstractKeyedCEPPatternOperator<IN, KEY, OUT, F extends Fu
 		if (sortedTimestamps.isEmpty()) {
 			elementQueueState.clear();
 		}
-		updateNFA(nfa);
+		updateNFA(DUMMY_NFA_KEY, nfa);
 	}
 
 	private Stream<IN> sort(Iterable<IN> iter) {
@@ -287,18 +309,42 @@ public abstract class AbstractKeyedCEPPatternOperator<IN, KEY, OUT, F extends Fu
 		this.lastWatermark = timestamp;
 	}
 
-	private NFA<IN> getNFA() throws IOException {
-		NFA<IN> nfa = nfaOperatorState.value();
-		return nfa != null ? nfa : nfaFactory.createNFA();
+	private NFA<IN> getNFA(String key) throws Exception {
+		final NFA<IN> oldNfa = defaultNfaOperatorState.value();
+		if (oldNfa != null) {
+			oldNfa.resetNFAChanged();
+			nfaOperatorState.put(key, oldNfa);
+			defaultNfaOperatorState.clear();
+		}
+
+		NFA<IN> nfa = nfaOperatorState.get(key);
+		final NFAFactory<IN> nfaFactory = getNfaFactory(key);
+
+		if (nfa != null) {
+			nfa.setNfaFactory(nfaFactory);
+			return nfa;
+		} else {
+			return nfaFactory.createNFA();
+		}
 	}
 
-	private void updateNFA(NFA<IN> nfa) throws IOException {
+	private NFAFactory<IN> getNfaFactory(String key) throws Exception {
+		final NFAFactory<IN> nfaFactory = nfaFactoryState.get(key);
+		if (nfaFactory == null) {
+			nfaFactoryState.put(key, this.nfaFactory);
+			return this.nfaFactory;
+		} else {
+			return nfaFactory;
+		}
+	}
+
+	private void updateNFA(String key, NFA<IN> nfa) throws Exception {
 		if (nfa.isNFAChanged()) {
 			if (nfa.isEmpty()) {
 				nfaOperatorState.clear();
 			} else {
 				nfa.resetNFAChanged();
-				nfaOperatorState.update(nfa);
+				nfaOperatorState.put(key, nfa);
 			}
 		}
 	}
@@ -353,9 +399,9 @@ public abstract class AbstractKeyedCEPPatternOperator<IN, KEY, OUT, F extends Fu
 	//////////////////////			Testing Methods			//////////////////////
 
 	@VisibleForTesting
-	public boolean hasNonEmptyNFA(KEY key) throws IOException {
+	public boolean hasNonEmptyNFA(KEY key) throws Exception {
 		setCurrentKey(key);
-		return nfaOperatorState.value() != null;
+		return nfaOperatorState.get(DUMMY_NFA_KEY) != null;
 	}
 
 	@VisibleForTesting

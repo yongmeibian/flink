@@ -25,7 +25,7 @@ import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.cep.EventComparator;
 import org.apache.flink.cep.PatternSelectFunction;
 import org.apache.flink.cep.PatternTimeoutFunction;
-import org.apache.flink.cep.nfa.compiler.NFACompiler;
+import org.apache.flink.cep.nfa.compiler.NFAFactory;
 import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
 import org.apache.flink.util.OutputTag;
 
@@ -51,7 +51,7 @@ public class SelectTimeoutCepOperator<IN, OUT1, OUT2, KEY>
 		TypeSerializer<IN> inputSerializer,
 		boolean isProcessingTime,
 		TypeSerializer<KEY> keySerializer,
-		NFACompiler.NFAFactory<IN> nfaFactory,
+		NFAFactory<IN> nfaFactory,
 		boolean migratingFromOldKeyedOperator,
 		final EventComparator<IN> comparator,
 		PatternSelectFunction<IN, OUT1> flatSelectFunction,

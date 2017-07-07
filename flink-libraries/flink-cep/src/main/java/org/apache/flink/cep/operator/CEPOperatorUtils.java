@@ -30,6 +30,7 @@ import org.apache.flink.cep.PatternSelectFunction;
 import org.apache.flink.cep.PatternStream;
 import org.apache.flink.cep.PatternTimeoutFunction;
 import org.apache.flink.cep.nfa.compiler.NFACompiler;
+import org.apache.flink.cep.nfa.compiler.NFAFactory;
 import org.apache.flink.cep.pattern.Pattern;
 import org.apache.flink.streaming.api.TimeCharacteristic;
 import org.apache.flink.streaming.api.datastream.DataStream;
@@ -66,7 +67,7 @@ public class CEPOperatorUtils {
 				TypeSerializer<IN> inputSerializer,
 				boolean isProcessingTime,
 				TypeSerializer<KEY> keySerializer,
-				NFACompiler.NFAFactory<IN> nfaFactory,
+				NFAFactory<IN> nfaFactory,
 				boolean migratingFromOldKeyedOperator,
 				EventComparator<IN> comparator) {
 				return new SelectCepOperator<>(
@@ -115,7 +116,7 @@ public class CEPOperatorUtils {
 				TypeSerializer<IN> inputSerializer,
 				boolean isProcessingTime,
 				TypeSerializer<KEY> keySerializer,
-				NFACompiler.NFAFactory<IN> nfaFactory,
+				NFAFactory<IN> nfaFactory,
 				boolean migratingFromOldKeyedOperator,
 				EventComparator<IN> comparator) {
 				return new FlatSelectCepOperator<>(
@@ -171,7 +172,7 @@ public class CEPOperatorUtils {
 				TypeSerializer<IN> inputSerializer,
 				boolean isProcessingTime,
 				TypeSerializer<KEY> keySerializer,
-				NFACompiler.NFAFactory<IN> nfaFactory,
+				NFAFactory<IN> nfaFactory,
 				boolean migratingFromOldKeyedOperator,
 				EventComparator<IN> comparator) {
 				return new FlatSelectTimeoutCepOperator<>(
@@ -229,7 +230,7 @@ public class CEPOperatorUtils {
 				TypeSerializer<IN> inputSerializer,
 				boolean isProcessingTime,
 				TypeSerializer<KEY> keySerializer,
-				NFACompiler.NFAFactory<IN> nfaFactory,
+				NFAFactory<IN> nfaFactory,
 				boolean migratingFromOldKeyedOperator,
 				EventComparator<IN> comparator) {
 				return new SelectTimeoutCepOperator<>(
@@ -270,7 +271,7 @@ public class CEPOperatorUtils {
 		final boolean isProcessingTime = inputStream.getExecutionEnvironment().getStreamTimeCharacteristic() == TimeCharacteristic.ProcessingTime;
 
 		// compile our pattern into a NFAFactory to instantiate NFAs later on
-		final NFACompiler.NFAFactory<IN> nfaFactory = NFACompiler.compileFactory(pattern, timeoutHandling);
+		final NFAFactory<IN> nfaFactory = NFACompiler.compileFactory(pattern, timeoutHandling);
 
 		final SingleOutputStreamOperator<OUT> patternStream;
 
@@ -314,7 +315,7 @@ public class CEPOperatorUtils {
 			TypeSerializer<IN> inputSerializer,
 			boolean isProcessingTime,
 			TypeSerializer<K> keySerializer,
-			NFACompiler.NFAFactory<IN> nfaFactory,
+			NFAFactory<IN> nfaFactory,
 			boolean migratingFromOldKeyedOperator,
 			EventComparator<IN> comparator);
 

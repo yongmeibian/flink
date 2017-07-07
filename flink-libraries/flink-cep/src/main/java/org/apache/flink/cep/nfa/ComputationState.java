@@ -18,6 +18,7 @@
 
 package org.apache.flink.cep.nfa;
 
+import org.apache.flink.cep.nfa.compiler.NFAFactory;
 import org.apache.flink.cep.pattern.conditions.IterativeCondition;
 import org.apache.flink.util.Preconditions;
 
@@ -36,7 +37,15 @@ import java.util.Objects;
  */
 public class ComputationState<T> {
 	// pointer to the NFA state of the computation
-	private final State<T> state;
+	@Deprecated
+	private State<T> state;
+
+	@Deprecated
+	private State<T> previousState;
+
+	private final StatePointer<T> statePointer;
+
+	private final StatePointer<T> previousStatePointer;
 
 	// the last taken event
 	private final T event;
@@ -52,26 +61,27 @@ public class ComputationState<T> {
 	// Timestamp of the first element in the pattern
 	private final long startTimestamp;
 
-	private final State<T> previousState;
-
 	private final ConditionContext conditionContext;
+
+	private transient NFA<T> nfa;
 
 	private ComputationState(
 			final NFA<T> nfa,
-			final State<T> currentState,
-			final State<T> previousState,
+			final StatePointer<T> currentState,
+			final StatePointer<T> previousState,
 			final T event,
 			final int counter,
 			final long timestamp,
 			final DeweyNumber version,
 			final long startTimestamp) {
-		this.state = currentState;
+		this.statePointer = currentState;
+		this.previousStatePointer = previousState;
 		this.event = event;
 		this.counter = counter;
 		this.timestamp = timestamp;
 		this.version = version;
 		this.startTimestamp = startTimestamp;
-		this.previousState = previousState;
+		this.nfa = nfa;
 		this.conditionContext = new ConditionContext(nfa, this);
 	}
 
@@ -84,11 +94,11 @@ public class ComputationState<T> {
 	}
 
 	public boolean isFinalState() {
-		return state.isFinal();
+		return getState().isFinal();
 	}
 
 	public boolean isStartState() {
-		return state.isStart() && event == null;
+		return getState().isStart() && event == null;
 	}
 
 	public long getTimestamp() {
@@ -100,11 +110,11 @@ public class ComputationState<T> {
 	}
 
 	public State<T> getState() {
-		return state;
+		return statePointer != null ? statePointer.getState(nfa.getNFAFactory()) : null;
 	}
 
 	public State<T> getPreviousState() {
-		return previousState;
+		return previousStatePointer != null ? previousStatePointer.getState(nfa.getNFAFactory()) : null;
 	}
 
 	public T getEvent() {
@@ -139,12 +149,12 @@ public class ComputationState<T> {
 
 	public static <T> ComputationState<T> createStartState(final NFA<T> nfa, final State<T> state) {
 		Preconditions.checkArgument(state.isStart());
-		return new ComputationState<>(nfa, state, null, null, 0, -1L, new DeweyNumber(1), -1L);
+		return new ComputationState<>(nfa, new StatePointer<T>(state), null, null, 0, -1L, new DeweyNumber(1), -1L);
 	}
 
 	public static <T> ComputationState<T> createStartState(final NFA<T> nfa, final State<T> state, final DeweyNumber version) {
 		Preconditions.checkArgument(state.isStart());
-		return new ComputationState<>(nfa, state, null, null, 0, -1L, version, -1L);
+		return new ComputationState<>(nfa, new StatePointer<T>(state), null, null, 0, -1L, version, -1L);
 	}
 
 	public static <T> ComputationState<T> createState(
@@ -156,11 +166,60 @@ public class ComputationState<T> {
 			final long timestamp,
 			final DeweyNumber version,
 			final long startTimestamp) {
-		return new ComputationState<>(nfa, currentState, previousState, event, counter, timestamp, version, startTimestamp);
+		return new ComputationState<>(nfa, new StatePointer<T>(currentState), new StatePointer<T>(previousState), event, counter, timestamp, version, startTimestamp);
+	}
+
+	public static <T> ComputationState<T> createState(
+			final NFA<T> nfa,
+			final String currentStateName,
+			final String previousStateName,
+			final T event,
+			final int counter,
+			final long timestamp,
+			final DeweyNumber version,
+			final long startTimestamp) {
+		return new ComputationState<>(nfa, new StatePointer<T>(currentStateName), new StatePointer<T>(previousStateName), event, counter, timestamp, version, startTimestamp);
 	}
 
 	public boolean isStopState() {
-		return state.isStop();
+		return getState().isStop();
+	}
+
+	/**
+	 * TODO Update.
+	 * @param <T>
+	 */
+	public static class StatePointer<T> {
+		private String stateName;
+		private State<T> state;
+
+		public StatePointer(String stateName) {
+			this.stateName = stateName;
+		}
+
+		public StatePointer(State<T> state) {
+			this.state = state;
+			if (state != null) {
+				this.stateName = state.getName();
+			}
+		}
+
+		public State<T> getState(NFAFactory<T> nfaFactory) {
+			if (state == null && stateName != null) {
+				state = getStateByName(stateName, nfaFactory);
+			}
+
+			return state;
+		}
+
+		private State<T> getStateByName(String name, NFAFactory<T> nfaFactory) {
+			for (State<T> state: nfaFactory.getStates()) {
+				if (state.getName().equals(name)) {
+					return state;
+				}
+			}
+			return null;
+		}
 	}
 
 	/**
