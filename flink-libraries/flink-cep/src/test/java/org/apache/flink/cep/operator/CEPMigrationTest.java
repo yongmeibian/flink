@@ -23,8 +23,8 @@ import org.apache.flink.api.common.typeutils.base.IntSerializer;
 import org.apache.flink.api.java.functions.KeySelector;
 import org.apache.flink.cep.Event;
 import org.apache.flink.cep.SubEvent;
-import org.apache.flink.cep.nfa.NFA;
 import org.apache.flink.cep.nfa.compiler.NFACompiler;
+import org.apache.flink.cep.nfa.compiler.NFAFactory;
 import org.apache.flink.cep.pattern.Pattern;
 import org.apache.flink.cep.pattern.conditions.SimpleCondition;
 import org.apache.flink.streaming.api.watermark.Watermark;
@@ -70,7 +70,7 @@ public class CEPMigrationTest {
 	private final MigrationVersion migrateVersion;
 
 	@Parameterized.Parameters(name = "Migration Savepoint: {0}")
-	public static Collection<MigrationVersion> parameters () {
+	public static Collection<MigrationVersion> parameters() {
 		return Arrays.asList(MigrationVersion.v1_2, MigrationVersion.v1_3);
 	}
 
@@ -99,15 +99,15 @@ public class CEPMigrationTest {
 		final SubEvent middleEvent2 = new SubEvent(42, "foo2", 2.0, 10.0);
 
 		OneInputStreamOperatorTestHarness<Event, Map<String, List<Event>>> harness =
-				new KeyedOneInputStreamOperatorTestHarness<>(
-						new KeyedCEPPatternOperator<>(
-								Event.createTypeSerializer(),
-								false,
-								IntSerializer.INSTANCE,
-								new NFAFactory(),
-								true),
-						keySelector,
-						BasicTypeInfo.INT_TYPE_INFO);
+			new KeyedOneInputStreamOperatorTestHarness<>(
+				new KeyedCEPPatternOperator<>(
+					Event.createTypeSerializer(),
+					false,
+					IntSerializer.INSTANCE,
+					nfaFactory(),
+					true),
+				keySelector,
+				BasicTypeInfo.INT_TYPE_INFO);
 
 		try {
 			harness.setup();
@@ -124,7 +124,8 @@ public class CEPMigrationTest {
 
 			// do snapshot and save to file
 			OperatorStateHandles snapshot = harness.snapshot(0L, 0L);
-			OperatorSnapshotUtil.writeStateHandle(snapshot,
+			OperatorSnapshotUtil.writeStateHandle(
+				snapshot,
 				"src/test/resources/cep-migration-after-branching-flink" + flinkGenerateSavepointVersion + "-snapshot");
 		} finally {
 			harness.close();
@@ -149,22 +150,23 @@ public class CEPMigrationTest {
 		final Event endEvent = new Event(42, "end", 1.0);
 
 		OneInputStreamOperatorTestHarness<Event, Map<String, List<Event>>> harness =
-				new KeyedOneInputStreamOperatorTestHarness<>(
-						new KeyedCEPPatternOperator<>(
-								Event.createTypeSerializer(),
-								false,
-								IntSerializer.INSTANCE,
-								new NFAFactory(),
-								true),
-						keySelector,
-						BasicTypeInfo.INT_TYPE_INFO);
+			new KeyedOneInputStreamOperatorTestHarness<>(
+				new KeyedCEPPatternOperator<>(
+					Event.createTypeSerializer(),
+					false,
+					IntSerializer.INSTANCE,
+					nfaFactory(),
+					true),
+				keySelector,
+				BasicTypeInfo.INT_TYPE_INFO);
 
 		try {
 			harness.setup();
 
 			MigrationTestUtil.restoreFromSnapshot(
 				harness,
-				OperatorSnapshotUtil.getResourceFilename("cep-migration-after-branching-flink" + migrateVersion + "-snapshot"),
+				OperatorSnapshotUtil.getResourceFilename(
+					"cep-migration-after-branching-flink" + migrateVersion + "-snapshot"),
 				migrateVersion);
 
 			harness.open();
@@ -223,7 +225,7 @@ public class CEPMigrationTest {
 					Event.createTypeSerializer(),
 					false,
 					IntSerializer.INSTANCE,
-					new NFAFactory(),
+					nfaFactory(),
 					true),
 				keySelector,
 				BasicTypeInfo.INT_TYPE_INFO);
@@ -278,15 +280,15 @@ public class CEPMigrationTest {
 		final SubEvent middleEvent1 = new SubEvent(42, "foo1", 1.0, 10.0);
 
 		OneInputStreamOperatorTestHarness<Event, Map<String, List<Event>>> harness =
-				new KeyedOneInputStreamOperatorTestHarness<>(
-						new KeyedCEPPatternOperator<>(
-								Event.createTypeSerializer(),
-								false,
-								IntSerializer.INSTANCE,
-								new NFAFactory(),
-								true),
-						keySelector,
-						BasicTypeInfo.INT_TYPE_INFO);
+			new KeyedOneInputStreamOperatorTestHarness<>(
+				new KeyedCEPPatternOperator<>(
+					Event.createTypeSerializer(),
+					false,
+					IntSerializer.INSTANCE,
+					nfaFactory(),
+					true),
+				keySelector,
+				BasicTypeInfo.INT_TYPE_INFO);
 
 		try {
 			harness.setup();
@@ -300,8 +302,10 @@ public class CEPMigrationTest {
 
 			// do snapshot and save to file
 			OperatorStateHandles snapshot = harness.snapshot(0L, 0L);
-			OperatorSnapshotUtil.writeStateHandle(snapshot,
-				"src/test/resources/cep-migration-starting-new-pattern-flink" + flinkGenerateSavepointVersion + "-snapshot");
+			OperatorSnapshotUtil.writeStateHandle(
+				snapshot,
+				"src/test/resources/cep-migration-starting-new-pattern-flink" + flinkGenerateSavepointVersion +
+				"-snapshot");
 		} finally {
 			harness.close();
 		}
@@ -326,22 +330,23 @@ public class CEPMigrationTest {
 		final Event endEvent = new Event(42, "end", 1.0);
 
 		OneInputStreamOperatorTestHarness<Event, Map<String, List<Event>>> harness =
-				new KeyedOneInputStreamOperatorTestHarness<>(
-						new KeyedCEPPatternOperator<>(
-								Event.createTypeSerializer(),
-								false,
-								IntSerializer.INSTANCE,
-								new NFAFactory(),
-								true),
-						keySelector,
-						BasicTypeInfo.INT_TYPE_INFO);
+			new KeyedOneInputStreamOperatorTestHarness<>(
+				new KeyedCEPPatternOperator<>(
+					Event.createTypeSerializer(),
+					false,
+					IntSerializer.INSTANCE,
+					nfaFactory(),
+					true),
+				keySelector,
+				BasicTypeInfo.INT_TYPE_INFO);
 
 		try {
 			harness.setup();
 
 			MigrationTestUtil.restoreFromSnapshot(
 				harness,
-				OperatorSnapshotUtil.getResourceFilename("cep-migration-starting-new-pattern-flink" + migrateVersion + "-snapshot"),
+				OperatorSnapshotUtil.getResourceFilename(
+					"cep-migration-starting-new-pattern-flink" + migrateVersion + "-snapshot"),
 				migrateVersion);
 
 			harness.open();
@@ -414,7 +419,7 @@ public class CEPMigrationTest {
 					Event.createTypeSerializer(),
 					false,
 					IntSerializer.INSTANCE,
-					new NFAFactory(),
+					nfaFactory(),
 					true),
 				keySelector,
 				BasicTypeInfo.INT_TYPE_INFO);
@@ -468,15 +473,15 @@ public class CEPMigrationTest {
 		final Event startEvent1 = new Event(42, "start", 1.0);
 
 		OneInputStreamOperatorTestHarness<Event, Map<String, List<Event>>> harness =
-				new KeyedOneInputStreamOperatorTestHarness<>(
-						new KeyedCEPPatternOperator<>(
-								Event.createTypeSerializer(),
-								false,
-								IntSerializer.INSTANCE,
-								new SinglePatternNFAFactory(),
-								true),
-						keySelector,
-						BasicTypeInfo.INT_TYPE_INFO);
+			new KeyedOneInputStreamOperatorTestHarness<>(
+				new KeyedCEPPatternOperator<>(
+					Event.createTypeSerializer(),
+					false,
+					IntSerializer.INSTANCE,
+					singlePatternNFAFactory(),
+					true),
+				keySelector,
+				BasicTypeInfo.INT_TYPE_INFO);
 
 		try {
 			harness.setup();
@@ -485,8 +490,10 @@ public class CEPMigrationTest {
 
 			// do snapshot and save to file
 			OperatorStateHandles snapshot = harness.snapshot(0L, 0L);
-			OperatorSnapshotUtil.writeStateHandle(snapshot,
-				"src/test/resources/cep-migration-single-pattern-afterwards-flink" + flinkGenerateSavepointVersion + "-snapshot");
+			OperatorSnapshotUtil.writeStateHandle(
+				snapshot,
+				"src/test/resources/cep-migration-single-pattern-afterwards-flink" + flinkGenerateSavepointVersion +
+				"-snapshot");
 		} finally {
 			harness.close();
 		}
@@ -507,22 +514,23 @@ public class CEPMigrationTest {
 		final Event startEvent1 = new Event(42, "start", 1.0);
 
 		OneInputStreamOperatorTestHarness<Event, Map<String, List<Event>>> harness =
-				new KeyedOneInputStreamOperatorTestHarness<>(
-						new KeyedCEPPatternOperator<>(
-								Event.createTypeSerializer(),
-								false,
-								IntSerializer.INSTANCE,
-								new SinglePatternNFAFactory(),
-								true),
-						keySelector,
-						BasicTypeInfo.INT_TYPE_INFO);
+			new KeyedOneInputStreamOperatorTestHarness<>(
+				new KeyedCEPPatternOperator<>(
+					Event.createTypeSerializer(),
+					false,
+					IntSerializer.INSTANCE,
+					singlePatternNFAFactory(),
+					true),
+				keySelector,
+				BasicTypeInfo.INT_TYPE_INFO);
 
 		try {
 			harness.setup();
 
 			MigrationTestUtil.restoreFromSnapshot(
 				harness,
-				OperatorSnapshotUtil.getResourceFilename("cep-migration-single-pattern-afterwards-flink" + migrateVersion + "-snapshot"),
+				OperatorSnapshotUtil.getResourceFilename(
+					"cep-migration-single-pattern-afterwards-flink" + migrateVersion + "-snapshot"),
 				migrateVersion);
 
 			harness.open();
@@ -551,59 +559,25 @@ public class CEPMigrationTest {
 		}
 	}
 
-	private static class SinglePatternNFAFactory implements NFACompiler.NFAFactory<Event> {
+	private static NFAFactory<Event> singlePatternNFAFactory() {
+		Pattern<Event, ?> pattern = Pattern.<Event>begin("start").where(new StartFilter())
+			.within(Time.milliseconds(10L));
 
-		private static final long serialVersionUID = 1173020762472766713L;
-
-		private final boolean handleTimeout;
-
-		private SinglePatternNFAFactory() {
-			this(false);
-		}
-
-		private SinglePatternNFAFactory(boolean handleTimeout) {
-			this.handleTimeout = handleTimeout;
-		}
-
-		@Override
-		public NFA<Event> createNFA() {
-
-			Pattern<Event, ?> pattern = Pattern.<Event>begin("start").where(new StartFilter())
-					.within(Time.milliseconds(10L));
-
-			return NFACompiler.compile(pattern, handleTimeout);
-		}
+		return NFACompiler.compileFactory(pattern, false);
 	}
 
-	private static class NFAFactory implements NFACompiler.NFAFactory<Event> {
+	private static NFAFactory<Event> nfaFactory() {
+		Pattern<Event, ?> pattern = Pattern.<Event>begin("start").where(new StartFilter())
+			.followedByAny("middle")
+			.subtype(SubEvent.class)
+			.where(new MiddleFilter())
+			.followedByAny("end")
+			.where(new EndFilter())
+			// add a window timeout to test whether timestamps of elements in the
+			// priority queue in CEP operator are correctly checkpointed/restored
+			.within(Time.milliseconds(10L));
 
-		private static final long serialVersionUID = 1173020762472766713L;
-
-		private final boolean handleTimeout;
-
-		private NFAFactory() {
-			this(false);
-		}
-
-		private NFAFactory(boolean handleTimeout) {
-			this.handleTimeout = handleTimeout;
-		}
-
-		@Override
-		public NFA<Event> createNFA() {
-
-			Pattern<Event, ?> pattern = Pattern.<Event>begin("start").where(new StartFilter())
-					.followedByAny("middle")
-					.subtype(SubEvent.class)
-					.where(new MiddleFilter())
-					.followedByAny("end")
-					.where(new EndFilter())
-					// add a window timeout to test whether timestamps of elements in the
-					// priority queue in CEP operator are correctly checkpointed/restored
-					.within(Time.milliseconds(10L));
-
-			return NFACompiler.compile(pattern, handleTimeout);
-		}
+		return NFACompiler.compileFactory(pattern, false);
 	}
 
 	private static class StartFilter extends SimpleCondition<Event> {

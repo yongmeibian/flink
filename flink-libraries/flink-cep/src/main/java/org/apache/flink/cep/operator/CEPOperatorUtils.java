@@ -30,6 +30,7 @@ import org.apache.flink.api.java.typeutils.TupleTypeInfo;
 import org.apache.flink.api.java.typeutils.TypeExtractor;
 import org.apache.flink.cep.PatternStream;
 import org.apache.flink.cep.nfa.compiler.NFACompiler;
+import org.apache.flink.cep.nfa.compiler.NFAFactory;
 import org.apache.flink.cep.pattern.Pattern;
 import org.apache.flink.streaming.api.TimeCharacteristic;
 import org.apache.flink.streaming.api.datastream.DataStream;
@@ -59,7 +60,7 @@ public class CEPOperatorUtils {
 		final boolean isProcessingTime = inputStream.getExecutionEnvironment().getStreamTimeCharacteristic() == TimeCharacteristic.ProcessingTime;
 
 		// compile our pattern into a NFAFactory to instantiate NFAs later on
-		final NFACompiler.NFAFactory<T> nfaFactory = NFACompiler.compileFactory(pattern, false);
+		final NFAFactory<T> nfaFactory = NFACompiler.compileFactory(pattern, false);
 
 		final SingleOutputStreamOperator<Map<String, List<T>>> patternStream;
 
@@ -116,7 +117,7 @@ public class CEPOperatorUtils {
 		final boolean isProcessingTime = inputStream.getExecutionEnvironment().getStreamTimeCharacteristic() == TimeCharacteristic.ProcessingTime;
 
 		// compile our pattern into a NFAFactory to instantiate NFAs later on
-		final NFACompiler.NFAFactory<T> nfaFactory = NFACompiler.compileFactory(pattern, true);
+		final NFAFactory<T> nfaFactory = NFACompiler.compileFactory(pattern, true);
 
 		final SingleOutputStreamOperator<Either<Tuple2<Map<String, List<T>>, Long>, Map<String, List<T>>>> patternStream;
 

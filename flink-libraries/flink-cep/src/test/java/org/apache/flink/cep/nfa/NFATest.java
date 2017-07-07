@@ -20,6 +20,7 @@ package org.apache.flink.cep.nfa;
 
 import org.apache.flink.cep.Event;
 import org.apache.flink.cep.nfa.compiler.NFACompiler;
+import org.apache.flink.cep.nfa.compiler.NFAFactory;
 import org.apache.flink.cep.pattern.Pattern;
 import org.apache.flink.cep.pattern.conditions.BooleanConditions;
 import org.apache.flink.cep.pattern.conditions.IterativeCondition;
@@ -29,6 +30,7 @@ import org.apache.flink.core.memory.DataOutputViewStreamWrapper;
 import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
 import org.apache.flink.util.TestLogger;
 
+import com.google.common.collect.Sets;
 import org.apache.commons.io.output.ByteArrayOutputStream;
 import org.junit.Test;
 
@@ -51,7 +53,6 @@ import static org.junit.Assert.assertEquals;
 public class NFATest extends TestLogger {
 	@Test
 	public void testSimpleNFA() {
-		NFA<Event> nfa = new NFA<>(0, false);
 		List<StreamRecord<Event>> streamEvents = new ArrayList<>();
 
 		streamEvents.add(new StreamRecord<>(new Event(1, "start", 1.0), 1L));
@@ -85,9 +86,7 @@ public class NFATest extends TestLogger {
 			});
 		endState.addIgnore(BooleanConditions.<Event>trueFunction());
 
-		nfa.addState(startState);
-		nfa.addState(endState);
-		nfa.addState(endingState);
+		NFA<Event> nfa = new NFA<>(0, false, Sets.newHashSet(startState, endState, endingState));
 
 		Set<Map<String, List<Event>>> expectedPatterns = new HashSet<>();
 
@@ -279,7 +278,7 @@ public class NFATest extends TestLogger {
 		patterns.add(pattern3);
 
 		for (Pattern<Event, ?> p: patterns) {
-			NFACompiler.NFAFactory<Event> nfaFactory = NFACompiler.compileFactory(p, false);
+			NFAFactory<Event> nfaFactory = NFACompiler.compileFactory(p, false);
 			NFA<Event> nfa = nfaFactory.createNFA();
 
 			Event a = new Event(40, "a", 1.0);
@@ -299,7 +298,7 @@ public class NFATest extends TestLogger {
 			nfa.process(d, 7);
 			nfa.process(a, 8);
 
-			NFA.NFASerializer<Event> serializer = new NFA.NFASerializer<>(Event.createTypeSerializer());
+			NFA.NFASerializer<Event> serializer = new NFA.NFASerializer<>(Event.createTypeSerializer(), nfaFactory);
 
 			//serialize
 			ByteArrayOutputStream baos = new ByteArrayOutputStream();
@@ -307,7 +306,7 @@ public class NFATest extends TestLogger {
 			baos.close();
 
 			// copy
-			NFA.NFASerializer<Event> copySerializer = new NFA.NFASerializer<>(Event.createTypeSerializer());
+			NFA.NFASerializer<Event> copySerializer = new NFA.NFASerializer<>(Event.createTypeSerializer(), nfaFactory);
 			ByteArrayInputStream in = new ByteArrayInputStream(baos.toByteArray());
 			ByteArrayOutputStream out = new ByteArrayOutputStream();
 			copySerializer.copy(new DataInputViewStreamWrapper(in), new DataOutputViewStreamWrapper(out));
@@ -316,7 +315,7 @@ public class NFATest extends TestLogger {
 
 			// deserialize
 			ByteArrayInputStream bais = new ByteArrayInputStream(out.toByteArray());
-			NFA.NFASerializer<Event> deserializer = new NFA.NFASerializer<>(Event.createTypeSerializer());
+			NFA.NFASerializer<Event> deserializer = new NFA.NFASerializer<>(Event.createTypeSerializer(), nfaFactory);
 			NFA<Event> copy = deserializer.deserialize(new DataInputViewStreamWrapper(bais));
 			bais.close();
 
@@ -325,7 +324,6 @@ public class NFATest extends TestLogger {
 	}
 
 	private NFA<Event> createStartEndNFA(long windowLength) {
-		NFA<Event> nfa = new NFA<>(windowLength, false);
 
 		State<Event> startState = new State<>("start", State.StateType.Start);
 		State<Event> endState = new State<>("end", State.StateType.Normal);
@@ -353,10 +351,6 @@ public class NFATest extends TestLogger {
 			});
 		endState.addIgnore(BooleanConditions.<Event>trueFunction());
 
-		nfa.addState(startState);
-		nfa.addState(endState);
-		nfa.addState(endingState);
-
-		return nfa;
+		return new NFA<>(windowLength, false, Sets.newHashSet(startState, endState, endingState));
 	}
 }

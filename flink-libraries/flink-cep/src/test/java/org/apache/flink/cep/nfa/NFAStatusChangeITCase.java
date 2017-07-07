@@ -21,6 +21,7 @@ package org.apache.flink.cep.nfa;
 import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.cep.Event;
 import org.apache.flink.cep.nfa.compiler.NFACompiler;
+import org.apache.flink.cep.nfa.compiler.NFAFactory;
 import org.apache.flink.cep.pattern.Pattern;
 import org.apache.flink.cep.pattern.conditions.IterativeCondition;
 import org.apache.flink.cep.pattern.conditions.SimpleCondition;
@@ -73,7 +74,7 @@ public class NFAStatusChangeITCase {
 			}
 		}).within(Time.milliseconds(10));
 
-		NFACompiler.NFAFactory<Event> nfaFactory = NFACompiler.compileFactory(pattern, true);
+		NFAFactory<Event> nfaFactory = NFACompiler.compileFactory(pattern, true);
 		NFA<Event> nfa = nfaFactory.createNFA();
 
 		nfa.process(new Event(1, "b", 1.0), 1L);
@@ -140,7 +141,7 @@ public class NFAStatusChangeITCase {
 			}
 		}).within(Time.milliseconds(10));
 
-		NFACompiler.NFAFactory<Event> nfaFactory = NFACompiler.compileFactory(pattern, true);
+		NFAFactory<Event> nfaFactory = NFACompiler.compileFactory(pattern, true);
 		NFA<Event> nfa = nfaFactory.createNFA();
 
 		nfa.resetNFAChanged();
@@ -167,7 +168,7 @@ public class NFAStatusChangeITCase {
 			}
 		}).within(Time.milliseconds(10));
 
-		NFACompiler.NFAFactory<Event> nfaFactory = NFACompiler.compileFactory(pattern, true);
+		NFAFactory<Event> nfaFactory = NFACompiler.compileFactory(pattern, true);
 		NFA<Event> nfa = nfaFactory.createNFA();
 
 		nfa.resetNFAChanged();
