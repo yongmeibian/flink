@@ -64,7 +64,7 @@ public class NFAFactory<T> implements Serializable {
 	private final Set<State<T>> states;
 	private final boolean timeoutHandling;
 
-	NFAFactory(
+	public NFAFactory(
 		long windowTime,
 		Set<State<T>> states,
 		boolean timeoutHandling) {
@@ -77,7 +77,7 @@ public class NFAFactory<T> implements Serializable {
 	public NFA<T> createNFA() {
 		NFA<T> result = new NFA<>(windowTime, timeoutHandling, states);
 
-		result.addStartStates(states);
+//		result.addStartStates(states);
 
 		return result;
 	}

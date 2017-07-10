@@ -138,7 +138,7 @@ public abstract class AbstractKeyedCEPPatternOperator<IN, KEY, OUT>
 			nfaOperatorState = getRuntimeContext().getState(
 				new ValueStateDescriptor<>(
 						NFA_OPERATOR_STATE_NAME,
-						new NFA.NFASerializer<>(inputSerializer, nfaFactory)));
+						new NFA.NFAWithoutStatesSerializer<>(inputSerializer, nfaFactory)));
 		}
 
 		if (elementQueueState == null) {

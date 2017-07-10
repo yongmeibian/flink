@@ -703,8 +703,6 @@ public class NFA<T> implements Serializable {
 
 		private static final int VERSION = 2;
 
-		private static final int STATES_EMBEDDED_VERSION = 1 /* flink = 1.3.x*/;
-
 		/** This empty constructor is required for deserializing the configuration. */
 		public NFASerializerConfigSnapshot() {}
 
@@ -726,38 +724,12 @@ public class NFA<T> implements Serializable {
 		}
 	}
 
-	/**
-	 * A {@link TypeSerializer} for {@link NFA} that uses Java Serialization.
-	 */
-	public static class NFASerializer<T> extends TypeSerializer<NFA<T>> {
+	public static abstract class BaseNFASerializer<T> extends TypeSerializer<NFA<T>> {
+		protected abstract TypeSerializer<SharedBuffer<String, T>> getSharedBufferSerializer();
 
-		private static final long serialVersionUID = 2098282423980597010L;
+		protected abstract TypeSerializer<T> getEventSerializer();
 
-		private final TypeSerializer<SharedBuffer<String, T>> sharedBufferSerializer;
-
-		private final TypeSerializer<T> eventSerializer;
-
-		private NFAFactory<T> nfaFactory;
-
-		private boolean isStateEmbedded = false;
-
-		public NFASerializer(TypeSerializer<T> typeSerializer, NFAFactory<T> nfaFactory) {
-			this(typeSerializer,
-				new SharedBuffer.SharedBufferSerializer<>(StringSerializer.INSTANCE, typeSerializer),
-				nfaFactory,
-				false);
-		}
-
-		private NFASerializer(
-			TypeSerializer<T> typeSerializer,
-			TypeSerializer<SharedBuffer<String, T>> sharedBufferSerializer,
-			NFAFactory<T> nfaFactory,
-			boolean isStateEmbedded) {
-			this.eventSerializer = typeSerializer;
-			this.sharedBufferSerializer = sharedBufferSerializer;
-			this.nfaFactory = nfaFactory;
-			this.isStateEmbedded = isStateEmbedded;
-		}
+		protected abstract NFAFactory<T> getFactory(DataInputView source) throws IOException;
 
 
 		@Override
@@ -813,7 +785,7 @@ public class NFA<T> implements Serializable {
 
 		@Override
 		public void serialize(NFA<T> record, DataOutputView target) throws IOException {
-			sharedBufferSerializer.serialize(record.eventSharedBuffer, target);
+			getSharedBufferSerializer().serialize(record.eventSharedBuffer, target);
 
 			target.writeInt(record.computationStates.size());
 
@@ -824,7 +796,7 @@ public class NFA<T> implements Serializable {
 			for (ComputationState<T> computationState: record.computationStates) {
 				stateNameSerializer.serialize(computationState.getState().getName(), target);
 				stateNameSerializer.serialize(computationState.getPreviousState() == null
-						? null : computationState.getPreviousState().getName(), target);
+					? null : computationState.getPreviousState().getName(), target);
 
 				timestampSerializer.serialize(computationState.getTimestamp(), target);
 				versionSerializer.serialize(computationState.getVersion(), target);
@@ -835,19 +807,17 @@ public class NFA<T> implements Serializable {
 					target.writeBoolean(false);
 				} else {
 					target.writeBoolean(true);
-					eventSerializer.serialize(computationState.getEvent(), target);
+					getEventSerializer().serialize(computationState.getEvent(), target);
 				}
 			}
 		}
 
 		@Override
 		public NFA<T> deserialize(DataInputView source) throws IOException {
-			if (isStateEmbedded) {
-				this.nfaFactory = new NFAFactory.NFAFactorySerializer<T>().deserialize(source);
-			}
+			NFAFactory<T> nfaFactory = getFactory(source);
 
 			NFA<T> nfa = new NFA<>(nfaFactory.getWindowTime(), nfaFactory.isTimeoutHandling(), nfaFactory.getStates());
-			nfa.eventSharedBuffer = sharedBufferSerializer.deserialize(source);
+			nfa.eventSharedBuffer = getSharedBufferSerializer().deserialize(source);
 
 			Queue<ComputationState<T>> computationStates = new LinkedList<>();
 			StringSerializer stateNameSerializer = StringSerializer.INSTANCE;
@@ -856,8 +826,8 @@ public class NFA<T> implements Serializable {
 
 			int computationStateNo = source.readInt();
 			for (int i = 0; i < computationStateNo; i++) {
-				State<T> state = getStateByName(stateNameSerializer.deserialize(source));
-				State<T> prevState = getStateByName(stateNameSerializer.deserialize(source));
+				State<T> state = getStateByName(stateNameSerializer.deserialize(source), nfaFactory);
+				State<T> prevState = getStateByName(stateNameSerializer.deserialize(source), nfaFactory);
 				long timestamp = timestampSerializer.deserialize(source);
 				DeweyNumber version = versionSerializer.deserialize(source);
 				long startTimestamp = timestampSerializer.deserialize(source);
@@ -865,18 +835,18 @@ public class NFA<T> implements Serializable {
 
 				T event = null;
 				if (source.readBoolean()) {
-					event = eventSerializer.deserialize(source);
+					event = getEventSerializer().deserialize(source);
 				}
 
 				computationStates.add(ComputationState.createState(
-						nfa, state, prevState, event, counter, timestamp, version, startTimestamp));
+					nfa, state, prevState, event, counter, timestamp, version, startTimestamp));
 			}
 
 			nfa.computationStates = computationStates;
 			return nfa;
 		}
 
-		private State<T> getStateByName(String name) {
+		private State<T> getStateByName(String name, NFAFactory<T> nfaFactory) {
 			for (State<T> state: nfaFactory.getStates()) {
 				if (state.getName().equals(name)) {
 					return state;
@@ -892,8 +862,8 @@ public class NFA<T> implements Serializable {
 
 		@Override
 		public void copy(DataInputView source, DataOutputView target) throws IOException {
-			SharedBuffer<String, T> sharedBuffer = sharedBufferSerializer.deserialize(source);
-			sharedBufferSerializer.serialize(sharedBuffer, target);
+			SharedBuffer<String, T> sharedBuffer = getSharedBufferSerializer().deserialize(source);
+			getSharedBufferSerializer().serialize(sharedBuffer, target);
 
 			StringSerializer stateNameSerializer = StringSerializer.INSTANCE;
 			LongSerializer timestampSerializer = LongSerializer.INSTANCE;
@@ -924,8 +894,8 @@ public class NFA<T> implements Serializable {
 				boolean hasEvent = source.readBoolean();
 				target.writeBoolean(hasEvent);
 				if (hasEvent) {
-					T event = eventSerializer.deserialize(source);
-					eventSerializer.serialize(event, target);
+					T event = getEventSerializer().deserialize(source);
+					getEventSerializer().serialize(event, target);
 				}
 			}
 		}
@@ -933,9 +903,9 @@ public class NFA<T> implements Serializable {
 		@Override
 		public boolean equals(Object obj) {
 			return obj == this ||
-					(obj != null && obj.getClass().equals(getClass()) &&
-							sharedBufferSerializer.equals(((NFASerializer) obj).sharedBufferSerializer) &&
-							eventSerializer.equals(((NFASerializer) obj).eventSerializer));
+			       (obj != null && obj.getClass().equals(getClass()) &&
+			        getSharedBufferSerializer().equals(((BaseNFASerializer) obj).getSharedBufferSerializer()) &&
+			        getEventSerializer().equals(((BaseNFASerializer) obj).getEventSerializer()));
 		}
 
 		@Override
@@ -945,35 +915,68 @@ public class NFA<T> implements Serializable {
 
 		@Override
 		public int hashCode() {
-			return 37 * sharedBufferSerializer.hashCode() + eventSerializer.hashCode();
+			return 37 * getSharedBufferSerializer().hashCode() + getEventSerializer().hashCode();
 		}
 
 		@Override
 		public TypeSerializerConfigSnapshot snapshotConfiguration() {
-			return new NFASerializerConfigSnapshot<>(eventSerializer, sharedBufferSerializer);
+			return new NFASerializerConfigSnapshot<>(getEventSerializer(), getSharedBufferSerializer());
+		}
+
+
+	}
+
+	/**
+	 * A {@link TypeSerializer} for {@link NFA} that uses Java Serialization.
+	 */
+	public static class NFASerializer<T> extends BaseNFASerializer<T> {
+
+		private static final long serialVersionUID = 2098282423980597010L;
+
+		private TypeSerializer<SharedBuffer<String, T>> sharedBufferSerializer;
+
+		private TypeSerializer<T> eventSerializer;
+
+		@Override
+		protected TypeSerializer<SharedBuffer<String, T>> getSharedBufferSerializer() {
+			return sharedBufferSerializer;
+		}
+
+		@Override
+		protected TypeSerializer<T> getEventSerializer() {
+			return eventSerializer;
+		}
+
+		@Override
+		protected NFAFactory<T> getFactory(DataInputView source) throws IOException {
+			return new NFAFactory.NFAFactorySerializer<T>().deserialize(source);
+		}
+
+		private NFASerializer(
+			TypeSerializer<T> typeSerializer,
+			TypeSerializer<SharedBuffer<String, T>> sharedBufferSerializer) {
+			this.eventSerializer = typeSerializer;
+			this.sharedBufferSerializer = sharedBufferSerializer;
 		}
 
 		@Override
 		public CompatibilityResult<NFA<T>> ensureCompatibility(TypeSerializerConfigSnapshot configSnapshot) {
 			if (configSnapshot instanceof NFASerializerConfigSnapshot) {
 				List<Tuple2<TypeSerializer<?>, TypeSerializerConfigSnapshot>> serializersAndConfigs =
-						((NFASerializerConfigSnapshot) configSnapshot).getNestedSerializersAndConfigs();
+					((NFASerializerConfigSnapshot) configSnapshot).getNestedSerializersAndConfigs();
 
 				CompatibilityResult<T> eventCompatResult = CompatibilityUtil.resolveCompatibilityResult(
-						serializersAndConfigs.get(0).f0,
-						UnloadableDummyTypeSerializer.class,
-						serializersAndConfigs.get(0).f1,
-						eventSerializer);
+					serializersAndConfigs.get(0).f0,
+					UnloadableDummyTypeSerializer.class,
+					serializersAndConfigs.get(0).f1,
+					eventSerializer);
 
 				CompatibilityResult<SharedBuffer<String, T>> sharedBufCompatResult =
-						CompatibilityUtil.resolveCompatibilityResult(
-								serializersAndConfigs.get(1).f0,
-								UnloadableDummyTypeSerializer.class,
-								serializersAndConfigs.get(1).f1,
-								sharedBufferSerializer);
-
-				this.isStateEmbedded =
-					configSnapshot.getReadVersion() == NFASerializerConfigSnapshot.STATES_EMBEDDED_VERSION;
+					CompatibilityUtil.resolveCompatibilityResult(
+						serializersAndConfigs.get(1).f0,
+						UnloadableDummyTypeSerializer.class,
+						serializersAndConfigs.get(1).f1,
+						sharedBufferSerializer);
 
 				if (!sharedBufCompatResult.isRequiresMigration() && !eventCompatResult.isRequiresMigration()) {
 					return CompatibilityResult.compatible();
@@ -983,15 +986,104 @@ public class NFA<T> implements Serializable {
 						return CompatibilityResult.requiresMigration(
 							new NFASerializer<>(
 								new TypeDeserializerAdapter<>(eventCompatResult.getConvertDeserializer()),
-								new TypeDeserializerAdapter<>(sharedBufCompatResult.getConvertDeserializer()),
-								nfaFactory,
-								isStateEmbedded));
+								new TypeDeserializerAdapter<>(sharedBufCompatResult.getConvertDeserializer())));
 					}
 				}
 			}
 
 			return CompatibilityResult.requiresMigration();
 		}
+	}
+
+	/**
+	 * A {@link TypeSerializer} for {@link NFA} that uses Java Serialization.
+	 */
+	public static class NFAWithoutStatesSerializer<T> extends BaseNFASerializer<T> {
+
+		private static final long serialVersionUID = 2098282423980597010L;
+
+		private TypeSerializer<SharedBuffer<String, T>> sharedBufferSerializer;
+
+		private TypeSerializer<T> eventSerializer;
+
+		private NFAFactory<T> nfaFactory;
+
+		private boolean isEmbeddedState = false;
+
+		@Override
+		protected TypeSerializer<SharedBuffer<String, T>> getSharedBufferSerializer() {
+			return sharedBufferSerializer;
+		}
+
+		@Override
+		protected TypeSerializer<T> getEventSerializer() {
+			return eventSerializer;
+		}
+
+		@Override
+		protected NFAFactory<T> getFactory(DataInputView source) throws IOException {
+			if (isEmbeddedState) {
+				return new NFAFactory.NFAFactorySerializer<T>().deserialize(source);
+			} else {
+				return nfaFactory;
+			}
+		}
+
+		public NFAWithoutStatesSerializer(TypeSerializer<T> typeSerializer, NFAFactory<T> nfaFactory) {
+			this(typeSerializer,
+				new SharedBuffer.SharedBufferSerializer<>(StringSerializer.INSTANCE, typeSerializer),
+				nfaFactory);
+		}
+
+		private NFAWithoutStatesSerializer(
+			TypeSerializer<T> typeSerializer,
+			TypeSerializer<SharedBuffer<String, T>> sharedBufferSerializer,
+			NFAFactory<T> nfaFactory) {
+			this.nfaFactory = nfaFactory;
+			this.eventSerializer = typeSerializer;
+			this.sharedBufferSerializer = sharedBufferSerializer;
+		}
+
+		@Override
+		public CompatibilityResult<NFA<T>> ensureCompatibility(TypeSerializerConfigSnapshot configSnapshot) {
+			if (configSnapshot instanceof NFASerializerConfigSnapshot) {
+				List<Tuple2<TypeSerializer<?>, TypeSerializerConfigSnapshot>> serializersAndConfigs =
+					((NFASerializerConfigSnapshot) configSnapshot).getNestedSerializersAndConfigs();
+
+				CompatibilityResult<T> eventCompatResult = CompatibilityUtil.resolveCompatibilityResult(
+					serializersAndConfigs.get(0).f0,
+					UnloadableDummyTypeSerializer.class,
+					serializersAndConfigs.get(0).f1,
+					eventSerializer);
+
+				CompatibilityResult<SharedBuffer<String, T>> sharedBufCompatResult =
+					CompatibilityUtil.resolveCompatibilityResult(
+						serializersAndConfigs.get(1).f0,
+						UnloadableDummyTypeSerializer.class,
+						serializersAndConfigs.get(1).f1,
+						sharedBufferSerializer);
+
+				if (configSnapshot.getReadVersion() == 1) {
+					isEmbeddedState = true;
+				}
+
+				if (!sharedBufCompatResult.isRequiresMigration() && !eventCompatResult.isRequiresMigration()) {
+					return CompatibilityResult.compatible();
+				} else {
+					if (eventCompatResult.getConvertDeserializer() != null &&
+					    sharedBufCompatResult.getConvertDeserializer() != null) {
+						return CompatibilityResult.requiresMigration(
+							new NFAWithoutStatesSerializer<>(
+								new TypeDeserializerAdapter<>(eventCompatResult.getConvertDeserializer()),
+								new TypeDeserializerAdapter<>(sharedBufCompatResult.getConvertDeserializer()),
+								nfaFactory));
+					}
+				}
+			}
+
+			return CompatibilityResult.requiresMigration();
+		}
+
 	}
 
 	//////////////////			Old Serialization			//////////////////////

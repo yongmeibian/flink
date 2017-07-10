@@ -27,6 +27,8 @@ import org.apache.flink.cep.nfa.compiler.NFACompiler;
 import org.apache.flink.cep.nfa.compiler.NFAFactory;
 import org.apache.flink.cep.pattern.Pattern;
 import org.apache.flink.cep.pattern.conditions.SimpleCondition;
+import org.apache.flink.contrib.streaming.state.RocksDBStateBackend;
+import org.apache.flink.runtime.state.memory.MemoryStateBackend;
 import org.apache.flink.streaming.api.watermark.Watermark;
 import org.apache.flink.streaming.api.windowing.time.Time;
 import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
@@ -38,7 +40,9 @@ import org.apache.flink.streaming.util.migration.MigrationTestUtil;
 import org.apache.flink.streaming.util.migration.MigrationVersion;
 
 import org.junit.Ignore;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.TemporaryFolder;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 
@@ -132,6 +136,9 @@ public class CEPMigrationTest {
 		}
 	}
 
+	@Rule
+	public TemporaryFolder tempFolder = new TemporaryFolder();
+
 	@Test
 	public void testRestoreAfterBranchingPattern() throws Exception {
 
@@ -161,14 +168,20 @@ public class CEPMigrationTest {
 				BasicTypeInfo.INT_TYPE_INFO);
 
 		try {
+
+			String rocksDbPath = tempFolder.newFolder().getAbsolutePath();
+			RocksDBStateBackend rocksDBStateBackend = new RocksDBStateBackend(new MemoryStateBackend());
+			rocksDBStateBackend.setDbStoragePath(rocksDbPath);
+			harness.setStateBackend(rocksDBStateBackend);
 			harness.setup();
 
 			MigrationTestUtil.restoreFromSnapshot(
 				harness,
 				OperatorSnapshotUtil.getResourceFilename(
-					"cep-migration-after-branching-flink" + migrateVersion + "-snapshot"),
+					"cep-migration-rocksDB-after-branching-flink" + migrateVersion + "-snapshot"),
 				migrateVersion);
 
+			harness.setStateBackend(rocksDBStateBackend);
 			harness.open();
 
 			harness.processElement(new StreamRecord<>(new Event(42, "start", 1.0), 4));
@@ -230,6 +243,9 @@ public class CEPMigrationTest {
 				keySelector,
 				BasicTypeInfo.INT_TYPE_INFO);
 
+			rocksDBStateBackend = new RocksDBStateBackend(new MemoryStateBackend());
+			rocksDBStateBackend.setDbStoragePath(rocksDbPath);
+			harness.setStateBackend(rocksDBStateBackend);
 			harness.setup();
 			harness.initializeState(snapshot);
 			harness.open();
