@@ -55,9 +55,7 @@ public class FlatSelectTimeoutCepOperator<IN, OUT1, OUT2, KEY> extends
 	public FlatSelectTimeoutCepOperator(
 		TypeSerializer<IN> inputSerializer,
 		boolean isProcessingTime,
-		TypeSerializer<KEY> keySerializer,
 		NFAFactory<IN> nfaFactory,
-		boolean migratingFromOldKeyedOperator,
 		EventComparator<IN> comparator,
 		PatternFlatSelectFunction<IN, OUT1> flatSelectFunction,
 		PatternFlatTimeoutFunction<IN, OUT2> flatTimeoutFunction,
@@ -65,9 +63,7 @@ public class FlatSelectTimeoutCepOperator<IN, OUT1, OUT2, KEY> extends
 		super(
 			inputSerializer,
 			isProcessingTime,
-			keySerializer,
 			nfaFactory,
-			migratingFromOldKeyedOperator,
 			comparator,
 			new FlatSelectWrapper<>(flatSelectFunction, flatTimeoutFunction));
 		this.timedOutOutputTag = outputTag;

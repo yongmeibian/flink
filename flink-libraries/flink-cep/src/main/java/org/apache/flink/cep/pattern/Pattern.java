@@ -29,6 +29,8 @@ import org.apache.flink.cep.pattern.conditions.SubtypeCondition;
 import org.apache.flink.streaming.api.windowing.time.Time;
 import org.apache.flink.util.Preconditions;
 
+import java.util.UUID;
+
 /**
  * Base class for a pattern definition.
  *
@@ -48,6 +50,8 @@ public class Pattern<T, F extends T> {
 
 	/** Name of the pattern. */
 	private final String name;
+
+	private final String patternId;
 
 	/** Previous pattern. */
 	private final Pattern<T, ? extends T> previous;
@@ -70,18 +74,15 @@ public class Pattern<T, F extends T> {
 	 */
 	private Times times;
 
-	protected Pattern(final String name, final Pattern<T, ? extends T> previous) {
-		this.name = name;
-		this.previous = previous;
-	}
-
 	protected Pattern(
 			final String name,
 			final Pattern<T, ? extends T> previous,
-			final ConsumingStrategy consumingStrategy) {
+			final ConsumingStrategy consumingStrategy,
+			final String patternId) {
 		this.name = name;
 		this.previous = previous;
 		this.quantifier = Quantifier.one(consumingStrategy);
+		this.patternId = patternId;
 	}
 
 	public Pattern<T, ? extends T> getPrevious() {
@@ -112,6 +113,23 @@ public class Pattern<T, F extends T> {
 		return untilCondition;
 	}
 
+	public String getPatternId() {
+		return patternId;
+	}
+
+	/**
+	 * Starts a new pattern sequence. The provided name is the one of the initial pattern
+	 * of the new sequence. Furthermore, the base type of the event sequence is set.
+	 *
+	 * @param name The name of starting pattern of the new pattern sequence
+	 * @param patternId a unique id set for this pattern
+	 * @param <X> Base type of the event pattern
+	 * @return The first pattern of a pattern sequence
+	 */
+	public static <X> Pattern<X, X> begin(final String name, final String patternId) {
+		return new Pattern<X, X>(name, null, ConsumingStrategy.STRICT, patternId);
+	}
+
 	/**
 	 * Starts a new pattern sequence. The provided name is the one of the initial pattern
 	 * of the new sequence. Furthermore, the base type of the event sequence is set.
@@ -121,7 +139,7 @@ public class Pattern<T, F extends T> {
 	 * @return The first pattern of a pattern sequence
 	 */
 	public static <X> Pattern<X, X> begin(final String name) {
-		return new Pattern<X, X>(name, null);
+		return begin(name, UUID.randomUUID().toString());
 	}
 
 	/**
@@ -241,7 +259,7 @@ public class Pattern<T, F extends T> {
 	 * @return A new pattern which is appended to this one
 	 */
 	public Pattern<T, T> next(final String name) {
-		return new Pattern<>(name, this, ConsumingStrategy.STRICT);
+		return new Pattern<>(name, this, ConsumingStrategy.STRICT, this.patternId);
 	}
 
 	/**
@@ -258,7 +276,7 @@ public class Pattern<T, F extends T> {
 					"You can simulate such pattern with two independent patterns, one with and the other without " +
 					"the optional part.");
 		}
-		return new Pattern<>(name, this, ConsumingStrategy.NOT_NEXT);
+		return new Pattern<>(name, this, ConsumingStrategy.NOT_NEXT, this.patternId);
 	}
 
 	/**
@@ -270,7 +288,7 @@ public class Pattern<T, F extends T> {
 	 * @return A new pattern which is appended to this one
 	 */
 	public Pattern<T, T> followedBy(final String name) {
-		return new Pattern<>(name, this, ConsumingStrategy.SKIP_TILL_NEXT);
+		return new Pattern<>(name, this, ConsumingStrategy.SKIP_TILL_NEXT, this.patternId);
 	}
 
 	/**
@@ -289,7 +307,7 @@ public class Pattern<T, F extends T> {
 					"You can simulate such pattern with two independent patterns, one with and the other without " +
 					"the optional part.");
 		}
-		return new Pattern<>(name, this, ConsumingStrategy.NOT_FOLLOW);
+		return new Pattern<>(name, this, ConsumingStrategy.NOT_FOLLOW, this.patternId);
 	}
 
 	/**
@@ -301,7 +319,7 @@ public class Pattern<T, F extends T> {
 	 * @return A new pattern which is appended to this one
 	 */
 	public Pattern<T, T> followedByAny(final String name) {
-		return new Pattern<>(name, this, ConsumingStrategy.SKIP_TILL_ANY);
+		return new Pattern<>(name, this, ConsumingStrategy.SKIP_TILL_ANY, this.patternId);
 	}
 
 	/**
@@ -468,10 +486,22 @@ public class Pattern<T, F extends T> {
 	 * of the new sequence.
 	 *
 	 * @param group the pattern to begin with
+	 * @param patternId a unique id set for this pattern
+	 * @return the first pattern of a pattern sequence
+	 */
+	public static <T, F extends T> GroupPattern<T, F> begin(Pattern<T, F> group, String patternId) {
+		return new GroupPattern<>(null, group, ConsumingStrategy.STRICT, patternId);
+	}
+
+	/**
+	 * Starts a new pattern sequence. The provided pattern is the initial pattern
+	 * of the new sequence.
+	 *
+	 * @param group the pattern to begin with
 	 * @return the first pattern of a pattern sequence
 	 */
 	public static <T, F extends T> GroupPattern<T, F> begin(Pattern<T, F> group) {
-		return new GroupPattern<>(null, group);
+		return begin(group, UUID.randomUUID().toString());
 	}
 
 	/**
@@ -483,7 +513,7 @@ public class Pattern<T, F extends T> {
 	 * @return A new pattern which is appended to this one
 	 */
 	public GroupPattern<T, F> followedBy(Pattern<T, F> group) {
-		return new GroupPattern<>(this, group, ConsumingStrategy.SKIP_TILL_NEXT);
+		return new GroupPattern<>(this, group, ConsumingStrategy.SKIP_TILL_NEXT, this.patternId);
 	}
 
 	/**
@@ -495,7 +525,7 @@ public class Pattern<T, F extends T> {
 	 * @return A new pattern which is appended to this one
 	 */
 	public GroupPattern<T, F> followedByAny(Pattern<T, F> group) {
-		return new GroupPattern<>(this, group, ConsumingStrategy.SKIP_TILL_ANY);
+		return new GroupPattern<>(this, group, ConsumingStrategy.SKIP_TILL_ANY, this.patternId);
 	}
 
 	/**
@@ -508,7 +538,7 @@ public class Pattern<T, F extends T> {
 	 * @return A new pattern which is appended to this one
 	 */
 	public GroupPattern<T, F> next(Pattern<T, F> group) {
-		return new GroupPattern<>(this, group, ConsumingStrategy.STRICT);
+		return new GroupPattern<>(this, group, ConsumingStrategy.STRICT, this.patternId);
 	}
 
 	private void checkIfNoNotPattern() {

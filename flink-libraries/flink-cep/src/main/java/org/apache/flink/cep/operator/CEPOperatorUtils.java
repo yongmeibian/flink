@@ -20,9 +20,9 @@ package org.apache.flink.cep.operator;
 
 import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.api.common.typeutils.TypeSerializer;
-import org.apache.flink.api.common.typeutils.base.ByteSerializer;
 import org.apache.flink.api.java.functions.KeySelector;
 import org.apache.flink.api.java.functions.NullByteKeySelector;
+import org.apache.flink.api.java.typeutils.TypeExtractor;
 import org.apache.flink.cep.EventComparator;
 import org.apache.flink.cep.PatternFlatSelectFunction;
 import org.apache.flink.cep.PatternFlatTimeoutFunction;
@@ -37,7 +37,11 @@ import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.datastream.KeyedStream;
 import org.apache.flink.streaming.api.datastream.SingleOutputStreamOperator;
 import org.apache.flink.streaming.api.operators.OneInputStreamOperator;
+import org.apache.flink.streaming.api.transformations.TwoInputTransformation;
 import org.apache.flink.util.OutputTag;
+
+import java.util.List;
+import java.util.Map;
 
 /**
  * Utility methods for creating {@link PatternStream}.
@@ -63,19 +67,15 @@ public class CEPOperatorUtils {
 			final TypeInformation<OUT> outTypeInfo) {
 		return createPatternStream(inputStream, pattern, outTypeInfo, false, comparator, new OperatorBuilder<IN, OUT>() {
 			@Override
-			public <KEY> OneInputStreamOperator<IN, OUT> build(
+			public OneInputStreamOperator<IN, OUT> build(
 				TypeSerializer<IN> inputSerializer,
 				boolean isProcessingTime,
-				TypeSerializer<KEY> keySerializer,
 				NFAFactory<IN> nfaFactory,
-				boolean migratingFromOldKeyedOperator,
 				EventComparator<IN> comparator) {
 				return new SelectCepOperator<>(
 					inputSerializer,
 					isProcessingTime,
-					keySerializer,
 					nfaFactory,
-					migratingFromOldKeyedOperator,
 					comparator,
 					selectFunction
 				);
@@ -112,19 +112,15 @@ public class CEPOperatorUtils {
 			final TypeInformation<OUT> outTypeInfo) {
 		return createPatternStream(inputStream, pattern, outTypeInfo, false, comparator, new OperatorBuilder<IN, OUT>() {
 			@Override
-			public <KEY> OneInputStreamOperator<IN, OUT> build(
+			public OneInputStreamOperator<IN, OUT> build(
 				TypeSerializer<IN> inputSerializer,
 				boolean isProcessingTime,
-				TypeSerializer<KEY> keySerializer,
 				NFAFactory<IN> nfaFactory,
-				boolean migratingFromOldKeyedOperator,
 				EventComparator<IN> comparator) {
 				return new FlatSelectCepOperator<>(
 					inputSerializer,
 					isProcessingTime,
-					keySerializer,
 					nfaFactory,
-					migratingFromOldKeyedOperator,
 					comparator,
 					selectFunction
 				);
@@ -140,6 +136,53 @@ public class CEPOperatorUtils {
 				return "FlatSelectCepOperator";
 			}
 		});
+	}
+
+	/**
+	 * Creates a data stream containing the fully matching event patterns of the NFA computation.
+	 *
+	 * @param <K> Type of the key
+	 * @return Data stream containing fully matched event sequences stored in a {@link Map}. The
+	 * events are indexed by their associated names of the pattern.
+	 */
+	public static <K, T> SingleOutputStreamOperator<Map<String, List<T>>> createCoPatternStream(DataStream<T> inputStream, DataStream<Pattern<T, ?>> dynamicPatternsStream, Pattern<T, ?> pattern) {
+		final TypeSerializer<T> inputSerializer = inputStream.getType().createSerializer(inputStream.getExecutionConfig());
+
+		// check whether we use processing time
+		final boolean isProcessingTime = inputStream.getExecutionEnvironment().getStreamTimeCharacteristic() == TimeCharacteristic.ProcessingTime;
+
+		// compile our pattern into a NFAFactory to instantiate NFAs later on
+		final NFAFactory<T> nfaFactory = NFACompiler.compileFactory(pattern, false);
+
+		final SingleOutputStreamOperator<Map<String, List<T>>> patternStream;
+
+		if (inputStream instanceof KeyedStream) {
+			// We have to use the KeyedCEPPatternOperator which can deal with keyed input streams
+			KeyedStream<T, K> keyedStream = (KeyedStream<T, K>) inputStream;
+
+			TwoInputTransformation<T, Pattern<T, ?>, Map<String, List<T>>> transform = new TwoInputTransformation<>(
+				keyedStream.getTransformation(),
+				dynamicPatternsStream.broadcast().getTransformation(),
+				"KeyedCEPCoPatternOperator",
+				new CoCepPatternOperator<>(
+					inputSerializer,
+					isProcessingTime,
+					nfaFactory),
+				(TypeInformation<Map<String, List<T>>>) (TypeInformation<?>) TypeExtractor.getForClass(Map.class),
+				keyedStream.getExecutionEnvironment().getParallelism());
+
+			transform.setStateKeySelectors(keyedStream.getKeySelector(), null);
+			transform.setStateKeyType(keyedStream.getKeyType());
+
+			patternStream = new SingleOutputStreamOperator(keyedStream.getExecutionEnvironment(), transform);
+
+			keyedStream.getExecutionEnvironment().addOperator(transform);
+
+		} else {
+			throw new UnsupportedOperationException("");
+		}
+
+		return patternStream;
 	}
 
 	/**
@@ -168,19 +211,15 @@ public class CEPOperatorUtils {
 			final PatternFlatTimeoutFunction<IN, OUT2> timeoutFunction) {
 		return createPatternStream(inputStream, pattern, outTypeInfo, true, comparator, new OperatorBuilder<IN, OUT1>() {
 			@Override
-			public <KEY> OneInputStreamOperator<IN, OUT1> build(
+			public OneInputStreamOperator<IN, OUT1> build(
 				TypeSerializer<IN> inputSerializer,
 				boolean isProcessingTime,
-				TypeSerializer<KEY> keySerializer,
 				NFAFactory<IN> nfaFactory,
-				boolean migratingFromOldKeyedOperator,
 				EventComparator<IN> comparator) {
 				return new FlatSelectTimeoutCepOperator<>(
 					inputSerializer,
 					isProcessingTime,
-					keySerializer,
 					nfaFactory,
-					migratingFromOldKeyedOperator,
 					comparator,
 					selectFunction,
 					timeoutFunction,
@@ -226,19 +265,15 @@ public class CEPOperatorUtils {
 			final PatternTimeoutFunction<IN, OUT2> timeoutFunction) {
 		return createPatternStream(inputStream, pattern, outTypeInfo, true, comparator, new OperatorBuilder<IN, OUT1>() {
 			@Override
-			public <KEY> OneInputStreamOperator<IN, OUT1> build(
+			public OneInputStreamOperator<IN, OUT1> build(
 				TypeSerializer<IN> inputSerializer,
 				boolean isProcessingTime,
-				TypeSerializer<KEY> keySerializer,
 				NFAFactory<IN> nfaFactory,
-				boolean migratingFromOldKeyedOperator,
 				EventComparator<IN> comparator) {
 				return new SelectTimeoutCepOperator<>(
 					inputSerializer,
 					isProcessingTime,
-					keySerializer,
 					nfaFactory,
-					migratingFromOldKeyedOperator,
 					comparator,
 					selectFunction,
 					timeoutFunction,
@@ -278,21 +313,16 @@ public class CEPOperatorUtils {
 		if (inputStream instanceof KeyedStream) {
 			KeyedStream<IN, K> keyedStream = (KeyedStream<IN, K>) inputStream;
 
-			TypeSerializer<K> keySerializer = keyedStream.getKeyType().createSerializer(keyedStream.getExecutionConfig());
-
 			patternStream = keyedStream.transform(
 				operatorBuilder.getKeyedOperatorName(),
 				outTypeInfo,
 				operatorBuilder.build(
 					inputSerializer,
 					isProcessingTime,
-					keySerializer,
 					nfaFactory,
-					true,
 					comparator));
 		} else {
 			KeySelector<IN, Byte> keySelector = new NullByteKeySelector<>();
-			TypeSerializer<Byte> keySerializer = ByteSerializer.INSTANCE;
 
 			patternStream = inputStream.keyBy(keySelector).transform(
 				operatorBuilder.getOperatorName(),
@@ -300,9 +330,7 @@ public class CEPOperatorUtils {
 				operatorBuilder.build(
 					inputSerializer,
 					isProcessingTime,
-					keySerializer,
 					nfaFactory,
-					false,
 					comparator
 				)).forceNonParallel();
 		}
@@ -311,12 +339,10 @@ public class CEPOperatorUtils {
 	}
 
 	private interface OperatorBuilder<IN, OUT> {
-		<K> OneInputStreamOperator<IN, OUT> build(
+			OneInputStreamOperator<IN, OUT> build(
 			TypeSerializer<IN> inputSerializer,
 			boolean isProcessingTime,
-			TypeSerializer<K> keySerializer,
 			NFAFactory<IN> nfaFactory,
-			boolean migratingFromOldKeyedOperator,
 			EventComparator<IN> comparator);
 
 		String getKeyedOperatorName();

@@ -20,13 +20,18 @@ package org.apache.flink.cep;
 
 import org.apache.flink.api.common.functions.MapFunction;
 import org.apache.flink.api.java.functions.KeySelector;
+import org.apache.flink.api.java.functions.NullByteKeySelector;
 import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.cep.nfa.NFA;
+import org.apache.flink.cep.operator.CEPOperatorUtils;
 import org.apache.flink.cep.pattern.Pattern;
 import org.apache.flink.cep.pattern.conditions.SimpleCondition;
 import org.apache.flink.core.fs.FileSystem;
 import org.apache.flink.streaming.api.TimeCharacteristic;
 import org.apache.flink.streaming.api.datastream.DataStream;
+import org.apache.flink.streaming.api.datastream.DataStreamSource;
+import org.apache.flink.streaming.api.datastream.KeyedStream;
+import org.apache.flink.streaming.api.datastream.SingleOutputStreamOperator;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.streaming.api.functions.AssignerWithPunctuatedWatermarks;
 import org.apache.flink.streaming.api.watermark.Watermark;
@@ -119,6 +124,180 @@ public class CEPITCase extends StreamingMultipleProgramsTestBase {
 		});
 
 		DataStream<String> result = CEP.pattern(input, pattern).select(new PatternSelectFunction<Event, String>() {
+
+			@Override
+			public String select(Map<String, List<Event>> pattern) {
+				StringBuilder builder = new StringBuilder();
+
+				builder.append(pattern.get("start").get(0).getId()).append(",")
+					.append(pattern.get("middle").get(0).getId()).append(",")
+					.append(pattern.get("end").get(0).getId());
+
+				return builder.toString();
+			}
+		});
+
+		result.writeAsText(resultPath, FileSystem.WriteMode.OVERWRITE);
+
+		// expected sequence of matching event ids
+		expected = "2,6,8";
+
+		env.execute();
+	}
+
+	@Test
+	public void testSimplePatternCEP2() throws Exception {
+		StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
+
+		DataStream<Event> input = env.fromElements(
+			new Event(1, "barfoo", 1.0),
+			new Event(1, "start", 2.0),
+			new Event(1, "foobar", 3.0),
+			new SubEvent(1, "foo", 4.0, 1.0),
+			new Event(1, "middle", 5.0),
+			new SubEvent(1, "middle", 6.0, 2.0),
+			new SubEvent(1, "bar", 3.0, 3.0),
+			new Event(1, "42", 42.0),
+			new Event(1, "end", 1.0)
+		).keyBy(new KeySelector<Event, Integer>() {
+			@Override
+			public Integer getKey(Event value) throws Exception {
+				return value.getId();
+			}
+		});
+
+		Pattern<Event, ?> pattern = Pattern.<Event>begin("start").where(new SimpleCondition<Event>() {
+
+			@Override
+			public boolean filter(Event value) throws Exception {
+				return value.getName().equals("start");
+			}
+		})
+			.followedByAny("middle").subtype(SubEvent.class).where(
+				new SimpleCondition<SubEvent>() {
+
+					@Override
+					public boolean filter(SubEvent value) throws Exception {
+						return value.getName().equals("middle");
+					}
+				}
+			)
+			.followedByAny("end").where(new SimpleCondition<Event>() {
+
+				@Override
+				public boolean filter(Event value) throws Exception {
+					return value.getName().equals("end");
+				}
+			});
+
+		DataStreamSource<Pattern<Event, ?>> streamOfPatterns = env.fromElements(pattern);
+
+		SingleOutputStreamOperator<Map<String, List<Event>>> coPatternStream = CEPOperatorUtils.createCoPatternStream(input, streamOfPatterns, pattern);
+
+		coPatternStream.print();
+
+//		DataStream<String> result = CEP.pattern(input, pattern).select(new PatternSelectFunction<Event, String>() {
+//
+//			@Override
+//			public String select(Map<String, List<Event>> pattern) {
+//				StringBuilder builder = new StringBuilder();
+//
+//				builder.append(pattern.get("start").get(0).getId()).append(",")
+//					.append(pattern.get("middle").get(0).getId()).append(",")
+//					.append(pattern.get("end").get(0).getId());
+//
+//				return builder.toString();
+//			}
+//		});
+//
+//		result.writeAsText(resultPath, FileSystem.WriteMode.OVERWRITE);
+
+		// expected sequence of matching event ids
+		expected = "";
+
+		env.execute();
+	}
+
+
+	/**
+	 * Checks that a certain event sequence is recognized.
+	 *
+	 * @throws Exception
+	 */
+	@Test
+	public void testSimplePatternCEPwithDynamic() throws Exception {
+		StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
+
+		final KeyedStream<Event, Byte> input = env.fromElements(
+			new Event(1, "barfoo", 1.0),
+			new Event(2, "start", 2.0),
+			new Event(3, "foobar", 3.0),
+			new SubEvent(4, "foo", 4.0, 1.0),
+			new Event(5, "middle", 5.0),
+			new SubEvent(6, "middle", 6.0, 2.0),
+			new SubEvent(7, "bar", 3.0, 3.0),
+			new Event(42, "42", 42.0),
+			new Event(8, "end", 1.0)
+		).keyBy(new NullByteKeySelector<Event>());
+
+		Pattern<Event, ?> pattern = Pattern.<Event>begin("start").where(new SimpleCondition<Event>() {
+
+			@Override
+			public boolean filter(Event value) throws Exception {
+				return value.getName().equals("start");
+			}
+		})
+			.followedByAny("middle").subtype(SubEvent.class).where(
+				new SimpleCondition<SubEvent>() {
+
+					@Override
+					public boolean filter(SubEvent value) throws Exception {
+						return value.getName().equals("middle");
+					}
+				}
+			)
+			.followedByAny("end").where(new SimpleCondition<Event>() {
+
+				@Override
+				public boolean filter(Event value) throws Exception {
+					return value.getName().equals("end");
+				}
+			});
+
+		final Pattern<Event, SubEvent> pattern1 = Pattern.<Event>begin("foo").where(new SimpleCondition<Event>() {
+			@Override
+			public boolean filter(Event value) throws Exception {
+				return value.getName().equals("foo");
+			}
+		}).followedByAny("bar").subtype(SubEvent.class).where(
+			new SimpleCondition<SubEvent>() {
+
+				@Override
+				public boolean filter(SubEvent value) throws Exception {
+					return value.getName().equals("bar");
+				}
+			}
+		);
+
+		final Pattern<Event, SubEvent> pattern2 = Pattern.<Event>begin("foo").where(new SimpleCondition<Event>() {
+			@Override
+			public boolean filter(Event value) throws Exception {
+				return value.getName().equals("foo");
+			}
+		}).followedByAny("end").subtype(SubEvent.class).where(
+			new SimpleCondition<SubEvent>() {
+
+				@Override
+				public boolean filter(SubEvent value) throws Exception {
+					return value.getName().equals("end");
+				}
+			}
+		);
+
+		final DataStream<Pattern<Event, ?>> dynamicPatterns = env.fromElements(pattern1, pattern2);
+
+		DataStream<String> result = CEP.pattern(input, pattern).withDynamicPatterns(dynamicPatterns)
+			.select(new PatternSelectFunction<Event, String>() {
 
 			@Override
 			public String select(Map<String, List<Event>> pattern) {

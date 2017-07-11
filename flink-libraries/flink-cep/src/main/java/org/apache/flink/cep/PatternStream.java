@@ -54,6 +54,8 @@ public class PatternStream<T> {
 	// comparator to sort events
 	private final EventComparator<T> comparator;
 
+	private DataStream<Pattern<T, ?>> dynamicPatternStream;
+
 	PatternStream(final DataStream<T> inputStream, final Pattern<T, ?> pattern) {
 		this.inputStream = inputStream;
 		this.pattern = pattern;
@@ -76,6 +78,11 @@ public class PatternStream<T> {
 
 	public EventComparator<T> getComparator() {
 		return comparator;
+	}
+
+	public PatternStream<T> withDynamicPatterns(DataStream<Pattern<T, ?>> patternStream) {
+		this.dynamicPatternStream = patternStream;
+		return this;
 	}
 
 	/**

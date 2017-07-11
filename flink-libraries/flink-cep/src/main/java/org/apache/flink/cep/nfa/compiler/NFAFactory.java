@@ -63,6 +63,7 @@ public class NFAFactory<T> implements Serializable {
 	private final long windowTime;
 	private final Set<State<T>> states;
 	private final boolean timeoutHandling;
+	private final String patternId;
 
 	public NFAFactory(
 		long windowTime,
@@ -72,6 +73,7 @@ public class NFAFactory<T> implements Serializable {
 		this.windowTime = windowTime;
 		this.states = states;
 		this.timeoutHandling = timeoutHandling;
+		this.patternId = "ABC";
 	}
 
 	public NFA<T> createNFA() {

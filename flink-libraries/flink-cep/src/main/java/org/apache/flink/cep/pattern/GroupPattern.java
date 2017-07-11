@@ -31,16 +31,12 @@ public class GroupPattern<T, F extends T> extends Pattern<T, F> {
 	/** Group pattern representing the pattern definition of this group. */
 	private final Pattern<T, ? extends T> groupPattern;
 
-	GroupPattern(final Pattern<T, ? extends T> previous, final Pattern<T, ? extends T> groupPattern) {
-		super("GroupPattern", previous);
-		this.groupPattern = groupPattern;
-	}
-
 	GroupPattern(
 		final Pattern<T, ? extends T> previous,
 		final Pattern<T, ? extends T> groupPattern,
-		final Quantifier.ConsumingStrategy consumingStrategy) {
-		super("GroupPattern", previous, consumingStrategy);
+		final Quantifier.ConsumingStrategy consumingStrategy,
+		final String patternId) {
+		super("GroupPattern", previous, consumingStrategy, patternId);
 		this.groupPattern = groupPattern;
 	}
 

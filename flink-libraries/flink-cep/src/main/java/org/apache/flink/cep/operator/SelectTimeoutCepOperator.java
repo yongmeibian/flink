@@ -50,9 +50,7 @@ public class SelectTimeoutCepOperator<IN, OUT1, OUT2, KEY>
 	public SelectTimeoutCepOperator(
 		TypeSerializer<IN> inputSerializer,
 		boolean isProcessingTime,
-		TypeSerializer<KEY> keySerializer,
 		NFAFactory<IN> nfaFactory,
-		boolean migratingFromOldKeyedOperator,
 		final EventComparator<IN> comparator,
 		PatternSelectFunction<IN, OUT1> flatSelectFunction,
 		PatternTimeoutFunction<IN, OUT2> flatTimeoutFunction,
@@ -60,9 +58,7 @@ public class SelectTimeoutCepOperator<IN, OUT1, OUT2, KEY>
 		super(
 			inputSerializer,
 			isProcessingTime,
-			keySerializer,
 			nfaFactory,
-			migratingFromOldKeyedOperator,
 			comparator,
 			new SelectWrapper<>(flatSelectFunction, flatTimeoutFunction));
 		this.timedOutOutputTag = outputTag;
