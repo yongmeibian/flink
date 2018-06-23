@@ -77,6 +77,9 @@ public class SharedBuffer<V> {
 	private MapState<Long, Integer> eventsCount;
 	private MapState<NodeId, Lockable<SharedBufferNode>> entries;
 
+	private Map<EventId, Lockable<V>> eventsBufferCache = new HashMap<>();
+	private Map<NodeId, Lockable<SharedBufferNode>> entryCache = new HashMap<>();
+
 	public SharedBuffer(KeyedStateStore stateStore, TypeSerializer<V> valueSerializer) {
 		this.eventsBuffer = stateStore.getMapState(
 			new MapStateDescriptor<>(
@@ -98,7 +101,7 @@ public class SharedBuffer<V> {
 	}
 
 	/**
-	 * Notifies shared buffer that there will be no events with timestamp &lt;&eq; the given value. I allows to clear
+	 * Notifies shared buffer that there will be no events with timestamp &lt;&eq; the given value. It allows to clear
 	 * internal counters for number of events seen so far per timestamp.
 	 *
 	 * @param timestamp watermark, no earlier events will arrive
@@ -132,7 +135,7 @@ public class SharedBuffer<V> {
 		}
 
 		EventId eventId = new EventId(id, timestamp);
-		eventsBuffer.put(eventId, new Lockable<>(value, 1));
+		cacheEvent(eventId, new Lockable<>(value, 1));
 		eventsCount.put(timestamp, id + 1);
 		return eventId;
 	}
@@ -183,7 +186,7 @@ public class SharedBuffer<V> {
 		}
 
 		NodeId currentNodeId = new NodeId(eventId, getOriginalNameFromInternal(stateName));
-		Lockable<SharedBufferNode> currentNode = entries.get(currentNodeId);
+		Lockable<SharedBufferNode> currentNode = getEntry(currentNodeId);
 		if (currentNode == null) {
 			currentNode = new Lockable<>(new SharedBufferNode(), 0);
 			lockEvent(eventId);
@@ -192,7 +195,7 @@ public class SharedBuffer<V> {
 		currentNode.getElement().addEdge(new SharedBufferEdge(
 			previousNodeId,
 			version));
-		entries.put(currentNodeId, currentNode);
+		cacheEntry(currentNodeId, currentNode);
 
 		return currentNodeId;
 	}
@@ -225,7 +228,7 @@ public class SharedBuffer<V> {
 		Stack<ExtractionState> extractionStates = new Stack<>();
 
 		// get the starting shared buffer entry for the previous relation
-		Lockable<SharedBufferNode> entryLock = entries.get(nodeId);
+		Lockable<SharedBufferNode> entryLock = getEntry(nodeId);
 
 		if (entryLock != null) {
 			SharedBufferNode entry = entryLock.getElement();
@@ -275,7 +278,7 @@ public class SharedBuffer<V> {
 							}
 
 							extractionStates.push(new ExtractionState(
-								target != null ? Tuple2.of(target, entries.get(target).getElement()) : null,
+								target != null ? Tuple2.of(target, getEntry(target).getElement()) : null,
 								edge.getDeweyNumber(),
 								newPath));
 						}
@@ -300,7 +303,7 @@ public class SharedBuffer<V> {
 			for (EventId eventId : pattern.getValue()) {
 				V event = cache.computeIfAbsent(eventId, id -> {
 					try {
-						return eventsBuffer.get(id).getElement();
+						return getEvent(id).getElement();
 					} catch (Exception ex) {
 						throw new WrappingRuntimeException(ex);
 					}
@@ -321,10 +324,10 @@ public class SharedBuffer<V> {
 	 * @throws Exception Thrown if the system cannot access the state.
 	 */
 	public void lockNode(final NodeId node) throws Exception {
-		Lockable<SharedBufferNode> sharedBufferNode = entries.get(node);
+		Lockable<SharedBufferNode> sharedBufferNode = getEntry(node);
 		if (sharedBufferNode != null) {
 			sharedBufferNode.lock();
-			entries.put(node, sharedBufferNode);
+			cacheEntry(node, sharedBufferNode);
 		}
 	}
 
@@ -336,18 +339,19 @@ public class SharedBuffer<V> {
 	 * @throws Exception Thrown if the system cannot access the state.
 	 */
 	public void releaseNode(final NodeId node) throws Exception {
-		Lockable<SharedBufferNode> sharedBufferNode = entries.get(node);
+		Lockable<SharedBufferNode> sharedBufferNode = getEntry(node);
 		if (sharedBufferNode != null) {
 			if (sharedBufferNode.release()) {
 				removeNode(node, sharedBufferNode.getElement());
 			} else {
-				entries.put(node, sharedBufferNode);
+				cacheEntry(node, sharedBufferNode);
 			}
 		}
 	}
 
 	private void removeNode(NodeId node, SharedBufferNode sharedBufferNode) throws Exception {
 		entries.remove(node);
+		entryCache.remove(node);
 		EventId eventId = node.getEventId();
 		releaseEvent(eventId);
 
@@ -357,13 +361,13 @@ public class SharedBuffer<V> {
 	}
 
 	private void lockEvent(EventId eventId) throws Exception {
-		Lockable<V> eventWrapper = eventsBuffer.get(eventId);
+		Lockable<V> eventWrapper = getEvent(eventId);
 		checkState(
 			eventWrapper != null,
 			"Referring to non existent event with id %s",
 			eventId);
 		eventWrapper.lock();
-		eventsBuffer.put(eventId, eventWrapper);
+		cacheEvent(eventId, eventWrapper);
 	}
 
 	/**
@@ -374,13 +378,74 @@ public class SharedBuffer<V> {
 	 * @throws Exception Thrown if the system cannot access the state.
 	 */
 	public void releaseEvent(EventId eventId) throws Exception {
-		Lockable<V> eventWrapper = eventsBuffer.get(eventId);
+		Lockable<V> eventWrapper = getEvent(eventId);
 		if (eventWrapper != null) {
 			if (eventWrapper.release()) {
 				eventsBuffer.remove(eventId);
+				eventsBufferCache.remove(eventId);
 			} else {
-				eventsBuffer.put(eventId, eventWrapper);
+				cacheEvent(eventId, eventWrapper);
 			}
+		}
+	}
+
+	// Cache related method
+
+	/////////////////////////////////////////////
+	//  Put
+	/////////////////////////////////////////////
+
+	/**
+	 * Put an event to cache.
+	 * @param eventId id of the event
+	 * @param event event body
+	 */
+	private void cacheEvent(EventId eventId, Lockable<V> event) {
+		this.eventsBufferCache.put(eventId, event);
+	}
+
+	/**
+	 * Put a ShareBufferNode to cache.
+	 * @param nodeId id of the event
+	 * @param entry SharedBufferNode
+	 */
+	private void cacheEntry(NodeId nodeId, Lockable<SharedBufferNode> entry) {
+		this.entryCache.put(nodeId, entry);
+	}
+
+	/////////////////////////////////////////////
+	// Get
+	/////////////////////////////////////////////
+
+	/**
+	 * Try to get the sharedBufferNode from state iff the node has not been quered during this turn process.
+	 * @param nodeId id of the event
+	 * @return SharedBufferNode
+	 * @throws Exception Thrown if the system cannot access the state.
+	 */
+	private Lockable<SharedBufferNode> getEntry(NodeId nodeId) throws Exception {
+		Lockable<SharedBufferNode> entry = entryCache.get(nodeId);
+		return  entry != null ? entry : entries.get(nodeId);
+	}
+
+	private Lockable<V> getEvent(EventId eventId) throws Exception {
+		Lockable<V> event = eventsBufferCache.get(eventId);
+		return event != null ? event : eventsBuffer.get(eventId);
+	}
+
+	/**
+	 * Flush the event and node in map to state.
+	 * @throws Exception Thrown if the system cannot access the state.
+	 */
+	public void flushCache() throws Exception {
+
+		if (!entryCache.isEmpty()) {
+			entries.putAll(entryCache);
+			entryCache.clear();
+		}
+		if (!eventsBufferCache.isEmpty()) {
+			eventsBuffer.putAll(eventsBufferCache);
+			eventsBufferCache.clear();
 		}
 	}
 

@@ -216,9 +216,12 @@ public class NFA<T> {
 			final T event,
 			final long timestamp,
 			final AfterMatchSkipStrategy afterMatchSkipStrategy) throws Exception {
+		Collection<Map<String, List<T>>> result;
 		try (EventWrapper eventWrapper = new EventWrapper(event, timestamp, sharedBuffer)) {
-			return doProcess(sharedBuffer, nfaState, eventWrapper, afterMatchSkipStrategy);
+			result = doProcess(sharedBuffer, nfaState, eventWrapper, afterMatchSkipStrategy);
 		}
+		sharedBuffer.flushCache();
+		return result;
 	}
 
 	/**
@@ -262,7 +265,7 @@ public class NFA<T> {
 		nfaState.setNewPartialMatches(newPartialMatches);
 
 		sharedBuffer.advanceTime(timestamp);
-
+		sharedBuffer.flushCache();
 		return timeoutResult;
 	}
 

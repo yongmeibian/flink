@@ -131,6 +131,7 @@ public class SharedBufferTest extends TestLogger {
 		for (EventId eventId : eventIds) {
 			sharedBuffer.releaseEvent(eventId);
 		}
+		sharedBuffer.flushCache();
 
 		assertTrue(sharedBuffer.isEmpty());
 	}
@@ -163,6 +164,7 @@ public class SharedBufferTest extends TestLogger {
 		for (EventId eventId : eventIds) {
 			sharedBuffer.releaseEvent(eventId);
 		}
+		sharedBuffer.flushCache();
 
 		//There should be still events[1] and events[2] in the buffer
 		assertFalse(sharedBuffer.isEmpty());
@@ -212,6 +214,7 @@ public class SharedBufferTest extends TestLogger {
 		for (EventId eventId : eventIds) {
 			sharedBuffer.releaseEvent(eventId);
 		}
+		sharedBuffer.flushCache();
 
 		List<String> resultOrder = new ArrayList<>(patternsResult.keySet());
 		assertEquals(expectedOrder, resultOrder);
