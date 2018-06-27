@@ -113,6 +113,8 @@ public class PartitionRequestClient {
 			@Override
 			public void operationComplete(ChannelFuture future) throws Exception {
 				if (!future.isSuccess()) {
+					LOG.debug("Sending the request for subpartition {} of partition {} failed using channel {}",
+						subpartitionIndex, partitionId, future.channel());
 					clientHandler.removeInputChannel(inputChannel);
 					inputChannel.onError(
 							new LocalTransportException(
