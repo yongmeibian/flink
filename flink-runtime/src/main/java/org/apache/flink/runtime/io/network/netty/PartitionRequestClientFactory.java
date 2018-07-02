@@ -18,15 +18,11 @@
 
 package org.apache.flink.runtime.io.network.netty;
 
-import org.apache.flink.runtime.io.network.NetworkClientHandler;
 import org.apache.flink.runtime.io.network.ConnectionID;
-import org.apache.flink.runtime.io.network.netty.exception.LocalTransportException;
-import org.apache.flink.runtime.io.network.netty.exception.RemoteTransportException;
+import org.apache.flink.runtime.io.network.NetworkClientHandler;
 import org.apache.flink.runtime.io.network.partition.consumer.RemoteInputChannel;
 
 import org.apache.flink.shaded.netty4.io.netty.channel.Channel;
-import org.apache.flink.shaded.netty4.io.netty.channel.ChannelFuture;
-import org.apache.flink.shaded.netty4.io.netty.channel.ChannelFutureListener;
 
 import java.io.IOException;
 import java.util.concurrent.ConcurrentHashMap;
@@ -66,9 +62,7 @@ class PartitionRequestClientFactory {
 				}
 				else {
 					ConnectingChannel future = (ConnectingChannel) entry;
-					client = future.waitForChannel();
-
-					clients.replace(connectionId, future, client);
+					client = getPartitionRequestClientForChannel(connectionId, future);
 				}
 			}
 			else {
@@ -76,20 +70,16 @@ class PartitionRequestClientFactory {
 				// We create a "connecting future" and atomically add it to the map.
 				// Only the thread that really added it establishes the channel.
 				// The others need to wait on that original establisher's future.
-				ConnectingChannel connectingChannel = new ConnectingChannel(connectionId, this);
+				ConnectingChannel connectingChannel = new ConnectingChannel(connectionId, null);
 				Object old = clients.putIfAbsent(connectionId, connectingChannel);
 
 				if (old == null) {
 					nettyClient.connect(connectionId.getAddress()).addListener(connectingChannel);
-
-					client = connectingChannel.waitForChannel();
-
-					clients.replace(connectionId, connectingChannel, client);
+					client = getPartitionRequestClientForChannel(connectionId, connectingChannel);
 				}
 				else if (old instanceof ConnectingChannel) {
-					client = ((ConnectingChannel) old).waitForChannel();
-
-					clients.replace(connectionId, old, client);
+					ConnectingChannel oldConnectingChannel = (ConnectingChannel) old;
+					client = getPartitionRequestClientForChannel(connectionId, oldConnectingChannel);
 				}
 				else {
 					client = (PartitionRequestClient) old;
@@ -107,16 +97,41 @@ class PartitionRequestClientFactory {
 		return client;
 	}
 
+	private PartitionRequestClient getPartitionRequestClientForChannel(
+			ConnectionID connectionId,
+			ConnectingChannel connectingChannel) throws IOException, InterruptedException {
+
+		Channel channel = connectingChannel.waitForChannel();
+		clients.replace(connectionId, connectingChannel, new PartitionRequestClient(channel,
+			channel.pipeline().get(NetworkClientHandler.class),
+			connectionId,
+			this));
+
+		Object client = clients.get(connectionId);
+		if (client instanceof PartitionRequestClient) {
+			return (PartitionRequestClient) client;
+		} else {
+			throw new IllegalStateException(
+				"Connecting channel was replaced with another instance of connecting channel, " +
+					"which should never happen");
+		}
+	}
+
 	public void closeOpenChannelConnections(ConnectionID connectionId) {
 		Object entry = clients.get(connectionId);
 
 		if (entry instanceof ConnectingChannel) {
 			ConnectingChannel channel = (ConnectingChannel) entry;
 
-			if (channel.dispose()) {
-				clients.remove(connectionId, channel);
-			}
+			clients.remove(connectionId, channel);
 		}
+	}
+
+	ConnectingChannel reconnect(Channel oldChannel, ConnectionID connectionID) {
+		NetworkClientHandler networkClientHandler = oldChannel.pipeline().get(NetworkClientHandler.class);
+		ConnectingChannel connectingChannel = new ConnectingChannel(connectionID, networkClientHandler);
+		nettyClient.connect(connectionID.getAddress()).addListener(connectingChannel);
+		return connectingChannel;
 	}
 
 	int getNumberOfActiveClients() {
@@ -130,99 +145,4 @@ class PartitionRequestClientFactory {
 		clients.remove(connectionId, client);
 	}
 
-	private static final class ConnectingChannel implements ChannelFutureListener {
-
-		private final Object connectLock = new Object();
-
-		private final ConnectionID connectionId;
-
-		private final PartitionRequestClientFactory clientFactory;
-
-		private boolean disposeRequestClient = false;
-
-		public ConnectingChannel(ConnectionID connectionId, PartitionRequestClientFactory clientFactory) {
-			this.connectionId = connectionId;
-			this.clientFactory = clientFactory;
-		}
-
-		private boolean dispose() {
-			boolean result;
-			synchronized (connectLock) {
-				if (partitionRequestClient != null) {
-					result = partitionRequestClient.disposeIfNotUsed();
-				}
-				else {
-					disposeRequestClient = true;
-					result = true;
-				}
-
-				connectLock.notifyAll();
-			}
-
-			return result;
-		}
-
-		private void handInChannel(Channel channel) {
-			synchronized (connectLock) {
-				try {
-					NetworkClientHandler clientHandler = channel.pipeline().get(NetworkClientHandler.class);
-					partitionRequestClient = new PartitionRequestClient(
-						channel, clientHandler, connectionId, clientFactory);
-
-					if (disposeRequestClient) {
-						partitionRequestClient.disposeIfNotUsed();
-					}
-
-					connectLock.notifyAll();
-				}
-				catch (Throwable t) {
-					notifyOfError(t);
-				}
-			}
-		}
-
-		private volatile PartitionRequestClient partitionRequestClient;
-
-		private volatile Throwable error;
-
-		private PartitionRequestClient waitForChannel() throws IOException, InterruptedException {
-			synchronized (connectLock) {
-				while (error == null && partitionRequestClient == null) {
-					connectLock.wait(2000);
-				}
-			}
-
-			if (error != null) {
-				throw new IOException("Connecting the channel failed: " + error.getMessage(), error);
-			}
-
-			return partitionRequestClient;
-		}
-
-		private void notifyOfError(Throwable error) {
-			synchronized (connectLock) {
-				this.error = error;
-				connectLock.notifyAll();
-			}
-		}
-
-		@Override
-		public void operationComplete(ChannelFuture future) throws Exception {
-			if (future.isSuccess()) {
-				handInChannel(future.channel());
-			}
-			else if (future.cause() != null) {
-				notifyOfError(new RemoteTransportException(
-						"Connecting to remote task manager + '" + connectionId.getAddress() +
-								"' has failed. This might indicate that the remote task " +
-								"manager has been lost.",
-						connectionId.getAddress(), future.cause()));
-			}
-			else {
-				notifyOfError(new LocalTransportException(
-						"Connecting to remote task manager + '" + connectionId.getAddress() +
-								"' has been cancelled.", null));
-			}
-		}
-	}
 }

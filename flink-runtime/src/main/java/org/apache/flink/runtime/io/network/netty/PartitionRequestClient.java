@@ -25,6 +25,7 @@ import org.apache.flink.runtime.io.network.netty.exception.LocalTransportExcepti
 import org.apache.flink.runtime.io.network.partition.ResultPartitionID;
 import org.apache.flink.runtime.io.network.partition.consumer.RemoteInputChannel;
 import org.apache.flink.runtime.util.AtomicDisposableReferenceCounter;
+import org.apache.flink.types.Either;
 
 import org.apache.flink.shaded.netty4.io.netty.channel.Channel;
 import org.apache.flink.shaded.netty4.io.netty.channel.ChannelFuture;
@@ -34,6 +35,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
+import java.nio.channels.ClosedChannelException;
 import java.util.concurrent.TimeUnit;
 
 import static org.apache.flink.runtime.io.network.netty.NettyMessage.PartitionRequest;
@@ -50,7 +52,7 @@ public class PartitionRequestClient {
 
 	private static final Logger LOG = LoggerFactory.getLogger(PartitionRequestClient.class);
 
-	private final Channel tcpChannel;
+	private Either<Channel, ConnectingChannel> tcpChannel;
 
 	private final NetworkClientHandler clientHandler;
 
@@ -67,7 +69,7 @@ public class PartitionRequestClient {
 			ConnectionID connectionId,
 			PartitionRequestClientFactory clientFactory) {
 
-		this.tcpChannel = checkNotNull(tcpChannel);
+		this.tcpChannel = Either.Left(checkNotNull(tcpChannel));
 		this.clientHandler = checkNotNull(clientHandler);
 		this.connectionId = checkNotNull(connectionId);
 		this.clientFactory = checkNotNull(clientFactory);
@@ -85,6 +87,18 @@ public class PartitionRequestClient {
 	 */
 	boolean incrementReferenceCounter() {
 		return closeReferenceCounter.increment();
+	}
+
+	private Channel getTcpChannel() throws IOException {
+		try {
+			if (tcpChannel.isLeft()) {
+				return tcpChannel.left();
+			} else {
+				return tcpChannel.right().waitForChannel();
+			}
+		} catch (InterruptedException e) {
+			throw new IOException(e);
+		}
 	}
 
 	/**
@@ -113,26 +127,41 @@ public class PartitionRequestClient {
 			@Override
 			public void operationComplete(ChannelFuture future) throws Exception {
 				if (!future.isSuccess()) {
-					clientHandler.removeInputChannel(inputChannel);
-					inputChannel.onError(
+
+					LOG.debug("Requesting subpartition {} of partition {} failed.",
+						subpartitionIndex, partitionId);
+
+					if (future.cause() instanceof ClosedChannelException) {
+						LOG.debug("Reconnecting subpartition {} of partition {} because of channel closed.",
+							subpartitionIndex,
+							partitionId);
+						ConnectingChannel connectingChannel = clientFactory.reconnect(future.channel(), connectionId);
+						tcpChannel = Either.Right(connectingChannel);
+						tcpChannel = Either.Left(connectingChannel.waitForChannel());
+						inputChannel.onFailedPartitionRequest();
+					} else {
+						clientHandler.removeInputChannel(inputChannel);
+						inputChannel.onError(
 							new LocalTransportException(
-									"Sending the partition request failed.",
-									future.channel().localAddress(), future.cause()
+								"Sending the partition request failed.",
+								future.channel().localAddress(), future.cause()
 							));
+					}
 				}
 			}
 		};
 
 		if (delayMs == 0) {
-			ChannelFuture f = tcpChannel.writeAndFlush(request);
+			ChannelFuture f = getTcpChannel().writeAndFlush(request);
 			f.addListener(listener);
 			return f;
 		} else {
 			final ChannelFuture[] f = new ChannelFuture[1];
-			tcpChannel.eventLoop().schedule(new Runnable() {
+			final Channel channel = getTcpChannel();
+			getTcpChannel().eventLoop().schedule(new Runnable() {
 				@Override
 				public void run() {
-					f[0] = tcpChannel.writeAndFlush(request);
+					f[0] = channel.writeAndFlush(request);
 					f[0].addListener(listener);
 				}
 			}, delayMs, TimeUnit.MILLISECONDS);
@@ -152,7 +181,7 @@ public class PartitionRequestClient {
 	public void sendTaskEvent(ResultPartitionID partitionId, TaskEvent event, final RemoteInputChannel inputChannel) throws IOException {
 		checkNotClosed();
 
-		tcpChannel.writeAndFlush(new TaskEventRequest(event, partitionId, inputChannel.getInputChannelId()))
+		getTcpChannel().writeAndFlush(new TaskEventRequest(event, partitionId, inputChannel.getInputChannelId()))
 				.addListener(
 						new ChannelFutureListener() {
 							@Override
@@ -181,7 +210,7 @@ public class PartitionRequestClient {
 		if (closeReferenceCounter.decrement()) {
 			// Close the TCP connection. Send a close request msg to ensure
 			// that outstanding backwards task events are not discarded.
-			tcpChannel.writeAndFlush(new NettyMessage.CloseRequest())
+			getTcpChannel().writeAndFlush(new NettyMessage.CloseRequest())
 					.addListener(ChannelFutureListener.CLOSE_ON_FAILURE);
 
 			// Make sure to remove the client from the factory
@@ -193,7 +222,7 @@ public class PartitionRequestClient {
 
 	private void checkNotClosed() throws IOException {
 		if (closeReferenceCounter.isDisposed()) {
-			throw new LocalTransportException("Channel closed.", tcpChannel.localAddress());
+			throw new LocalTransportException("Channel closed.", getTcpChannel().localAddress());
 		}
 	}
 }
