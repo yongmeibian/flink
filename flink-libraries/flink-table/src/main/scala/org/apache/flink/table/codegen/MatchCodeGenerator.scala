@@ -432,7 +432,7 @@ class MatchCodeGenerator(
             FlinkTypeFactory.toTypeInfo(operand.getType))
         }
 
-        generateCallExpression(rexCall.getOperator, operands, resultType)
+        generateCallExpression(rexCall, operands, resultType)
 
       case _ =>
         generateExpression(rexNode)
@@ -546,7 +546,7 @@ class MatchCodeGenerator(
             first)
         }
 
-        generateCallExpression(rexCall.getOperator, operands, resultType)
+        generateCallExpression(rexCall, operands, resultType)
 
       case _ =>
         generateExpression(rexNode)
@@ -580,7 +580,7 @@ class MatchCodeGenerator(
             running)
         }
 
-        generateCallExpression(rexCall.getOperator, operands, resultType)
+        generateCallExpression(rexCall, operands, resultType)
 
       case _ =>
         generateExpression(rexNode)

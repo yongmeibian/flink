@@ -25,8 +25,11 @@ import org.apache.calcite.plan.{RelOptCluster, RelTraitSet}
 import org.apache.calcite.rel.`type`.RelDataType
 import org.apache.calcite.rel._
 import org.apache.calcite.rex._
+import org.apache.calcite.sql.SqlKind
+import org.apache.calcite.sql.SqlMatchRecognize.AfterOption
 import org.apache.calcite.sql.`type`.SqlTypeName._
 import org.apache.calcite.sql.fun.SqlStdOperatorTable._
+import org.apache.flink.cep.nfa.aftermatch.AfterMatchSkipStrategy
 import org.apache.flink.cep.{CEP, PatternStream}
 import org.apache.flink.cep.pattern.Pattern
 import org.apache.flink.streaming.api.datastream.DataStream
@@ -316,7 +319,20 @@ class DataStreamMatch(
 
   private def next(currentPattern: Pattern[Row, Row], patternName: String): Pattern[Row, Row] = {
     if (currentPattern == null) {
-      Pattern.begin(patternName)
+      val skipStrategy = after.getKind match {
+        case SqlKind.LITERAL =>
+          after.asInstanceOf[RexLiteral].getValueAs(classOf[AfterOption]) match {
+            case AfterOption.SKIP_PAST_LAST_ROW => AfterMatchSkipStrategy.skipPastLastEvent()
+            case AfterOption.SKIP_TO_NEXT_ROW => AfterMatchSkipStrategy.noSkip()
+          }
+        case SqlKind.SKIP_TO_FIRST =>
+          val targetPattern = after.asInstanceOf[RexCall].getOperands.get(0).asInstanceOf[RexLiteral].getValueAs(classOf[String])
+          AfterMatchSkipStrategy.skipToFirst(targetPattern)
+        case SqlKind.SKIP_TO_LAST =>
+          val targetPattern = after.asInstanceOf[RexCall].getOperands.get(0).asInstanceOf[RexLiteral].getValueAs(classOf[String])
+          AfterMatchSkipStrategy.skipToLast(targetPattern)
+      }
+      Pattern.begin(patternName, skipStrategy)
     } else {
       currentPattern.next(patternName)
     }
