@@ -20,6 +20,7 @@ package org.apache.flink.cep.nfa;
 
 import org.apache.flink.cep.Event;
 import org.apache.flink.cep.SubEvent;
+import org.apache.flink.cep.nfa.sharedbuffer.SharedBuffer;
 import org.apache.flink.cep.pattern.Pattern;
 import org.apache.flink.cep.pattern.conditions.IterativeCondition;
 import org.apache.flink.cep.pattern.conditions.SimpleCondition;
@@ -100,18 +101,19 @@ public class NFAStateAccessTest {
 
 		NFA<Event> nfa = compile(pattern, false);
 
-		TestSharedBuffer<Event> sharedBuffer = TestSharedBuffer.createTestBuffer(Event.createTypeSerializer());
-		for (StreamRecord<Event> inputEvent : inputEvents) {
-			nfa.process(
-				sharedBuffer,
-				nfa.createInitialNFAState(),
-				inputEvent.getValue(),
-				inputEvent.getTimestamp());
+		TestSharedBuffer<Event> sharedBufferAccessor = TestSharedBuffer.createTestBuffer(Event.createTypeSerializer());
+		try (org.apache.flink.cep.nfa.sharedbuffer.SharedBuffer<Event> sharedBuffer = new SharedBuffer<>(sharedBufferAccessor)) {
+			for (StreamRecord<Event> inputEvent : inputEvents) {
+					nfa.process(
+					sharedBuffer,
+					nfa.createInitialNFAState(),
+					inputEvent.getValue(),
+					inputEvent.getTimestamp());
+			}
 		}
-
-		assertEquals(2, sharedBuffer.getStateReads());
-		assertEquals(3, sharedBuffer.getStateWrites());
-		assertEquals(5, sharedBuffer.getStateAccesses());
+		assertEquals(2, sharedBufferAccessor.getStateReads());
+		assertEquals(3, sharedBufferAccessor.getStateWrites());
+		assertEquals(5, sharedBufferAccessor.getStateAccesses());
 	}
 
 	@Test
@@ -181,17 +183,19 @@ public class NFAStateAccessTest {
 
 		NFA<Event> nfa = compile(pattern, false);
 
-		TestSharedBuffer<Event> sharedBuffer = TestSharedBuffer.createTestBuffer(Event.createTypeSerializer());
-		for (StreamRecord<Event> inputEvent : inputEvents) {
-			nfa.process(
+		TestSharedBuffer<Event> sharedBufferAccessor = TestSharedBuffer.createTestBuffer(Event.createTypeSerializer());
+		try (org.apache.flink.cep.nfa.sharedbuffer.SharedBuffer<Event> sharedBuffer = new SharedBuffer<>(sharedBufferAccessor)) {
+			for (StreamRecord<Event> inputEvent : inputEvents) {
+				nfa.process(
 				sharedBuffer,
 				nfa.createInitialNFAState(),
 				inputEvent.getValue(),
 				inputEvent.getTimestamp());
+			}
 		}
 
-		assertEquals(8, sharedBuffer.getStateReads());
-		assertEquals(12, sharedBuffer.getStateWrites());
-		assertEquals(20, sharedBuffer.getStateAccesses());
+		assertEquals(8, sharedBufferAccessor.getStateReads());
+		assertEquals(6, sharedBufferAccessor.getStateWrites());
+		assertEquals(14, sharedBufferAccessor.getStateAccesses());
 	}
 }

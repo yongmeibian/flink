@@ -20,6 +20,7 @@ package org.apache.flink.cep.nfa;
 
 import org.apache.flink.cep.Event;
 import org.apache.flink.cep.nfa.sharedbuffer.SharedBuffer;
+import org.apache.flink.cep.nfa.sharedbuffer.SharedBufferAccessor;
 import org.apache.flink.cep.pattern.Pattern;
 import org.apache.flink.cep.pattern.conditions.BooleanConditions;
 import org.apache.flink.cep.pattern.conditions.IterativeCondition;
@@ -183,16 +184,18 @@ public class NFATest extends TestLogger {
 		NFA<Event> nfa, NFAState nfaState, List<StreamRecord<Event>> inputs) throws Exception {
 		Set<Map<String, List<Event>>> actualPatterns = new HashSet<>();
 
-		SharedBuffer<Event> sharedBuffer = TestSharedBuffer.createTestBuffer(Event.createTypeSerializer());
-		for (StreamRecord<Event> streamEvent : inputs) {
-			nfa.advanceTime(sharedBuffer, nfaState, streamEvent.getTimestamp());
-			Collection<Map<String, List<Event>>> matchedPatterns = nfa.process(
-				sharedBuffer,
-				nfaState,
-				streamEvent.getValue(),
-				streamEvent.getTimestamp());
+		SharedBufferAccessor<Event> sharedBufferAccessor = TestSharedBuffer.createTestBuffer(Event.createTypeSerializer());
+		try (SharedBuffer<Event> sharedBuffer = new SharedBuffer<>(sharedBufferAccessor)) {
+			for (StreamRecord<Event> streamEvent : inputs) {
+				nfa.advanceTime(sharedBuffer, nfaState, streamEvent.getTimestamp());
+				Collection<Map<String, List<Event>>> matchedPatterns = nfa.process(
+					sharedBuffer,
+					nfaState,
+					streamEvent.getValue(),
+					streamEvent.getTimestamp());
 
-			actualPatterns.addAll(matchedPatterns);
+				actualPatterns.addAll(matchedPatterns);
+			}
 		}
 
 		return actualPatterns;
@@ -286,8 +289,9 @@ public class NFATest extends TestLogger {
 		patterns.add(pattern2);
 		patterns.add(pattern3);
 
-		SharedBuffer<Event> sharedBuffer = TestSharedBuffer.createTestBuffer(Event.createTypeSerializer());
-		for (Pattern<Event, ?> p : patterns) {
+		SharedBufferAccessor<Event> sharedBufferAccessor = TestSharedBuffer.createTestBuffer(Event.createTypeSerializer());
+		try (SharedBuffer<Event> sharedBuffer = new SharedBuffer<>(sharedBufferAccessor)) {
+			for (Pattern<Event, ?> p : patterns) {
 			NFA<Event> nfa = compile(p, false);
 
 			Event a = new Event(40, "a", 1.0);
@@ -329,7 +333,7 @@ public class NFATest extends TestLogger {
 			bais.close();
 
 			assertEquals(nfaState, copy);
-		}
+		}}
 	}
 
 	private NFA<Event> createStartEndNFA() {

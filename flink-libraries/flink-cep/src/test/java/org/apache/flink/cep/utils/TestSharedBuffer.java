@@ -33,6 +33,7 @@ import org.apache.flink.api.common.state.ValueState;
 import org.apache.flink.api.common.state.ValueStateDescriptor;
 import org.apache.flink.api.common.typeutils.TypeSerializer;
 import org.apache.flink.cep.nfa.sharedbuffer.SharedBuffer;
+import org.apache.flink.cep.nfa.sharedbuffer.SharedBufferAccessor;
 
 import org.apache.flink.shaded.guava18.com.google.common.collect.Iterators;
 
@@ -46,7 +47,7 @@ import java.util.Map;
  * Extends {@link SharedBuffer} with methods for checking the number of state accesses. It does not use a proper
  * StateBackend, but uses stubs over java collections.
  */
-public class TestSharedBuffer<V> extends SharedBuffer<V> {
+public class TestSharedBuffer<V> extends SharedBufferAccessor<V> {
 
 	private final MockKeyedStateStore keyedStateStore;
 

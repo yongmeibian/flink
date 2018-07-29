@@ -36,6 +36,7 @@ import org.apache.flink.cep.nfa.NFAStateSerializer;
 import org.apache.flink.cep.nfa.aftermatch.AfterMatchSkipStrategy;
 import org.apache.flink.cep.nfa.compiler.NFACompiler;
 import org.apache.flink.cep.nfa.sharedbuffer.SharedBuffer;
+import org.apache.flink.cep.nfa.sharedbuffer.SharedBufferAccessor;
 import org.apache.flink.runtime.state.KeyedStateFunction;
 import org.apache.flink.runtime.state.StateInitializationContext;
 import org.apache.flink.runtime.state.VoidNamespace;
@@ -87,7 +88,7 @@ public abstract class AbstractKeyedCEPPatternOperator<IN, KEY, OUT, F extends Fu
 
 	private transient ValueState<NFAState> computationStates;
 	private transient MapState<Long, List<IN>> elementQueueState;
-	private transient SharedBuffer<IN> partialMatches;
+	private transient SharedBufferAccessor<IN> partialMatches;
 
 	private transient InternalTimerService<VoidNamespace> timerService;
 
@@ -142,7 +143,7 @@ public abstract class AbstractKeyedCEPPatternOperator<IN, KEY, OUT, F extends Fu
 						NFA_STATE_NAME,
 						NFAStateSerializer.INSTANCE));
 
-		partialMatches = new SharedBuffer<>(context.getKeyedStateStore(), inputSerializer);
+		partialMatches = new SharedBufferAccessor<>(context.getKeyedStateStore(), inputSerializer);
 
 		elementQueueState = context.getKeyedStateStore().getMapState(
 				new MapStateDescriptor<>(
@@ -194,7 +195,9 @@ public abstract class AbstractKeyedCEPPatternOperator<IN, KEY, OUT, F extends Fu
 				NFAState nfaState = getNFAState();
 				long timestamp = getProcessingTimeService().getCurrentProcessingTime();
 				advanceTime(nfaState, timestamp);
-				processEvent(nfaState, element.getValue(), timestamp);
+				try (SharedBuffer<IN> sharedBuffer = new SharedBuffer<>(partialMatches)) {
+					processEvent(nfaState, element.getValue(), timestamp, sharedBuffer);
+				}
 				updateNFA(nfaState);
 			} else {
 				long currentTime = timerService.currentProcessingTime();
@@ -275,11 +278,14 @@ public abstract class AbstractKeyedCEPPatternOperator<IN, KEY, OUT, F extends Fu
 		while (!sortedTimestamps.isEmpty() && sortedTimestamps.peek() <= timerService.currentWatermark()) {
 			long timestamp = sortedTimestamps.poll();
 			advanceTime(nfaState, timestamp);
-			try (Stream<IN> elements = sort(elementQueueState.get(timestamp))) {
+			try (
+				Stream<IN> elements = sort(elementQueueState.get(timestamp));
+				SharedBuffer<IN> sharedBuffer = new SharedBuffer<>(partialMatches)
+			) {
 				elements.forEachOrdered(
 					event -> {
 						try {
-							processEvent(nfaState, event, timestamp);
+							processEvent(nfaState, event, timestamp, sharedBuffer);
 						} catch (Exception e) {
 							throw new RuntimeException(e);
 						}
@@ -295,8 +301,10 @@ public abstract class AbstractKeyedCEPPatternOperator<IN, KEY, OUT, F extends Fu
 		// STEP 4
 		updateNFA(nfaState);
 
-		if (!sortedTimestamps.isEmpty() || !partialMatches.isEmpty()) {
-			saveRegisterWatermarkTimer();
+		try (SharedBuffer<IN> sharedBuffer = new SharedBuffer<>(partialMatches)) {
+			if (!sortedTimestamps.isEmpty() || !sharedBuffer.isEmpty()) {
+				saveRegisterWatermarkTimer();
+			}
 		}
 
 		// STEP 5
@@ -319,11 +327,14 @@ public abstract class AbstractKeyedCEPPatternOperator<IN, KEY, OUT, F extends Fu
 		while (!sortedTimestamps.isEmpty()) {
 			long timestamp = sortedTimestamps.poll();
 			advanceTime(nfa, timestamp);
-			try (Stream<IN> elements = sort(elementQueueState.get(timestamp))) {
+			try (
+				Stream<IN> elements = sort(elementQueueState.get(timestamp));
+				SharedBuffer<IN> sharedBuffer = new SharedBuffer<>(partialMatches)
+				) {
 				elements.forEachOrdered(
 					event -> {
 						try {
-							processEvent(nfa, event, timestamp);
+							processEvent(nfa, event, timestamp, sharedBuffer);
 						} catch (Exception e) {
 							throw new RuntimeException(e);
 						}
@@ -373,10 +384,11 @@ public abstract class AbstractKeyedCEPPatternOperator<IN, KEY, OUT, F extends Fu
 	 * @param nfaState Our NFAState object
 	 * @param event The current event to be processed
 	 * @param timestamp The timestamp of the event
+	 * @param sharedBuffer The sharedBuffer of the process
 	 */
-	private void processEvent(NFAState nfaState, IN event, long timestamp) throws Exception {
+	private void processEvent(NFAState nfaState, IN event, long timestamp, SharedBuffer<IN> sharedBuffer) throws Exception {
 		Collection<Map<String, List<IN>>> patterns =
-				nfa.process(partialMatches, nfaState, event, timestamp, afterMatchSkipStrategy);
+			nfa.process(sharedBuffer, nfaState, event, timestamp, afterMatchSkipStrategy);
 		processMatchedSequences(patterns, timestamp);
 	}
 
@@ -385,9 +397,11 @@ public abstract class AbstractKeyedCEPPatternOperator<IN, KEY, OUT, F extends Fu
 	 * <b>lower</b> than the given timestamp should be passed to the nfa, This can lead to pruning and timeouts.
 	 */
 	private void advanceTime(NFAState nfaState, long timestamp) throws Exception {
-		Collection<Tuple2<Map<String, List<IN>>, Long>> timedOut =
-			nfa.advanceTime(partialMatches, nfaState, timestamp);
-		processTimedOutSequences(timedOut, timestamp);
+		try (SharedBuffer<IN> sharedBuffer = new SharedBuffer<IN>(partialMatches)) {
+			Collection<Tuple2<Map<String, List<IN>>, Long>> timedOut =
+				nfa.advanceTime(sharedBuffer, nfaState, timestamp);
+			processTimedOutSequences(timedOut, timestamp);
+		}
 	}
 
 	protected abstract void processMatchedSequences(Iterable<Map<String, List<IN>>> matchingSequences, long timestamp) throws Exception;
@@ -402,7 +416,9 @@ public abstract class AbstractKeyedCEPPatternOperator<IN, KEY, OUT, F extends Fu
 	@VisibleForTesting
 	public boolean hasNonEmptySharedBuffer(KEY key) throws Exception {
 		setCurrentKey(key);
-		return !partialMatches.isEmpty();
+		try (SharedBuffer<IN> sharedBuffer = new SharedBuffer<>(partialMatches)) {
+			return !sharedBuffer.isEmpty();
+		}
 	}
 
 	@VisibleForTesting

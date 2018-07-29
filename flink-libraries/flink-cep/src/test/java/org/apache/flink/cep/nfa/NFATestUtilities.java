@@ -21,6 +21,7 @@ package org.apache.flink.cep.nfa;
 import org.apache.flink.cep.Event;
 import org.apache.flink.cep.nfa.aftermatch.AfterMatchSkipStrategy;
 import org.apache.flink.cep.nfa.sharedbuffer.SharedBuffer;
+import org.apache.flink.cep.nfa.sharedbuffer.SharedBufferAccessor;
 import org.apache.flink.cep.utils.TestSharedBuffer;
 import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
 
@@ -65,22 +66,24 @@ public class NFATestUtilities {
 			AfterMatchSkipStrategy afterMatchSkipStrategy) throws Exception {
 		List<List<Event>> resultingPatterns = new ArrayList<>();
 
-		SharedBuffer<Event> sharedBuffer = TestSharedBuffer.createTestBuffer(Event.createTypeSerializer());
-		for (StreamRecord<Event> inputEvent : inputEvents) {
-			nfa.advanceTime(sharedBuffer, nfaState, inputEvent.getTimestamp());
-			Collection<Map<String, List<Event>>> patterns = nfa.process(
-				sharedBuffer,
-				nfaState,
-				inputEvent.getValue(),
-				inputEvent.getTimestamp(),
-				afterMatchSkipStrategy);
+		SharedBufferAccessor<Event> sharedBufferAccessor = TestSharedBuffer.createTestBuffer(Event.createTypeSerializer());
+		try (SharedBuffer<Event> sharedBuffer = new SharedBuffer<>(sharedBufferAccessor)) {
+			for (StreamRecord<Event> inputEvent : inputEvents) {
+				nfa.advanceTime(sharedBuffer, nfaState, inputEvent.getTimestamp());
+				Collection<Map<String, List<Event>>> patterns = nfa.process(
+					sharedBuffer,
+					nfaState,
+					inputEvent.getValue(),
+					inputEvent.getTimestamp(),
+					afterMatchSkipStrategy);
 
-			for (Map<String, List<Event>> p: patterns) {
-				List<Event> res = new ArrayList<>();
-				for (List<Event> le: p.values()) {
-					res.addAll(le);
+				for (Map<String, List<Event>> p: patterns) {
+					List<Event> res = new ArrayList<>();
+					for (List<Event> le: p.values()) {
+						res.addAll(le);
+					}
+					resultingPatterns.add(res);
 				}
-				resultingPatterns.add(res);
 			}
 		}
 		return resultingPatterns;
