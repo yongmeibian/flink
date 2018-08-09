@@ -33,6 +33,7 @@ import org.apache.flink.cep.nfa.compiler.NFACompiler;
 import org.apache.flink.cep.nfa.sharedbuffer.EventId;
 import org.apache.flink.cep.nfa.sharedbuffer.NodeId;
 import org.apache.flink.cep.nfa.sharedbuffer.SharedBuffer;
+import org.apache.flink.cep.nfa.sharedbuffer.SharedBufferAccessor;
 import org.apache.flink.cep.operator.AbstractKeyedCEPPatternOperator;
 import org.apache.flink.cep.pattern.conditions.IterativeCondition;
 import org.apache.flink.core.memory.DataInputView;
@@ -217,8 +218,9 @@ public class NFA<T> {
 			final long timestamp,
 			final AfterMatchSkipStrategy afterMatchSkipStrategy) throws Exception {
 		Collection<Map<String, List<T>>> result;
-		try (EventWrapper eventWrapper = new EventWrapper(event, timestamp, sharedBuffer)) {
-			result = doProcess(sharedBuffer, nfaState, eventWrapper, afterMatchSkipStrategy);
+		try (SharedBufferAccessor<T> sharedBufferAccessor = sharedBuffer.getAccessor();
+			EventWrapper eventWrapper = new EventWrapper(event, timestamp, sharedBufferAccessor)) {
+			result = doProcess(sharedBufferAccessor, nfaState, eventWrapper, afterMatchSkipStrategy);
 		}
 		return result;
 	}
@@ -238,33 +240,38 @@ public class NFA<T> {
 			final NFAState nfaState,
 			final long timestamp) throws Exception {
 
-		final Collection<Tuple2<Map<String, List<T>>, Long>> timeoutResult = new ArrayList<>();
-		final PriorityQueue<ComputationState> newPartialMatches = new PriorityQueue<>(NFAState.COMPUTATION_STATE_COMPARATOR);
+		try (SharedBufferAccessor<T> sharedBufferAccessor = sharedBuffer.getAccessor()) {
 
-		Map<EventId, T> eventsCache = new HashMap<>();
-		for (ComputationState computationState : nfaState.getPartialMatches()) {
-			if (isStateTimedOut(computationState, timestamp)) {
+			final Collection<Tuple2<Map<String, List<T>>, Long>> timeoutResult = new ArrayList<>();
+			final PriorityQueue<ComputationState> newPartialMatches = new PriorityQueue<>(NFAState.COMPUTATION_STATE_COMPARATOR);
 
-				if (handleTimeout) {
-					// extract the timed out event pattern
-					Map<String, List<T>> timedOutPattern = sharedBuffer.materializeMatch(extractCurrentMatches(
-						sharedBuffer,
-						computationState), eventsCache);
-					timeoutResult.add(Tuple2.of(timedOutPattern, timestamp));
+			Map<EventId, T> eventsCache = new HashMap<>();
+			for (ComputationState computationState : nfaState.getPartialMatches()) {
+				if (isStateTimedOut(computationState, timestamp)) {
+
+					if (handleTimeout) {
+						// extract the timed out event pattern
+						Map<String, List<T>> timedOutPattern = sharedBufferAccessor.materializeMatch(
+							extractCurrentMatches(
+								sharedBufferAccessor,
+								computationState),
+							eventsCache);
+						timeoutResult.add(Tuple2.of(timedOutPattern, timestamp));
+					}
+
+					sharedBufferAccessor.releaseNode(computationState.getPreviousBufferEntry());
+
+					nfaState.setStateChanged();
+				} else {
+					newPartialMatches.add(computationState);
 				}
-
-				sharedBuffer.releaseNode(computationState.getPreviousBufferEntry());
-
-				nfaState.setStateChanged();
-			} else {
-				newPartialMatches.add(computationState);
 			}
+
+			nfaState.setNewPartialMatches(newPartialMatches);
+
+			sharedBufferAccessor.advanceTime(timestamp);
+			return timeoutResult;
 		}
-
-		nfaState.setNewPartialMatches(newPartialMatches);
-
-		sharedBuffer.advanceTime(timestamp);
-		return timeoutResult;
 	}
 
 	private boolean isStateTimedOut(final ComputationState state, final long timestamp) {
@@ -272,7 +279,7 @@ public class NFA<T> {
 	}
 
 	private Collection<Map<String, List<T>>> doProcess(
-			final SharedBuffer<T> sharedBuffer,
+			final SharedBufferAccessor<T> sharedBuffer,
 			final NFAState nfaState,
 			final EventWrapper event,
 			final AfterMatchSkipStrategy afterMatchSkipStrategy) throws Exception {
@@ -357,7 +364,7 @@ public class NFA<T> {
 	}
 
 	private void processMatchesAccordingToSkipStrategy(
-			SharedBuffer<T> sharedBuffer,
+			SharedBufferAccessor<T> sharedBuffer,
 			NFAState nfaState,
 			AfterMatchSkipStrategy afterMatchSkipStrategy,
 			PriorityQueue<ComputationState> potentialMatches,
@@ -463,11 +470,11 @@ public class NFA<T> {
 
 		private long timestamp;
 
-		private final SharedBuffer<T> sharedBuffer;
+		private final SharedBufferAccessor<T> sharedBuffer;
 
 		private EventId eventId;
 
-		EventWrapper(T event, long timestamp, SharedBuffer<T> sharedBuffer) {
+		EventWrapper(T event, long timestamp, SharedBufferAccessor<T> sharedBuffer) {
 			this.event = event;
 			this.timestamp = timestamp;
 			this.sharedBuffer = sharedBuffer;
@@ -532,7 +539,7 @@ public class NFA<T> {
 	 * @throws Exception Thrown if the system cannot access the state.
 	 */
 	private Collection<ComputationState> computeNextStates(
-			final SharedBuffer<T> sharedBuffer,
+			final SharedBufferAccessor<T> sharedBuffer,
 			final ComputationState computationState,
 			final EventWrapper event,
 			final long timestamp) throws Exception {
@@ -651,7 +658,7 @@ public class NFA<T> {
 	}
 
 	private void addComputationState(
-			SharedBuffer<T> sharedBuffer,
+			SharedBufferAccessor<T> sharedBuffer,
 			List<ComputationState> computationStates,
 			State<T> currentState,
 			NodeId previousEntry,
@@ -754,7 +761,7 @@ public class NFA<T> {
 	 * @throws Exception Thrown if the system cannot access the state.
 	 */
 	private Map<String, List<EventId>> extractCurrentMatches(
-			final SharedBuffer<T> sharedBuffer,
+			final SharedBufferAccessor<T> sharedBuffer,
 			final ComputationState computationState) throws Exception {
 		if (computationState.getPreviousBufferEntry() == null) {
 			return new HashMap<>();
@@ -790,11 +797,11 @@ public class NFA<T> {
 
 		private NFA<T> nfa;
 
-		private SharedBuffer<T> sharedBuffer;
+		private SharedBufferAccessor<T> sharedBuffer;
 
 		ConditionContext(
 				final NFA<T> nfa,
-				final SharedBuffer<T> sharedBuffer,
+				final SharedBufferAccessor<T> sharedBuffer,
 				final ComputationState computationState) {
 			this.computationState = computationState;
 			this.nfa = nfa;

@@ -18,13 +18,6 @@
 
 package org.apache.flink.cep.nfa.sharedbuffer;
 
-import org.apache.flink.annotation.VisibleForTesting;
-import org.apache.flink.api.common.state.KeyedStateStore;
-import org.apache.flink.api.common.state.MapState;
-import org.apache.flink.api.common.state.MapStateDescriptor;
-import org.apache.flink.api.common.typeutils.TypeSerializer;
-import org.apache.flink.api.common.typeutils.base.IntSerializer;
-import org.apache.flink.api.common.typeutils.base.LongSerializer;
 import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.cep.nfa.DeweyNumber;
 import org.apache.flink.util.WrappingRuntimeException;
@@ -35,12 +28,10 @@ import javax.annotation.Nullable;
 
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Stack;
-import java.util.stream.Collectors;
 
 import static org.apache.flink.cep.nfa.compiler.NFAStateNameHandler.getOriginalNameFromInternal;
 import static org.apache.flink.util.Preconditions.checkState;
@@ -62,43 +53,12 @@ import static org.apache.flink.util.Preconditions.checkState;
  * @see <a href="https://people.cs.umass.edu/~yanlei/publications/sase-sigmod08.pdf">
  * https://people.cs.umass.edu/~yanlei/publications/sase-sigmod08.pdf</a>
  */
-public class SharedBufferAccessor<V> {
-
-	private static final String entriesStateName = "sharedBuffer-entries";
-	private static final String eventsStateName = "sharedBuffer-events";
-	private static final String eventsCountStateName = "sharedBuffer-events-count";
-
-	/** The buffer holding the unique events seen so far. */
-	private MapState<EventId, Lockable<V>> eventsBuffer;
-
-	/** The number of events seen so far in the stream per timestamp. */
-	private MapState<Long, Integer> eventsCount;
-	private MapState<NodeId, Lockable<SharedBufferNode>> entries;
+public class SharedBufferAccessor<V> implements AutoCloseable {
 
 	/** The cache of sharedBuffer.*/
 	private SharedBuffer<V> sharedBuffer;
 
-	public SharedBufferAccessor(KeyedStateStore stateStore, TypeSerializer<V> valueSerializer) {
-		this.eventsBuffer = stateStore.getMapState(
-			new MapStateDescriptor<>(
-				eventsStateName,
-				EventId.EventIdSerializer.INSTANCE,
-				new Lockable.LockableTypeSerializer<>(valueSerializer)));
-
-		this.entries = stateStore.getMapState(
-			new MapStateDescriptor<>(
-				entriesStateName,
-				NodeId.NodeIdSerializer.INSTANCE,
-				new Lockable.LockableTypeSerializer<>(new SharedBufferNode.SharedBufferNodeSerializer())));
-
-		this.eventsCount = stateStore.getMapState(
-			new MapStateDescriptor<>(
-				eventsCountStateName,
-				LongSerializer.INSTANCE,
-				IntSerializer.INSTANCE));
-	}
-
-	public void setSharedBuffer(SharedBuffer<V> sharedBuffer) {
+	public SharedBufferAccessor(SharedBuffer<V> sharedBuffer) {
 		this.sharedBuffer = sharedBuffer;
 	}
 
@@ -109,14 +69,8 @@ public class SharedBufferAccessor<V> {
 	 * @param timestamp watermark, no earlier events will arrive
 	 * @throws Exception Thrown if the system cannot access the state.
 	 */
-	protected void advanceTime(long timestamp) throws Exception {
-		Iterator<Long> iterator = eventsCount.keys().iterator();
-		while (iterator.hasNext()) {
-			Long next = iterator.next();
-			if (next < timestamp) {
-				iterator.remove();
-			}
-		}
+	public void advanceTime(long timestamp) throws Exception {
+		sharedBuffer.advanceTime(timestamp);
 	}
 
 	/**
@@ -130,40 +84,8 @@ public class SharedBufferAccessor<V> {
 	 * @return unique id of that event that should be used when putting entries to the buffer.
 	 * @throws Exception Thrown if the system cannot access the state.
 	 */
-	protected EventId registerEvent(V value, long timestamp) throws Exception {
-		Integer id = eventsCount.get(timestamp);
-		if (id == null) {
-			id = 0;
-		}
-
-		EventId eventId = new EventId(id, timestamp);
-		sharedBuffer.cacheEvent(eventId, new Lockable<>(value, 1));
-		eventsCount.put(timestamp, id + 1);
-		return eventId;
-	}
-
-	/**
-	 * Initializes underlying state with given map of events and entries. Should be used only in case of migration from
-	 * old state.
-	 *
-	 * @param events  map of events with assigned unique ids
-	 * @param entries map of SharedBufferNodes
-	 * @throws Exception Thrown if the system cannot access the state.
-	 * @deprecated Only for state migration!
-	 */
-	@Deprecated
-	public void init(
-		Map<EventId, Lockable<V>> events,
-		Map<NodeId, Lockable<SharedBufferNode>> entries) throws Exception {
-		eventsBuffer.putAll(events);
-		this.entries.putAll(entries);
-
-		Map<Long, Integer> maxIds = events.keySet().stream().collect(Collectors.toMap(
-			EventId::getTimestamp,
-			EventId::getId,
-			Math::max
-		));
-		eventsCount.putAll(maxIds);
+	public EventId registerEvent(V value, long timestamp) throws Exception {
+		return sharedBuffer.registerEvent(value, timestamp);
 	}
 
 	/**
@@ -286,7 +208,7 @@ public class SharedBufferAccessor<V> {
 		return materializeMatch(match, new HashMap<>());
 	}
 
-	protected Map<String, List<V>> materializeMatch(Map<String, List<EventId>> match, Map<EventId, V> cache) {
+	public Map<String, List<V>> materializeMatch(Map<String, List<EventId>> match, Map<EventId, V> cache) {
 
 		Map<String, List<V>> materializedMatch = new LinkedHashMap<>(match.size());
 
@@ -315,7 +237,7 @@ public class SharedBufferAccessor<V> {
 	 * @param node id of the entry
 	 * @throws Exception Thrown if the system cannot access the state.
 	 */
-	protected void lockNode(final NodeId node) throws Exception {
+	public void lockNode(final NodeId node) throws Exception {
 		Lockable<SharedBufferNode> sharedBufferNode = sharedBuffer.getEntry(node);
 		if (sharedBufferNode != null) {
 			sharedBufferNode.lock();
@@ -330,7 +252,7 @@ public class SharedBufferAccessor<V> {
 	 * @param node id of the entry
 	 * @throws Exception Thrown if the system cannot access the state.
 	 */
-	protected void releaseNode(final NodeId node) throws Exception {
+	public void releaseNode(final NodeId node) throws Exception {
 		Lockable<SharedBufferNode> sharedBufferNode = sharedBuffer.getEntry(node);
 		if (sharedBufferNode != null) {
 			if (sharedBufferNode.release()) {
@@ -349,8 +271,7 @@ public class SharedBufferAccessor<V> {
 	 * @throws Exception
 	 */
 	private void removeNode(NodeId node, SharedBufferNode sharedBufferNode) throws Exception {
-		entries.remove(node);
-		sharedBuffer.getEntryCache().remove(node);
+		sharedBuffer.removeEntry(node);
 		EventId eventId = node.getEventId();
 		releaseEvent(eventId);
 
@@ -382,32 +303,20 @@ public class SharedBufferAccessor<V> {
 	 * @param eventId id of the event
 	 * @throws Exception Thrown if the system cannot access the state.
 	 */
-	protected void releaseEvent(EventId eventId) throws Exception {
+	public void releaseEvent(EventId eventId) throws Exception {
 		Lockable<V> eventWrapper = sharedBuffer.getEvent(eventId);
 		if (eventWrapper != null) {
 			if (eventWrapper.release()) {
-				eventsBuffer.remove(eventId);
-				sharedBuffer.getEventsBufferCache().remove(eventId);
+				sharedBuffer.removeEvent(eventId);
 			} else {
 				sharedBuffer.cacheEvent(eventId, eventWrapper);
 			}
 		}
 	}
 
-	/**
-	 * Get the underlay state of the events store.
-	 * @return The {@code MapState} of the eventsBuffer.
-	 */
-	protected MapState<EventId, Lockable<V>> getEventsBuffer(){
-		return eventsBuffer;
-	}
-
-	/**
-	 * Get the underlay state of the sharedBufferNode store.
-	 * @return The {@code MapState} of the {@code sharedBufferNode}.
-	 */
-	protected MapState<NodeId, Lockable<SharedBufferNode>> getEntries(){
-		return entries;
+	@Override
+	public void close() throws Exception {
+		sharedBuffer.flushCache();
 	}
 
 	/**
@@ -448,8 +357,4 @@ public class SharedBufferAccessor<V> {
 		}
 	}
 
-	@VisibleForTesting
-	Iterator<Map.Entry<Long, Integer>> getEventCounters() throws Exception {
-		return eventsCount.iterator();
-	}
 }

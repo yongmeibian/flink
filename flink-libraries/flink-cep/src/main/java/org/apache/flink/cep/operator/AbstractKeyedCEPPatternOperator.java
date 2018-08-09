@@ -88,7 +88,7 @@ public abstract class AbstractKeyedCEPPatternOperator<IN, KEY, OUT, F extends Fu
 
 	private transient ValueState<NFAState> computationStates;
 	private transient MapState<Long, List<IN>> elementQueueState;
-	private transient SharedBufferAccessor<IN> partialMatches;
+	private transient SharedBuffer<IN> partialMatches;
 
 	private transient InternalTimerService<VoidNamespace> timerService;
 
@@ -143,7 +143,7 @@ public abstract class AbstractKeyedCEPPatternOperator<IN, KEY, OUT, F extends Fu
 						NFA_STATE_NAME,
 						NFAStateSerializer.INSTANCE));
 
-		partialMatches = new SharedBufferAccessor<>(context.getKeyedStateStore(), inputSerializer);
+		partialMatches = new SharedBuffer<>(context.getKeyedStateStore(), inputSerializer);
 
 		elementQueueState = context.getKeyedStateStore().getMapState(
 				new MapStateDescriptor<>(
@@ -195,9 +195,7 @@ public abstract class AbstractKeyedCEPPatternOperator<IN, KEY, OUT, F extends Fu
 				NFAState nfaState = getNFAState();
 				long timestamp = getProcessingTimeService().getCurrentProcessingTime();
 				advanceTime(nfaState, timestamp);
-				try (SharedBuffer<IN> sharedBuffer = new SharedBuffer<>(partialMatches)) {
-					processEvent(nfaState, element.getValue(), timestamp, sharedBuffer);
-				}
+				processEvent(nfaState, element.getValue(), timestamp, partialMatches);
 				updateNFA(nfaState);
 			} else {
 				long currentTime = timerService.currentProcessingTime();
