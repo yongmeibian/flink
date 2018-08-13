@@ -19,7 +19,7 @@
 FROM java:8-jre-alpine
 
 # Install requirements
-RUN apk add --no-cache bash snappy
+RUN apk add --no-cache bash libc6-compat snappy 'su-exec>=0.2'
 
 # Flink environment variables
 ENV FLINK_INSTALL_PATH=/opt
@@ -44,7 +44,6 @@ RUN set -x && \
 
 COPY docker-entrypoint.sh /
 
-USER flink
 EXPOSE 8081 6123
 ENTRYPOINT ["/docker-entrypoint.sh"]
 CMD ["--help"]

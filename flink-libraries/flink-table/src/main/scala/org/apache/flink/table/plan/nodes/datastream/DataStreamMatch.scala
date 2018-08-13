@@ -29,9 +29,6 @@ import org.apache.calcite.sql.SqlKind
 import org.apache.calcite.sql.SqlMatchRecognize.AfterOption
 import org.apache.calcite.sql.`type`.SqlTypeName._
 import org.apache.calcite.sql.fun.SqlStdOperatorTable._
-import org.apache.flink.api.common.typeinfo.TypeInformation
-import org.apache.flink.api.java.functions.KeySelector
-import org.apache.flink.api.java.typeutils.ResultTypeQueryable
 import org.apache.flink.cep.nfa.aftermatch.AfterMatchSkipStrategy
 import org.apache.flink.cep.pattern.Pattern
 import org.apache.flink.cep.{CEP, PatternStream}
@@ -40,10 +37,9 @@ import org.apache.flink.streaming.api.windowing.time.Time
 import org.apache.flink.table.api.{StreamQueryConfig, StreamTableEnvironment, TableException}
 import org.apache.flink.table.calcite.FlinkTypeFactory
 import org.apache.flink.table.plan.schema.RowSchema
-import org.apache.flink.table.runtime.RowtimeProcessFunction
 import org.apache.flink.table.runtime.`match`._
 import org.apache.flink.table.runtime.types.{CRow, CRowTypeInfo}
-import org.apache.flink.table.typeutils.TypeCheckUtils.validateEqualsHashCode
+import org.apache.flink.table.runtime.{RowKeySelector, RowtimeProcessFunction}
 import org.apache.flink.types.Row
 
 import scala.collection.JavaConverters._
@@ -351,21 +347,5 @@ class DataStreamMatch(
     } else {
       currentPattern.next(patternName)
     }
-  }
-
-  class RowKeySelector(
-    val keyFields: Array[Int],
-    @transient var returnType: TypeInformation[Row])
-    extends KeySelector[Row, Row]
-      with ResultTypeQueryable[Row] {
-
-    // check if type implements proper equals/hashCode
-    validateEqualsHashCode("grouping", returnType)
-
-    override def getKey(value: Row): Row = {
-      Row.project(value, keyFields)
-    }
-
-    override def getProducedType: TypeInformation[Row] = returnType
   }
 }
