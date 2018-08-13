@@ -450,13 +450,17 @@ class MatchCodeGenerator(
       case patternFieldRef: RexPatternFieldRef =>
 
         val eventNameTerm = newName("event")
-        val resultTerm = newName("result")
+        var resultTerm = newName("result")
         val listName = newName("patternEvents")
         val nullTerm = newName("isNull")
         val patternNameTerm = newName("patternName")
         val eventNameListTerm = newName("eventNameList")
         val resultTypeTerm = boxedTypeTermForTypeInfo(resultType)
-        val defaultValue = primitiveDefaultValue(resultType)
+
+        val defaultValue = resultTypeTerm match {
+          case "java.sql.Timestamp" => "null"
+          case _ => primitiveDefaultValue(resultType)
+        }
 
         val eventTypeTerm = boxedTypeTermForTypeInfo(input)
         val listTypeTerm = classOf[java.util.List[_]].getCanonicalName
@@ -527,12 +531,23 @@ class MatchCodeGenerator(
             |""".stripMargin
         }
 
-        val resultCode =
-          s"""
+        val resultCode = if (resultTypeTerm.equals("java.sql.Timestamp")) {
+          val newResultTerm = newName("hackResult")
+          val code = s"""
             |$resultTypeTerm $resultTerm = $defaultValue;
             |boolean $nullTerm = true;
             |$findEventByLogicalPosition
+            |java.lang.Long $newResultTerm = $resultTerm.toInstant().toEpochMilli();
             |""".stripMargin
+          resultTerm = newResultTerm
+          code
+        } else {
+          s"""
+             |$resultTypeTerm $resultTerm = $defaultValue;
+             |boolean $nullTerm = true;
+             |$findEventByLogicalPosition
+             |""".stripMargin
+        }
 
         GeneratedExpression(resultTerm, nullTerm, resultCode, resultType)
 

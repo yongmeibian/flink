@@ -29,21 +29,18 @@ import org.apache.calcite.sql.SqlKind
 import org.apache.calcite.sql.SqlMatchRecognize.AfterOption
 import org.apache.calcite.sql.`type`.SqlTypeName._
 import org.apache.calcite.sql.fun.SqlStdOperatorTable._
-import org.apache.flink.api.common.typeinfo.TypeInformation
-import org.apache.flink.api.java.functions.KeySelector
-import org.apache.flink.api.java.typeutils.ResultTypeQueryable
 import org.apache.flink.cep.nfa.aftermatch.AfterMatchSkipStrategy
 import org.apache.flink.cep.pattern.Pattern
+import org.apache.flink.cep.pattern.conditions.NotCondition
 import org.apache.flink.cep.{CEP, PatternStream}
 import org.apache.flink.streaming.api.datastream.DataStream
 import org.apache.flink.streaming.api.windowing.time.Time
 import org.apache.flink.table.api.{StreamQueryConfig, StreamTableEnvironment, TableException}
 import org.apache.flink.table.calcite.FlinkTypeFactory
 import org.apache.flink.table.plan.schema.RowSchema
-import org.apache.flink.table.runtime.RowtimeProcessFunction
 import org.apache.flink.table.runtime.`match`._
 import org.apache.flink.table.runtime.types.{CRow, CRowTypeInfo}
-import org.apache.flink.table.typeutils.TypeCheckUtils.validateEqualsHashCode
+import org.apache.flink.table.runtime.{RowKeySelector, RowtimeProcessFunction}
 import org.apache.flink.types.Row
 
 import scala.collection.JavaConverters._
@@ -241,23 +238,30 @@ class DataStreamMatch(
 
           case PATTERN_QUANTIFIER =>
             val name = call.operands.get(0).asInstanceOf[RexLiteral]
-            val newPattern = translatePattern(name, currentPattern, patternNames)
+            var newPattern = translatePattern(name, currentPattern, patternNames)
+            val isGreedy = !call.operands.get(3).asInstanceOf[RexLiteral].getValue().asInstanceOf[Boolean]
 
             val startNum = call.operands.get(1).asInstanceOf[RexLiteral]
               .getValue3.asInstanceOf[JBigDecimal].intValue()
             val endNum = call.operands.get(2).asInstanceOf[RexLiteral]
               .getValue3.asInstanceOf[JBigDecimal].intValue()
 
-            if (startNum == 0 && endNum == -1) {        // zero or more
-              newPattern.oneOrMore().optional().consecutive()
+            newPattern = if (startNum == 0 && endNum == -1) {        // zero or more
+              newPattern.oneOrMore().optional().consecutive().until(new NotCondition[Row](newPattern.getCondition))
             } else if (startNum == 1 && endNum == -1) { // one or more
-              newPattern.oneOrMore().consecutive()
+              newPattern.oneOrMore().consecutive().until(new NotCondition[Row](newPattern.getCondition))
             } else if (startNum == 0 && endNum == 1) {  // optional
               newPattern.optional()
             } else if (endNum != -1) {                  // times
               newPattern.times(startNum, endNum).consecutive()
             } else {                                    // times or more
               newPattern.timesOrMore(startNum).consecutive()
+            }
+
+            if (isGreedy){
+              newPattern.greedy()
+            } else {
+              newPattern
             }
 
           case PATTERN_ALTER =>
@@ -351,21 +355,5 @@ class DataStreamMatch(
     } else {
       currentPattern.next(patternName)
     }
-  }
-
-  class RowKeySelector(
-    val keyFields: Array[Int],
-    @transient var returnType: TypeInformation[Row])
-    extends KeySelector[Row, Row]
-      with ResultTypeQueryable[Row] {
-
-    // check if type implements proper equals/hashCode
-    validateEqualsHashCode("grouping", returnType)
-
-    override def getKey(value: Row): Row = {
-      Row.project(value, keyFields)
-    }
-
-    override def getProducedType: TypeInformation[Row] = returnType
   }
 }

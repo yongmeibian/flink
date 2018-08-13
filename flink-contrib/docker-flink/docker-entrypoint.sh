@@ -22,6 +22,16 @@
 JOB_MANAGER_RPC_ADDRESS=${JOB_MANAGER_RPC_ADDRESS:-$(hostname -f)}
 ###
 
+drop_privs_cmd() {
+    if [ -x /sbin/su-exec ]; then
+        # Alpine
+        echo su-exec
+    else
+        # Others
+        echo gosu
+    fi
+}
+
 if [ "$1" == "--help" -o "$1" == "-h" ]; then
     echo "Usage: $(basename $0) (jobmanager|taskmanager)"
     exit 0
@@ -30,7 +40,7 @@ elif [ "$1" == "jobmanager" ]; then
     sed -i -e "s/jobmanager.rpc.address: localhost/jobmanager.rpc.address: ${JOB_MANAGER_RPC_ADDRESS}/g" $FLINK_HOME/conf/flink-conf.yaml
 
     echo "config file: " && grep '^[^\n#]' $FLINK_HOME/conf/flink-conf.yaml
-    exec $FLINK_HOME/bin/jobmanager.sh start-foreground cluster
+    exec $(drop_privs_cmd) flink $FLINK_HOME/bin/jobmanager.sh start-foreground cluster
 elif [ "$1" == "taskmanager" ]; then
 
     sed -i -e "s/jobmanager.rpc.address: localhost/jobmanager.rpc.address: ${JOB_MANAGER_RPC_ADDRESS}/g" $FLINK_HOME/conf/flink-conf.yaml
@@ -38,7 +48,7 @@ elif [ "$1" == "taskmanager" ]; then
 
     echo "Starting Task Manager"
     echo "config file: " && grep '^[^\n#]' $FLINK_HOME/conf/flink-conf.yaml
-    exec $FLINK_HOME/bin/taskmanager.sh start-foreground
+    exec $(drop_privs_cmd) flink $FLINK_HOME/bin/taskmanager.sh start-foreground
 fi
 
 exec "$@"

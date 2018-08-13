@@ -18,6 +18,8 @@
 
 package org.apache.flink.table.api.stream.sql
 
+import java.sql.Timestamp
+
 import org.apache.flink.api.scala._
 import org.apache.flink.streaming.api.TimeCharacteristic
 import org.apache.flink.streaming.api.scala.StreamExecutionEnvironment
@@ -174,6 +176,55 @@ class CepITCase extends StreamingWithStateTestBase {
   }
 
   @Test
+  def testRunningLast2() = {
+    val env = StreamExecutionEnvironment.getExecutionEnvironment
+    env.setParallelism(1)
+    env.setStreamTimeCharacteristic(TimeCharacteristic.EventTime)
+    val tEnv = TableEnvironment.getTableEnvironment(env)
+    StreamITCase.clear
+
+    val data = new mutable.MutableList[(String, Long, Int, Int)]
+    data.+=(("ACME", 100000L, 12, 1))
+    data.+=(("ACME", 200000L, 17, 2))
+    data.+=(("ACME", 300000L, 13, 4))
+    data.+=(("ACME", 400000L, 11, 3))
+    data.+=(("ACME", 500000L, 20, 4))
+    data.+=(("ACME", 600000L, 24, 4))
+    data.+=(("ACME", 700000L, 25, 3))
+    data.+=(("ACME", 800000L, 19, 8))
+
+    val t = env.fromCollection(data).assignAscendingTimestamps(e => e._2).toTable(tEnv, 'symbol, 'tstamp.rowtime, 'price, 'tax)
+    tEnv.registerTable("Ticker", t)
+
+    val sqlQuery =
+      s"""
+         |SELECT *
+         |FROM (
+         |   SELECT symbol, SUM(price) as price, TUMBLE_ROWTIME(tstamp, interval '1' second) as rowTime,
+         |   cast (TUMBLE_START(tstamp, interval '1' second) as TIMESTAMP) as startTime
+         |   FROM Ticker
+         |   GROUP BY symbol, TUMBLE(tstamp, interval '1' second)
+         |)
+         |MATCH_RECOGNIZE (
+         |  MEASURES
+         |    LAST(DOWN.price) as dPrice,
+         |    LAST(DOWN.startTime) as dTime
+         |  ONE ROW PER MATCH
+         |  PATTERN (DOWN+)
+         |  DEFINE
+         |    DOWN AS true
+         |)
+         |""".stripMargin
+
+    val result = tEnv.sql(sqlQuery).toAppendStream[Row]
+    result.addSink(new StreamITCase.StringSink[Row])
+    env.execute()
+
+    val expected = List("2,4,5", "2,4,6", "3,4,5", "3,4,6")
+    assertEquals(expected.sorted, StreamITCase.testResults.sorted)
+  }
+
+  @Test
   def testFinalLast() = {
     val env = StreamExecutionEnvironment.getExecutionEnvironment
     env.setParallelism(1)
@@ -317,7 +368,6 @@ class CepITCase extends StreamingWithStateTestBase {
     StreamITCase.clear
 
     val data = new mutable.MutableList[(String, Long, Int, Int)]
-    data.+=(("ACME", 1L, 12, 1))
     data.+=(("ACME", 2L, 17, 2))
     data.+=(("ACME", 3L, 13, 4))
     data.+=(("ACME", 4L, 11, 3))
@@ -325,6 +375,7 @@ class CepITCase extends StreamingWithStateTestBase {
     data.+=(("ACME", 6L, 24, 4))
     data.+=(("ACME", 7L, 25, 3))
     data.+=(("ACME", 8L, 19, 8))
+    data.+=(("ACME", 9L, 20, 8))
 
     val t = env.fromCollection(data).toTable(tEnv).as('symbol, 'tstamp, 'price, 'tax)
     tEnv.registerTable("Ticker", t)
@@ -335,14 +386,14 @@ class CepITCase extends StreamingWithStateTestBase {
         |FROM Ticker
         |MATCH_RECOGNIZE (
         |  MEASURES
-        |    STRT.tstamp AS start_tstamp,
-        |    LAST(DOWN.tstamp) AS bottom_tstamp,
-        |    LAST(UP.tstamp) AS end_tstamp
+        |    FIRST(DOWN.tstamp) AS top_tstamp,
+        |    LAST(DOWN.tstamp) AS bottom_tstamp
         |  ONE ROW PER MATCH
-        |  PATTERN (STRT DOWN+ UP+)
+        |  AFTER MATCH SKIP PAST LAST ROW
+        |  PATTERN (DOWN{2,} LAST)
         |  DEFINE
-        |    DOWN AS DOWN.price < PREV(DOWN.price),
-        |    UP AS UP.price > PREV(UP.price) AND UP.tax > LAST(DOWN.tax)
+        |    DOWN AS DOWN.price < PREV(DOWN.price) or PREV(DOWN.price) IS NULL,
+        |    LAST AS true
         |) AS T
         |""".stripMargin
 
@@ -350,7 +401,7 @@ class CepITCase extends StreamingWithStateTestBase {
     result.addSink(new StreamITCase.StringSink[Row])
     env.execute()
 
-    val expected = List("2,4,5", "2,4,6", "3,4,5", "3,4,6")
+    val expected = List("2,4", "7,8")
     assertEquals(expected.sorted, StreamITCase.testResults.sorted)
   }
 
