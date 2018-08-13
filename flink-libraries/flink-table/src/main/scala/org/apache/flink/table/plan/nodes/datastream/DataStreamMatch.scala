@@ -18,20 +18,23 @@
 
 package org.apache.flink.table.plan.nodes.datastream
 
-import java.util
 import java.math.{BigDecimal => JBigDecimal}
+import java.util
 
 import org.apache.calcite.plan.{RelOptCluster, RelTraitSet}
-import org.apache.calcite.rel.`type`.RelDataType
 import org.apache.calcite.rel._
+import org.apache.calcite.rel.`type`.RelDataType
 import org.apache.calcite.rex._
 import org.apache.calcite.sql.SqlKind
 import org.apache.calcite.sql.SqlMatchRecognize.AfterOption
 import org.apache.calcite.sql.`type`.SqlTypeName._
 import org.apache.calcite.sql.fun.SqlStdOperatorTable._
+import org.apache.flink.api.common.typeinfo.TypeInformation
+import org.apache.flink.api.java.functions.KeySelector
+import org.apache.flink.api.java.typeutils.ResultTypeQueryable
 import org.apache.flink.cep.nfa.aftermatch.AfterMatchSkipStrategy
-import org.apache.flink.cep.{CEP, PatternStream}
 import org.apache.flink.cep.pattern.Pattern
+import org.apache.flink.cep.{CEP, PatternStream}
 import org.apache.flink.streaming.api.datastream.DataStream
 import org.apache.flink.streaming.api.windowing.time.Time
 import org.apache.flink.table.api.{StreamQueryConfig, StreamTableEnvironment, TableException}
@@ -40,6 +43,7 @@ import org.apache.flink.table.plan.schema.RowSchema
 import org.apache.flink.table.runtime.RowtimeProcessFunction
 import org.apache.flink.table.runtime.`match`._
 import org.apache.flink.table.runtime.types.{CRow, CRowTypeInfo}
+import org.apache.flink.table.typeutils.TypeCheckUtils.validateEqualsHashCode
 import org.apache.flink.types.Row
 
 import scala.collection.JavaConverters._
@@ -201,12 +205,6 @@ class DataStreamMatch(
         crowInput
       }
 
-    val inputDS: DataStream[Row] = timestampedInput
-      .map(new ConvertToRow)
-      .setParallelism(timestampedInput.getParallelism)
-      .name("ConvertToRow")
-      .returns(inputTypeInfo)
-
     def translatePattern(
       rexNode: RexNode,
       currentPattern: Pattern[Row, Row],
@@ -290,7 +288,24 @@ class DataStreamMatch(
 
       cepPattern.within(Time.milliseconds(intervalMs))
     }
-    val patternStream: PatternStream[Row] = CEP.pattern[Row](inputDS, cepPattern)
+
+    val inputDS: DataStream[Row] = timestampedInput
+      .map(new ConvertToRow)
+      .setParallelism(timestampedInput.getParallelism)
+      .name("ConvertToRow")
+      .returns(inputTypeInfo)
+
+    val eventsStream = if (partitionKeys.size() > 0) {
+      val keys = partitionKeys.asScala.map {
+        case ref: RexInputRef => ref.getIndex
+      }.toArray
+      val keySelector = new RowKeySelector(keys, inputSchema.projectedTypeInfo(keys))
+      inputDS.keyBy(keySelector)
+    } else {
+      inputDS
+    }
+
+    val patternStream: PatternStream[Row] = CEP.pattern[Row](eventsStream, cepPattern)
 
     val outTypeInfo = CRowTypeInfo(schema.typeInfo)
     if (allRows) {
@@ -336,5 +351,21 @@ class DataStreamMatch(
     } else {
       currentPattern.next(patternName)
     }
+  }
+
+  class RowKeySelector(
+    val keyFields: Array[Int],
+    @transient var returnType: TypeInformation[Row])
+    extends KeySelector[Row, Row]
+      with ResultTypeQueryable[Row] {
+
+    // check if type implements proper equals/hashCode
+    validateEqualsHashCode("grouping", returnType)
+
+    override def getKey(value: Row): Row = {
+      Row.project(value, keyFields)
+    }
+
+    override def getProducedType: TypeInformation[Row] = returnType
   }
 }
