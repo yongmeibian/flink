@@ -123,7 +123,7 @@ object SortUtil {
     *
    * @return A RowComparator for the provided sort collations and input type.
    */
-  private def createRowComparator(
+  def createRowComparator(
       inputType: RelDataType,
       fieldCollations: Seq[RelFieldCollation],
       execConfig: ExecutionConfig): RowComparator = {

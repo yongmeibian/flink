@@ -18,8 +18,6 @@
 
 package org.apache.flink.table.api.stream.sql
 
-import java.sql.Timestamp
-
 import org.apache.flink.api.scala._
 import org.apache.flink.streaming.api.TimeCharacteristic
 import org.apache.flink.streaming.api.scala.StreamExecutionEnvironment
@@ -53,7 +51,7 @@ class CepITCase extends StreamingWithStateTestBase {
     data.+=((8, "c"))
     data.+=((9, "h"))
 
-    val t = env.fromCollection(data).toTable(tEnv).as('id, 'name)
+    val t = env.fromCollection(data).toTable(tEnv,'id, 'name, 'proctime.proctime)
     tEnv.registerTable("MyTable", t)
 
     val sqlQuery =
@@ -61,6 +59,7 @@ class CepITCase extends StreamingWithStateTestBase {
         |SELECT T.aid, T.bid, T.cid
         |FROM MyTable
         |MATCH_RECOGNIZE (
+        |  ORDER BY proctime
         |  MEASURES
         |    A.id AS aid,
         |    B.id AS bid,
@@ -82,6 +81,59 @@ class CepITCase extends StreamingWithStateTestBase {
   }
 
   @Test
+  def testOrderBy() = {
+    val env = StreamExecutionEnvironment.getExecutionEnvironment
+    env.setStreamTimeCharacteristic(TimeCharacteristic.EventTime)
+    env.setParallelism(1)
+    val tEnv = TableEnvironment.getTableEnvironment(env)
+    StreamITCase.clear
+
+    val data = Seq(
+      Left(2L, (1, "a", 1)),
+      Left(1L, (2, "b", 2)),
+      Left(3L, (3, "c", 3)),
+      Right(3L),
+      Left(4L, (5, "a", 4)),
+      Left(4L, (4, "b", 5)),
+      Left(5L, (6, "c", 6)),
+      Right(5L),
+      Left(6L, (7, "a", 7)),
+      Left(7L, (8, "b", 8)),
+      Left(8L, (9, "c", 9)),
+      Right(9L)
+    )
+
+    val t = env.addSource(new EventTimeSourceFunction[(Int, String, Int)](data))
+      .toTable(tEnv, 'secondaryOrder, 'name, 'id,'tstamp.rowtime)
+    tEnv.registerTable("MyTable", t)
+
+    val sqlQuery =
+      s"""
+         |SELECT T.aid, T.bid, T.cid
+         |FROM MyTable
+         |MATCH_RECOGNIZE (
+         |  ORDER BY tstamp, secondaryOrder
+         |  MEASURES
+         |    A.id AS aid,
+         |    B.id AS bid,
+         |    C.id AS cid
+         |  PATTERN (A B C)
+         |  DEFINE
+         |    A AS A.name = 'a',
+         |    B AS B.name = 'b',
+         |    C AS C.name = 'c'
+         |) AS T
+         |""".stripMargin
+
+    val result = tEnv.sql(sqlQuery).toAppendStream[Row]
+    result.addSink(new StreamITCase.StringSink[Row])
+    env.execute()
+
+    val expected = mutable.MutableList("7,8,9")
+    assertEquals(expected.sorted, StreamITCase.testResults.sorted)
+  }
+
+  @Test
   def testAllRowsPerMatch() = {
     val env = StreamExecutionEnvironment.getExecutionEnvironment
     env.setParallelism(1)
@@ -99,7 +151,7 @@ class CepITCase extends StreamingWithStateTestBase {
     data.+=((8, "c"))
     data.+=((9, "h"))
 
-    val t = env.fromCollection(data).toTable(tEnv).as('id, 'name)
+    val t = env.fromCollection(data).toTable(tEnv,'id, 'name, 'proctime.proctime)
     tEnv.registerTable("MyTable", t)
 
     val sqlQuery =
@@ -107,6 +159,7 @@ class CepITCase extends StreamingWithStateTestBase {
         |SELECT *
         |FROM MyTable
         |MATCH_RECOGNIZE (
+        |  ORDER BY proctime
         |  MEASURES
         |    A.id AS aid,
         |    B.id AS bid,
@@ -145,7 +198,7 @@ class CepITCase extends StreamingWithStateTestBase {
     data.+=(("ACME", 7L, 25, 7))
     data.+=(("ACME", 8L, 19, 8))
 
-    val t = env.fromCollection(data).toTable(tEnv).as('symbol, 'tstamp, 'price, 'tax)
+    val t = env.fromCollection(data).toTable(tEnv,'symbol, 'tstamp, 'price, 'tax, 'proctime.proctime)
     tEnv.registerTable("Ticker", t)
 
     val sqlQuery =
@@ -153,6 +206,7 @@ class CepITCase extends StreamingWithStateTestBase {
         |SELECT *
         |FROM Ticker
         |MATCH_RECOGNIZE (
+        |  ORDER BY proctime
         |  MEASURES
         |    STRT.tstamp AS start_tstamp,
         |    FIRST(DOWN.tstamp) AS bottom_tstamp,
@@ -206,6 +260,7 @@ class CepITCase extends StreamingWithStateTestBase {
          |   GROUP BY symbol, TUMBLE(tstamp, interval '1' second)
          |)
          |MATCH_RECOGNIZE (
+         |  ORDER BY rowTime
          |  MEASURES
          |    LAST(DOWN.price) as dPrice,
          |    LAST(DOWN.startTime) as dTime
@@ -241,7 +296,7 @@ class CepITCase extends StreamingWithStateTestBase {
     data.+=(("ACME", 7L, 25, 7))
     data.+=(("ACME", 8L, 19, 8))
 
-    val t = env.fromCollection(data).toTable(tEnv).as('symbol, 'tstamp, 'price, 'tax)
+    val t = env.fromCollection(data).toTable(tEnv,'symbol, 'tstamp, 'price, 'tax, 'proctime.proctime)
     tEnv.registerTable("Ticker", t)
 
     val sqlQuery =
@@ -249,6 +304,7 @@ class CepITCase extends StreamingWithStateTestBase {
         |SELECT *
         |FROM Ticker
         |MATCH_RECOGNIZE (
+        |  ORDER BY proctime
         |  MEASURES
         |    STRT.tstamp AS start_tstamp,
         |    LAST(DOWN.tstamp) AS bottom_tstamp,
@@ -288,7 +344,7 @@ class CepITCase extends StreamingWithStateTestBase {
     data.+=(("ACME", 7L, 13))
     data.+=(("ACME", 8L, 19))
 
-    val t = env.fromCollection(data).toTable(tEnv).as('symbol, 'tstamp, 'price)
+    val t = env.fromCollection(data).toTable(tEnv,'symbol, 'tstamp, 'price, 'proctime.proctime)
     tEnv.registerTable("Ticker", t)
 
     val sqlQuery =
@@ -296,6 +352,7 @@ class CepITCase extends StreamingWithStateTestBase {
         |SELECT *
         |FROM Ticker
         |MATCH_RECOGNIZE (
+        |  ORDER BY proctime
         |  MEASURES
         |    STRT.tstamp AS start_tstamp,
         |    LAST(DOWN.tstamp) AS up_days,
@@ -332,7 +389,7 @@ class CepITCase extends StreamingWithStateTestBase {
     data.+=(("ACME", 7L, 25, 3))
     data.+=(("ACME", 8L, 19, 8))
 
-    val t = env.fromCollection(data).toTable(tEnv).as('symbol, 'tstamp, 'price, 'tax)
+    val t = env.fromCollection(data).toTable(tEnv,'symbol, 'tstamp, 'price, 'tax, 'proctime.proctime)
     tEnv.registerTable("Ticker", t)
 
     val sqlQuery =
@@ -340,6 +397,7 @@ class CepITCase extends StreamingWithStateTestBase {
         |SELECT *
         |FROM Ticker
         |MATCH_RECOGNIZE (
+        |  ORDER BY proctime
         |  MEASURES
         |    STRT.tstamp AS start_tstamp,
         |    LAST(DOWN.tstamp) AS bottom_tstamp,
@@ -377,7 +435,7 @@ class CepITCase extends StreamingWithStateTestBase {
     data.+=(("ACME", 8L, 19, 8))
     data.+=(("ACME", 9L, 20, 8))
 
-    val t = env.fromCollection(data).toTable(tEnv).as('symbol, 'tstamp, 'price, 'tax)
+    val t = env.fromCollection(data).toTable(tEnv,'symbol, 'tstamp, 'price, 'tax, 'proctime.proctime)
     tEnv.registerTable("Ticker", t)
 
     val sqlQuery =
@@ -385,6 +443,7 @@ class CepITCase extends StreamingWithStateTestBase {
         |SELECT *
         |FROM Ticker
         |MATCH_RECOGNIZE (
+        |  ORDER BY proctime
         |  MEASURES
         |    FIRST(DOWN.tstamp) AS top_tstamp,
         |    LAST(DOWN.tstamp) AS bottom_tstamp

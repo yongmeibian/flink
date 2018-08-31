@@ -20,8 +20,10 @@ package org.apache.flink.table.plan.nodes.datastream
 
 import java.math.{BigDecimal => JBigDecimal}
 import java.util
+import java.util.Comparator
 
 import org.apache.calcite.plan.{RelOptCluster, RelTraitSet}
+import org.apache.calcite.rel.RelFieldCollation.Direction
 import org.apache.calcite.rel._
 import org.apache.calcite.rel.`type`.RelDataType
 import org.apache.calcite.rex._
@@ -29,16 +31,18 @@ import org.apache.calcite.sql.SqlKind
 import org.apache.calcite.sql.SqlMatchRecognize.AfterOption
 import org.apache.calcite.sql.`type`.SqlTypeName._
 import org.apache.calcite.sql.fun.SqlStdOperatorTable._
+import org.apache.flink.api.common.typeutils.TypeComparator
 import org.apache.flink.cep.nfa.aftermatch.AfterMatchSkipStrategy
 import org.apache.flink.cep.pattern.Pattern
 import org.apache.flink.cep.pattern.conditions.NotCondition
-import org.apache.flink.cep.{CEP, PatternStream}
+import org.apache.flink.cep.{CEP, EventComparator, PatternStream}
 import org.apache.flink.streaming.api.datastream.DataStream
 import org.apache.flink.streaming.api.windowing.time.Time
 import org.apache.flink.table.api.{StreamQueryConfig, StreamTableEnvironment, TableException}
 import org.apache.flink.table.calcite.FlinkTypeFactory
 import org.apache.flink.table.plan.schema.RowSchema
 import org.apache.flink.table.runtime.`match`._
+import org.apache.flink.table.runtime.aggregate.{CollectionRowComparator, SortUtil}
 import org.apache.flink.table.runtime.types.{CRow, CRowTypeInfo}
 import org.apache.flink.table.runtime.{RowKeySelector, RowtimeProcessFunction}
 import org.apache.flink.types.Row
@@ -175,6 +179,43 @@ class DataStreamMatch(
         patternDefinitions.asScala.map { case (k, v) => s"$k AS ${v.toString}"}.mkString(", "))
   }
 
+  def translateOrder(tableEnv: StreamTableEnvironment, crowInput: DataStream[CRow], orderKeys: RelCollation) = {
+
+    if (orderKeys.getFieldCollations.size() == 0) {
+      throw new TableException("You must specify either rowtime or proctime for order by.")
+    }
+
+    // need to identify time between others order fields. Time needs to be first sort element
+    val timeOrderField = SortUtil.getFirstSortField(orderKeys, inputSchema.relDataType)
+
+    if (!FlinkTypeFactory.isTimeIndicatorType(timeOrderField.getType)) {
+      throw new TableException("You must specify either rowtime or proctime for order by as the first one.")
+    }
+
+    // time ordering needs to be ascending
+    if (SortUtil.getFirstSortDirection(orderKeys) != Direction.ASCENDING) {
+      throw new TableException("Primary sort order of a streaming table must be ascending on time.")
+    }
+
+    val rowComparator = if (orderKeys.getFieldCollations.size() > 1) {
+      Some(SortUtil
+        .createRowComparator(inputSchema.relDataType,
+          orderKeys.getFieldCollations.asScala.tail,
+          tableEnv.execEnv.getConfig))
+    } else {
+      None
+    }
+
+    timeOrderField.getType match {
+      case _ if FlinkTypeFactory.isRowtimeIndicatorType(timeOrderField.getType)  =>
+        (crowInput
+          .process(new RowtimeProcessFunction(timeOrderField.getIndex, CRowTypeInfo(inputSchema.typeInfo)))
+          .setParallelism(crowInput.getParallelism), rowComparator)
+      case _ =>
+        (crowInput, rowComparator)
+    }
+  }
+
   override def translateToPlan(
       tableEnv: StreamTableEnvironment,
       queryConfig: StreamQueryConfig): DataStream[CRow] = {
@@ -186,21 +227,7 @@ class DataStreamMatch(
       .asInstanceOf[DataStreamRel]
       .translateToPlan(tableEnv, queryConfig)
 
-    val rowtimeFields = inputSchema.relDataType
-      .getFieldList.asScala
-      .filter(f => FlinkTypeFactory.isRowtimeIndicatorType(f.getType))
-
-    val timestampedInput = if (rowtimeFields.nonEmpty) {
-      // copy the rowtime field into the StreamRecord timestamp field
-      val timeIdx = rowtimeFields.head.getIndex
-
-      crowInput
-        .process(new RowtimeProcessFunction(timeIdx, CRowTypeInfo(inputTypeInfo)))
-        .setParallelism(crowInput.getParallelism)
-        .name(s"rowtime field: (${rowtimeFields.head})")
-      } else {
-        crowInput
-      }
+    val (timestampedInput, rowComparator) = translateOrder(tableEnv, crowInput, orderKeys)
 
     def translatePattern(
       rexNode: RexNode,
@@ -247,9 +274,9 @@ class DataStreamMatch(
               .getValue3.asInstanceOf[JBigDecimal].intValue()
 
             newPattern = if (startNum == 0 && endNum == -1) {        // zero or more
-              newPattern.oneOrMore().optional().consecutive().until(new NotCondition[Row](newPattern.getCondition))
+              newPattern.oneOrMore().optional().consecutive()
             } else if (startNum == 1 && endNum == -1) { // one or more
-              newPattern.oneOrMore().consecutive().until(new NotCondition[Row](newPattern.getCondition))
+              newPattern.oneOrMore().consecutive()
             } else if (startNum == 0 && endNum == 1) {  // optional
               newPattern.optional()
             } else if (endNum != -1) {                  // times
@@ -309,7 +336,11 @@ class DataStreamMatch(
       inputDS
     }
 
-    val patternStream: PatternStream[Row] = CEP.pattern[Row](eventsStream, cepPattern)
+    val patternStream: PatternStream[Row] = if (rowComparator.isDefined) {
+      CEP.pattern[Row](eventsStream, cepPattern, new EventRowComparator(rowComparator.get))
+    } else {
+      CEP.pattern[Row](eventsStream, cepPattern)
+    }
 
     val outTypeInfo = CRowTypeInfo(schema.typeInfo)
     if (allRows) {
@@ -355,5 +386,16 @@ class DataStreamMatch(
     } else {
       currentPattern.next(patternName)
     }
+  }
+}
+
+/**
+  * Wrapper for Row TypeComparator to a Java Comparator object
+  */
+class EventRowComparator(
+  private val rowComp: TypeComparator[Row]) extends EventComparator[Row] {
+
+  override def compare(arg0:Row, arg1:Row):Int = {
+    rowComp.compare(arg0, arg1)
   }
 }
