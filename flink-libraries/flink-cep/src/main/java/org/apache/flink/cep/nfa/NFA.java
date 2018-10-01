@@ -19,14 +19,6 @@
 package org.apache.flink.cep.nfa;
 
 import org.apache.flink.annotation.VisibleForTesting;
-import org.apache.flink.api.common.typeutils.CompatibilityResult;
-import org.apache.flink.api.common.typeutils.CompatibilityUtil;
-import org.apache.flink.api.common.typeutils.CompositeTypeSerializerConfigSnapshot;
-import org.apache.flink.api.common.typeutils.TypeDeserializerAdapter;
-import org.apache.flink.api.common.typeutils.TypeSerializer;
-import org.apache.flink.api.common.typeutils.TypeSerializerConfigSnapshot;
-import org.apache.flink.api.common.typeutils.UnloadableDummyTypeSerializer;
-import org.apache.flink.api.common.typeutils.base.StringSerializer;
 import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.cep.nfa.aftermatch.AfterMatchSkipStrategy;
 import org.apache.flink.cep.nfa.compiler.NFACompiler;
@@ -36,13 +28,10 @@ import org.apache.flink.cep.nfa.sharedbuffer.SharedBuffer;
 import org.apache.flink.cep.nfa.sharedbuffer.SharedBufferAccessor;
 import org.apache.flink.cep.operator.AbstractKeyedCEPPatternOperator;
 import org.apache.flink.cep.pattern.conditions.IterativeCondition;
-import org.apache.flink.core.memory.DataInputView;
-import org.apache.flink.core.memory.DataOutputView;
 import org.apache.flink.streaming.api.windowing.time.Time;
 import org.apache.flink.util.FlinkRuntimeException;
 import org.apache.flink.util.Preconditions;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -54,8 +43,6 @@ import java.util.Map;
 import java.util.PriorityQueue;
 import java.util.Queue;
 import java.util.Stack;
-
-import static org.apache.flink.cep.nfa.MigrationUtils.deserializeComputationStates;
 
 /**
  * Non-deterministic finite automaton implementation.
@@ -819,200 +806,6 @@ public class NFA<T> {
 						: elements.iterator();
 				}
 			};
-		}
-	}
-
-	////////////////////				DEPRECATED/MIGRATION UTILS
-
-	/**
-	 * Wrapper for migrated state.
-	 */
-	public static class MigratedNFA<T> {
-
-		private final Queue<ComputationState> computationStates;
-		private final org.apache.flink.cep.nfa.SharedBuffer<T> sharedBuffer;
-
-		public org.apache.flink.cep.nfa.SharedBuffer<T> getSharedBuffer() {
-			return sharedBuffer;
-		}
-
-		public Queue<ComputationState> getComputationStates() {
-			return computationStates;
-		}
-
-		MigratedNFA(
-				final Queue<ComputationState> computationStates,
-				final org.apache.flink.cep.nfa.SharedBuffer<T> sharedBuffer) {
-			this.sharedBuffer = sharedBuffer;
-			this.computationStates = computationStates;
-		}
-	}
-
-	/**
-	 * The {@link TypeSerializerConfigSnapshot} serializer configuration to be stored with the managed state.
-	 */
-	@Deprecated
-	public static final class NFASerializerConfigSnapshot<T> extends CompositeTypeSerializerConfigSnapshot {
-
-		private static final int VERSION = 1;
-
-		/** This empty constructor is required for deserializing the configuration. */
-		public NFASerializerConfigSnapshot() {}
-
-		public NFASerializerConfigSnapshot(
-				TypeSerializer<T> eventSerializer,
-				TypeSerializer<org.apache.flink.cep.nfa.SharedBuffer<T>> sharedBufferSerializer) {
-
-			super(eventSerializer, sharedBufferSerializer);
-		}
-
-		@Override
-		public int getVersion() {
-			return VERSION;
-		}
-	}
-
-	/**
-	 * Only for backward compatibility with <=1.5.
-	 */
-	@Deprecated
-	public static class NFASerializer<T> extends TypeSerializer<MigratedNFA<T>> {
-
-		private static final long serialVersionUID = 2098282423980597010L;
-
-		private final TypeSerializer<org.apache.flink.cep.nfa.SharedBuffer<T>> sharedBufferSerializer;
-
-		private final TypeSerializer<T> eventSerializer;
-
-		public NFASerializer(TypeSerializer<T> typeSerializer) {
-			this(typeSerializer,
-				new org.apache.flink.cep.nfa.SharedBuffer.SharedBufferSerializer<>(
-					StringSerializer.INSTANCE,
-					typeSerializer));
-		}
-
-		NFASerializer(
-				TypeSerializer<T> typeSerializer,
-				TypeSerializer<org.apache.flink.cep.nfa.SharedBuffer<T>> sharedBufferSerializer) {
-			this.eventSerializer = typeSerializer;
-			this.sharedBufferSerializer = sharedBufferSerializer;
-		}
-
-		@Override
-		public boolean isImmutableType() {
-			return false;
-		}
-
-		@Override
-		public NFASerializer<T> duplicate() {
-			return new NFASerializer<>(eventSerializer.duplicate());
-		}
-
-		@Override
-		public MigratedNFA<T> createInstance() {
-			return null;
-		}
-
-		@Override
-		public MigratedNFA<T> copy(MigratedNFA<T> from) {
-			throw new UnsupportedOperationException();
-		}
-
-		@Override
-		public MigratedNFA<T> copy(MigratedNFA<T> from, MigratedNFA<T> reuse) {
-			return copy(from);
-		}
-
-		@Override
-		public int getLength() {
-			return -1;
-		}
-
-		@Override
-		public void serialize(MigratedNFA<T> record, DataOutputView target) {
-			throw new UnsupportedOperationException();
-		}
-
-		@Override
-		public MigratedNFA<T> deserialize(DataInputView source) throws IOException {
-			MigrationUtils.skipSerializedStates(source);
-			source.readLong();
-			source.readBoolean();
-
-			org.apache.flink.cep.nfa.SharedBuffer<T> sharedBuffer = sharedBufferSerializer.deserialize(source);
-			Queue<ComputationState> computationStates = deserializeComputationStates(sharedBuffer, eventSerializer, source);
-
-			return new MigratedNFA<>(computationStates, sharedBuffer);
-		}
-
-		@Override
-		public MigratedNFA<T> deserialize(
-				MigratedNFA<T> reuse,
-				DataInputView source) throws IOException {
-			return deserialize(source);
-		}
-
-		@Override
-		public void copy(DataInputView source, DataOutputView target) {
-			throw new UnsupportedOperationException();
-		}
-
-		@Override
-		public boolean equals(Object obj) {
-			return obj == this ||
-				(obj != null && obj.getClass().equals(getClass()) &&
-					sharedBufferSerializer.equals(((NFASerializer) obj).sharedBufferSerializer) &&
-					eventSerializer.equals(((NFASerializer) obj).eventSerializer));
-		}
-
-		@Override
-		public boolean canEqual(Object obj) {
-			return true;
-		}
-
-		@Override
-		public int hashCode() {
-			return 37 * sharedBufferSerializer.hashCode() + eventSerializer.hashCode();
-		}
-
-		@Override
-		public TypeSerializerConfigSnapshot snapshotConfiguration() {
-			return new NFASerializerConfigSnapshot<>(eventSerializer, sharedBufferSerializer);
-		}
-
-		@Override
-		public CompatibilityResult<MigratedNFA<T>> ensureCompatibility(TypeSerializerConfigSnapshot configSnapshot) {
-			if (configSnapshot instanceof NFASerializerConfigSnapshot) {
-				List<Tuple2<TypeSerializer<?>, TypeSerializerConfigSnapshot>> serializersAndConfigs =
-					((NFASerializerConfigSnapshot) configSnapshot).getNestedSerializersAndConfigs();
-
-				CompatibilityResult<T> eventCompatResult = CompatibilityUtil.resolveCompatibilityResult(
-					serializersAndConfigs.get(0).f0,
-					UnloadableDummyTypeSerializer.class,
-					serializersAndConfigs.get(0).f1,
-					eventSerializer);
-
-				CompatibilityResult<org.apache.flink.cep.nfa.SharedBuffer<T>> sharedBufCompatResult =
-					CompatibilityUtil.resolveCompatibilityResult(
-						serializersAndConfigs.get(1).f0,
-						UnloadableDummyTypeSerializer.class,
-						serializersAndConfigs.get(1).f1,
-						sharedBufferSerializer);
-
-				if (!sharedBufCompatResult.isRequiresMigration() && !eventCompatResult.isRequiresMigration()) {
-					return CompatibilityResult.compatible();
-				} else {
-					if (eventCompatResult.getConvertDeserializer() != null &&
-						sharedBufCompatResult.getConvertDeserializer() != null) {
-						return CompatibilityResult.requiresMigration(
-							new NFASerializer<>(
-								new TypeDeserializerAdapter<>(eventCompatResult.getConvertDeserializer()),
-								new TypeDeserializerAdapter<>(sharedBufCompatResult.getConvertDeserializer())));
-					}
-				}
-			}
-
-			return CompatibilityResult.requiresMigration();
 		}
 	}
 }
