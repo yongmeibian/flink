@@ -24,7 +24,7 @@ import org.apache.flink.api.java.{JarHelper, ScalaShellRemoteEnvironment, ScalaS
 import org.apache.flink.streaming.api.scala.StreamExecutionEnvironment
 import org.apache.flink.configuration.Configuration
 import org.apache.flink.table.api.TableEnvironment
-import org.apache.flink.table.api.scala.{BatchTableEnvironment, StreamTableEnvironment}
+import org.apache.flink.table.api.scala.StreamTableEnvironment
 import org.apache.flink.util.AbstractID
 
 import scala.tools.nsc.interpreter._

@@ -18,7 +18,6 @@
 
 package org.apache.flink.table.api
 
-import _root_.java.lang.reflect.Modifier
 import _root_.java.util.concurrent.atomic.AtomicInteger
 
 import com.google.common.collect.ImmutableList
@@ -39,25 +38,16 @@ import org.apache.flink.api.common.functions.MapFunction
 import org.apache.flink.api.common.typeinfo.TypeInformation
 import org.apache.flink.api.common.typeutils.CompositeType
 import org.apache.flink.api.java.typeutils.{RowTypeInfo, _}
-import org.apache.flink.api.java.{ExecutionEnvironment => JavaBatchExecEnv}
 import org.apache.flink.api.scala.typeutils.CaseClassTypeInfo
-import org.apache.flink.api.scala.{ExecutionEnvironment => ScalaBatchExecEnv}
-import org.apache.flink.streaming.api.environment.{StreamExecutionEnvironment => JavaStreamExecEnv}
-import org.apache.flink.streaming.api.scala.{StreamExecutionEnvironment => ScalaStreamExecEnv}
-import org.apache.flink.table.api.java.{BatchTableEnvironment => JavaBatchTableEnv, StreamTableEnvironment => JavaStreamTableEnv}
-import org.apache.flink.table.api.scala.{StreamTableEnvironment => ScalaStreamTableEnv}
 import org.apache.flink.table.calcite.{FlinkPlannerImpl, FlinkRelBuilder, FlinkTypeFactory, FlinkTypeSystem}
 import org.apache.flink.table.catalog.{ExternalCatalog, ExternalCatalogSchema}
 import org.apache.flink.table.codegen.{ExpressionReducer, FunctionCodeGenerator, GeneratedFunction}
-import org.apache.flink.table.descriptors.{ConnectorDescriptor, TableDescriptor}
 import org.apache.flink.table.expressions._
-import org.apache.flink.table.functions.utils.UserDefinedFunctionUtils._
-import org.apache.flink.table.functions.{AggregateFunction, ScalarFunction, TableFunction}
 import org.apache.flink.table.plan.cost.DataSetCostFactory
 import org.apache.flink.table.plan.logical.{CatalogNode, LogicalRelNode}
 import org.apache.flink.table.plan.nodes.FlinkConventions
 import org.apache.flink.table.plan.rules.FlinkRuleSets
-import org.apache.flink.table.plan.schema.{RelTable, RowSchema, TableSourceSinkTable}
+import org.apache.flink.table.plan.schema.{RowSchema, TableSourceSinkTable}
 import org.apache.flink.table.sinks.TableSink
 import org.apache.flink.table.sources.TableSource
 import org.apache.flink.table.typeutils.TimeIndicatorTypeInfo
@@ -65,7 +55,6 @@ import org.apache.flink.table.utils.TypeUtils
 import org.apache.flink.table.validate.FunctionCatalog
 import org.apache.flink.types.Row
 
-import _root_.scala.annotation.varargs
 import _root_.scala.collection.JavaConverters._
 import _root_.scala.collection.mutable
 
@@ -74,7 +63,7 @@ import _root_.scala.collection.mutable
   *
   * @param config The configuration of the TableEnvironment
   */
-abstract class TableEnvironment(val config: TableConfig) {
+abstract class TablePlanner(val config: TableConfig) {
 
   // the catalog to hold all registered and translated tables
   // we disable caching here to prevent side effects
@@ -394,17 +383,6 @@ abstract class TableEnvironment(val config: TableConfig) {
   }
 
   /**
-    * Creates a table from a table source.
-    *
-    * @param source table source used as table
-    */
-  def fromTableSource(source: TableSource[_]): Table = {
-    val name = createUniqueTableName()
-    registerTableSourceInternal(name, source)
-    scan(name)
-  }
-
-  /**
     * Registers an [[ExternalCatalog]] under a unique name in the TableEnvironment's schema.
     * All tables registered in the [[ExternalCatalog]] can be accessed.
     *
@@ -434,148 +412,13 @@ abstract class TableEnvironment(val config: TableConfig) {
   }
 
   /**
-    * Registers a [[ScalarFunction]] under a unique name. Replaces already existing
-    * user-defined functions under this name.
-    */
-  def registerFunction(name: String, function: ScalarFunction): Unit = {
-    // check if class could be instantiated
-    checkForInstantiation(function.getClass)
-
-    // register in Table API
-
-    functionCatalog.registerFunction(name, function.getClass)
-
-    // register in SQL API
-    functionCatalog.registerSqlFunction(
-      createScalarSqlFunction(name, name, function, typeFactory)
-    )
-  }
-
-  /**
-    * Registers a [[TableFunction]] under a unique name. Replaces already existing
-    * user-defined functions under this name.
-    */
-  private[flink] def registerTableFunctionInternal[T: TypeInformation](
-    name: String, function: TableFunction[T]): Unit = {
-    // check if class not Scala object
-    checkNotSingleton(function.getClass)
-    // check if class could be instantiated
-    checkForInstantiation(function.getClass)
-
-    val typeInfo: TypeInformation[_] = if (function.getResultType != null) {
-      function.getResultType
-    } else {
-      implicitly[TypeInformation[T]]
-    }
-
-    // register in Table API
-    functionCatalog.registerFunction(name, function.getClass)
-
-    // register in SQL API
-    val sqlFunction = createTableSqlFunction(name, name, function, typeInfo, typeFactory)
-    functionCatalog.registerSqlFunction(sqlFunction)
-  }
-
-  /**
-    * Registers an [[AggregateFunction]] under a unique name. Replaces already existing
-    * user-defined functions under this name.
-    */
-  private[flink] def registerAggregateFunctionInternal[T: TypeInformation, ACC: TypeInformation](
-      name: String, function: AggregateFunction[T, ACC]): Unit = {
-    // check if class not Scala object
-    checkNotSingleton(function.getClass)
-    // check if class could be instantiated
-    checkForInstantiation(function.getClass)
-
-    val resultTypeInfo: TypeInformation[_] = getResultTypeOfAggregateFunction(
-      function,
-      implicitly[TypeInformation[T]])
-
-    val accTypeInfo: TypeInformation[_] = getAccumulatorTypeOfAggregateFunction(
-      function,
-      implicitly[TypeInformation[ACC]])
-
-    // register in Table API
-    functionCatalog.registerFunction(name, function.getClass)
-
-    // register in SQL API
-    val sqlFunctions = createAggregateSqlFunction(
-      name,
-      name,
-      function,
-      resultTypeInfo,
-      accTypeInfo,
-      typeFactory)
-
-    functionCatalog.registerSqlFunction(sqlFunctions)
-  }
-
-  /**
-    * Registers a [[Table]] under a unique name in the TableEnvironment's catalog.
-    * Registered tables can be referenced in SQL queries.
-    *
-    * @param name The name under which the table will be registered.
-    * @param table The table to register.
-    */
-  def registerTable(name: String, table: Table): Unit = {
-
-    // check that table belongs to this table environment
-    if (table.tableEnv != this) {
-      throw new TableException(
-        "Only tables that belong to this TableEnvironment can be registered.")
-    }
-
-    checkValidTableName(name)
-    val tableTable = new RelTable(table.getRelNode)
-    registerTableInternal(name, tableTable)
-  }
-
-  /**
-    * Registers an external [[TableSource]] in this [[TableEnvironment]]'s catalog.
-    * Registered tables can be referenced in SQL queries.
-    *
-    * @param name        The name under which the [[TableSource]] is registered.
-    * @param tableSource The [[TableSource]] to register.
-    */
-  def registerTableSource(name: String, tableSource: TableSource[_]): Unit = {
-    checkValidTableName(name)
-    registerTableSourceInternal(name, tableSource)
-  }
-
-  /**
-    * Registers an internal [[TableSource]] in this [[TableEnvironment]]'s catalog without
+    * Registers an internal [[TableSource]] in this [[TablePlanner]]'s catalog without
     * name checking. Registered tables can be referenced in SQL queries.
     *
     * @param name        The name under which the [[TableSource]] is registered.
     * @param tableSource The [[TableSource]] to register.
     */
   protected def registerTableSourceInternal(name: String, tableSource: TableSource[_]): Unit
-
-  /**
-    * Registers an external [[TableSink]] with given field names and types in this
-    * [[TableEnvironment]]'s catalog.
-    * Registered sink tables can be referenced in SQL DML statements.
-    *
-    * @param name The name under which the [[TableSink]] is registered.
-    * @param fieldNames The field names to register with the [[TableSink]].
-    * @param fieldTypes The field types to register with the [[TableSink]].
-    * @param tableSink The [[TableSink]] to register.
-    */
-  def registerTableSink(
-      name: String,
-      fieldNames: Array[String],
-      fieldTypes: Array[TypeInformation[_]],
-      tableSink: TableSink[_]): Unit
-
-  /**
-    * Registers an external [[TableSink]] with already configured field names and field types in
-    * this [[TableEnvironment]]'s catalog.
-    * Registered sink tables can be referenced in SQL DML statements.
-    *
-    * @param name The name under which the [[TableSink]] is registered.
-    * @param configuredSink The configured [[TableSink]] to register.
-    */
-  def registerTableSink(name: String, configuredSink: TableSink[_]): Unit
 
   /**
     * Replaces a registered Table with another Table under the same name.
@@ -593,68 +436,6 @@ abstract class TableEnvironment(val config: TableConfig) {
       throw new TableException(s"Table \'$name\' is not registered.")
     }
   }
-
-  /**
-    * Scans a registered table and returns the resulting [[Table]].
-    *
-    * A table to scan must be registered in the TableEnvironment. It can be either directly
-    * registered as DataStream, DataSet, or Table or as member of an [[ExternalCatalog]].
-    *
-    * Examples:
-    *
-    * - Scanning a directly registered table
-    * {{{
-    *   val tab: Table = tableEnv.scan("tableName")
-    * }}}
-    *
-    * - Scanning a table from a registered catalog
-    * {{{
-    *   val tab: Table = tableEnv.scan("catalogName", "dbName", "tableName")
-    * }}}
-    *
-    * @param tablePath The path of the table to scan.
-    * @throws TableException if no table is found using the given table path.
-    * @return The resulting [[Table]].
-    */
-  @throws[TableException]
-  @varargs
-  def scan(tablePath: String*): Table = {
-    scanInternal(tablePath.toArray) match {
-      case Some(table) => table
-      case None => throw new TableException(s"Table '${tablePath.mkString(".")}' was not found.")
-    }
-  }
-
-  /**
-    * Creates a table source and/or table sink from a descriptor.
-    *
-    * Descriptors allow for declaring the communication to external systems in an
-    * implementation-agnostic way. The classpath is scanned for suitable table factories that match
-    * the desired configuration.
-    *
-    * The following example shows how to read from a connector using a JSON format and
-    * registering a table source as "MyTable":
-    *
-    * {{{
-    *
-    * tableEnv
-    *   .connect(
-    *     new ExternalSystemXYZ()
-    *       .version("0.11"))
-    *   .withFormat(
-    *     new Json()
-    *       .jsonSchema("{...}")
-    *       .failOnMissingField(false))
-    *   .withSchema(
-    *     new Schema()
-    *       .field("user-name", "VARCHAR").from("u_name")
-    *       .field("count", "DECIMAL")
-    *   .registerSource("MyTable")
-    * }}}
-    *
-    * @param connectorDescriptor connector descriptor describing the external system
-    */
-  def connect(connectorDescriptor: ConnectorDescriptor): TableDescriptor
 
   private[flink] def scanInternal(tablePath: Array[String]): Option[Table] = {
     require(tablePath != null && !tablePath.isEmpty, "tablePath must not be null or empty.")
@@ -1033,7 +814,7 @@ abstract class TableEnvironment(val config: TableConfig) {
         "An input of GenericTypeInfo<Row> cannot be converted to Table. " +
           "Please specify the type of the input with a RowTypeInfo.")
     } else {
-      (TableEnvironment.getFieldNames(inputType), TableEnvironment.getFieldIndices(inputType))
+      (TypeUtils.getFieldNames(inputType), TypeUtils.getFieldIndices(inputType))
     }
   }
 

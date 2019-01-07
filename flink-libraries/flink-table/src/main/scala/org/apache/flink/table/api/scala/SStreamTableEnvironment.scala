@@ -15,15 +15,14 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package org.apache.flink.table.api.scala
 
-import org.apache.flink.api.scala._
 import org.apache.flink.api.common.typeinfo.TypeInformation
+import org.apache.flink.api.scala.createTypeInformation
+import org.apache.flink.streaming.api.scala.{DataStream, StreamExecutionEnvironment, asScalaStream}
 import org.apache.flink.table.api.{StreamQueryConfig, Table, TableConfig, TableEnvironment}
 import org.apache.flink.table.expressions.Expression
-import org.apache.flink.table.functions.{AggregateFunction, TableFunction}
-import org.apache.flink.streaming.api.scala.{DataStream, StreamExecutionEnvironment}
-import org.apache.flink.streaming.api.scala.asScalaStream
 
 /**
   * The [[TableEnvironment]] for a Scala [[StreamExecutionEnvironment]].
@@ -40,13 +39,10 @@ import org.apache.flink.streaming.api.scala.asScalaStream
   * @param execEnv The Scala [[StreamExecutionEnvironment]] of the TableEnvironment.
   * @param config The configuration of the TableEnvironment.
   */
-class StreamTableEnvironment(
+class SStreamTableEnvironment(
     execEnv: StreamExecutionEnvironment,
     config: TableConfig)
-  extends org.apache.flink.table.api.StreamTableEnvironment(
-    execEnv.getWrappedStreamExecutionEnvironment,
-    config) {
-
+  extends STableEnvironment {
   /**
     * Converts the given [[DataStream]] into a [[Table]].
     *
@@ -170,17 +166,17 @@ class StreamTableEnvironment(
       table, queryConfig, updatesAsRetraction = false, withChangeFlag = false)(returnType))
   }
 
-/**
-  * Converts the given [[Table]] into a [[DataStream]] of add and retract messages.
-  * The message will be encoded as [[Tuple2]]. The first field is a [[Boolean]] flag,
-  * the second field holds the record of the specified type [[T]].
-  *
-  * A true [[Boolean]] flag indicates an add message, a false flag indicates a retract message.
-  *
-  * @param table The [[Table]] to convert.
-  * @tparam T The type of the requested data type.
-  * @return The converted [[DataStream]].
-  */
+  /**
+    * Converts the given [[Table]] into a [[DataStream]] of add and retract messages.
+    * The message will be encoded as [[Tuple2]]. The first field is a [[Boolean]] flag,
+    * the second field holds the record of the specified type [[T]].
+    *
+    * A true [[Boolean]] flag indicates an add message, a false flag indicates a retract message.
+    *
+    * @param table The [[Table]] to convert.
+    * @tparam T The type of the requested data type.
+    * @return The converted [[DataStream]].
+    */
   def toRetractStream[T: TypeInformation](table: Table): DataStream[(Boolean, T)] = {
     toRetractStream(table, queryConfig)
   }
@@ -198,37 +194,10 @@ class StreamTableEnvironment(
     * @return The converted [[DataStream]].
     */
   def toRetractStream[T: TypeInformation](
-      table: Table,
-      queryConfig: StreamQueryConfig): DataStream[(Boolean, T)] = {
+    table: Table,
+    queryConfig: StreamQueryConfig): DataStream[(Boolean, T)] = {
     val returnType = createTypeInformation[(Boolean, T)]
     asScalaStream(
       translate(table, queryConfig, updatesAsRetraction = true, withChangeFlag = true)(returnType))
-  }
-
-  /**
-    * Registers a [[TableFunction]] under a unique name in the TableEnvironment's catalog.
-    * Registered functions can be referenced in SQL queries.
-    *
-    * @param name The name under which the function is registered.
-    * @param tf The TableFunction to register
-    */
-  def registerFunction[T: TypeInformation](name: String, tf: TableFunction[T]): Unit = {
-    registerTableFunctionInternal(name, tf)
-  }
-
-  /**
-    * Registers an [[AggregateFunction]] under a unique name in the TableEnvironment's catalog.
-    * Registered functions can be referenced in Table API and SQL queries.
-    *
-    * @param name The name under which the function is registered.
-    * @param f The AggregateFunction to register.
-    * @tparam T The type of the output value.
-    * @tparam ACC The type of aggregate accumulator.
-    */
-  def registerFunction[T: TypeInformation, ACC: TypeInformation](
-      name: String,
-      f: AggregateFunction[T, ACC])
-  : Unit = {
-    registerAggregateFunctionInternal[T, ACC](name, f)
   }
 }

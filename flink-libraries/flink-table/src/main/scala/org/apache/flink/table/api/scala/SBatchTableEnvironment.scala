@@ -15,15 +15,16 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package org.apache.flink.table.api.scala
 
 import org.apache.flink.api.common.typeinfo.TypeInformation
-import org.apache.flink.api.scala._
-import org.apache.flink.table.api._
+import org.apache.flink.api.scala.{DataSet, ExecutionEnvironment, wrap}
+import org.apache.flink.table.api.{BatchQueryConfig, Table, TableConfig, TableEnvironment}
+import org.apache.flink.table.descriptors.{BatchTableDescriptor, ConnectorDescriptor}
 import org.apache.flink.table.expressions.Expression
-import org.apache.flink.table.functions.{AggregateFunction, TableFunction}
 
-import _root_.scala.reflect.ClassTag
+import scala.reflect.ClassTag
 
 /**
   * The [[TableEnvironment]] for a Scala batch [[DataSet]]
@@ -41,10 +42,9 @@ import _root_.scala.reflect.ClassTag
   * @param execEnv The Scala batch [[ExecutionEnvironment]] of the TableEnvironment.
   * @param config The configuration of the TableEnvironment.
   */
-class BatchTableEnvironment(
-    execEnv: ExecutionEnvironment,
-    config: TableConfig)
-  extends org.apache.flink.table.api.BatchTableEnvironment(execEnv.getJavaEnv, config) {
+class SBatchTableEnvironment(
+  execEnv: ExecutionEnvironment,
+  config: TableConfig) extends STableEnvironment {
 
   /**
     * Converts the given [[DataSet]] into a [[Table]].
@@ -159,30 +159,35 @@ class BatchTableEnvironment(
   }
 
   /**
-    * Registers a [[TableFunction]] under a unique name in the TableEnvironment's catalog.
-    * Registered functions can be referenced in Table API and SQL queries.
+    * Creates a table source and/or table sink from a descriptor.
     *
-    * @param name The name under which the function is registered.
-    * @param tf The TableFunction to register.
-    * @tparam T The type of the output row.
-    */
-  def registerFunction[T: TypeInformation](name: String, tf: TableFunction[T]): Unit = {
-    registerTableFunctionInternal(name, tf)
-  }
-
-  /**
-    * Registers an [[AggregateFunction]] under a unique name in the TableEnvironment's catalog.
-    * Registered functions can be referenced in Table API and SQL queries.
+    * Descriptors allow for declaring the communication to external systems in an
+    * implementation-agnostic way. The classpath is scanned for suitable table factories that match
+    * the desired configuration.
     *
-    * @param name The name under which the function is registered.
-    * @param f The AggregateFunction to register.
-    * @tparam T The type of the output value.
-    * @tparam ACC The type of aggregate accumulator.
+    * The following example shows how to read from a connector using a JSON format and
+    * registering a table source as "MyTable":
+    *
+    * {{{
+    *
+    * tableEnv
+    *   .connect(
+    *     new ExternalSystemXYZ()
+    *       .version("0.11"))
+    *   .withFormat(
+    *     new Json()
+    *       .jsonSchema("{...}")
+    *       .failOnMissingField(false))
+    *   .withSchema(
+    *     new Schema()
+    *       .field("user-name", "VARCHAR").from("u_name")
+    *       .field("count", "DECIMAL")
+    *   .registerSource("MyTable")
+    * }}}
+    *
+    * @param connectorDescriptor connector descriptor describing the external system
     */
-  def registerFunction[T: TypeInformation, ACC: TypeInformation](
-      name: String,
-      f: AggregateFunction[T, ACC])
-  : Unit = {
-    registerAggregateFunctionInternal[T, ACC](name, f)
+  def connect(connectorDescriptor: ConnectorDescriptor): BatchTableDescriptor = {
+    new BatchTableDescriptor(this, connectorDescriptor)
   }
 }
