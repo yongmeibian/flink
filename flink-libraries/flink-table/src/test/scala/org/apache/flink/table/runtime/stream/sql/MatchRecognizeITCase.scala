@@ -19,6 +19,7 @@
 package org.apache.flink.table.runtime.stream.sql
 
 import java.sql.Timestamp
+import java.time.{ZoneId, ZonedDateTime}
 import java.util.TimeZone
 
 import org.apache.flink.api.common.time.Time
@@ -63,7 +64,7 @@ class MatchRecognizeITCase extends StreamingWithStateTestBase {
 
     val sqlQuery =
       s"""
-        |SELECT T.aid, T.bid, T.cid
+        |SELECT *
         |FROM MyTable
         |MATCH_RECOGNIZE (
         |  ORDER BY proctime
@@ -308,6 +309,61 @@ class MatchRecognizeITCase extends StreamingWithStateTestBase {
     env.execute()
 
     val expected = List("ACME,2,1970-01-01 00:00:03.0")
+    assertEquals(expected.sorted, StreamITCase.testResults.sorted)
+  }
+
+  @Test
+  def testWindowedGroupingAppliedToMatchRecognize(): Unit = {
+    val env = StreamExecutionEnvironment.getExecutionEnvironment
+    env.setParallelism(1)
+    env.setStreamTimeCharacteristic(TimeCharacteristic.EventTime)
+    val tEnv = TableEnvironment.getTableEnvironment(env)
+    StreamITCase.clear
+
+    val data = new mutable.MutableList[(String, Long, Int, Int)]
+    //first window
+    data.+=(("ACME", Time.seconds(1).toMilliseconds, 1, 1))
+    data.+=(("ACME", Time.seconds(2).toMilliseconds, 2, 2))
+    //second window
+    data.+=(("ACME", Time.seconds(4).toMilliseconds, 1, 4))
+    data.+=(("ACME", Time.seconds(5).toMilliseconds, 1, 3))
+
+
+    val t = env.fromCollection(data)
+      .assignAscendingTimestamps(e => e._2)
+      .toTable(tEnv, 'symbol, 'tstamp.rowtime, 'price, 'tax)
+    tEnv.registerTable("Ticker", t)
+
+    val sqlQuery =
+      s"""
+         |SELECT
+         |  symbol,
+         |  SUM(price) as price,
+         |  TUMBLE_ROWTIME(tstamp, interval '3' second) as rowTime,
+         |  TUMBLE_START(tstamp, interval '3' second) as startTime
+         |FROM Ticker
+         |MATCH_RECOGNIZE (
+         |  PARTITION BY symbol
+         |  ORDER BY tstamp
+         |  MEASURES
+         |    A.price as price,
+         |    A.tax as tax,
+         |    MATCH_ROWTIME() as tstamp
+         |  ONE ROW PER MATCH
+         |  PATTERN (A)
+         |  DEFINE
+         |    A AS A.price > 0
+         |) AS T
+         |GROUP BY symbol, TUMBLE(tstamp, interval '3' second)
+         |""".stripMargin
+
+    val result = tEnv.sqlQuery(sqlQuery).toAppendStream[Row]
+    result.addSink(new StreamITCase.StringSink[Row])
+    env.execute()
+
+    val expected = List(
+      "ACME,3,1970-01-01 00:00:02.999,1970-01-01 00:00:00.0",
+      "ACME,2,1970-01-01 00:00:05.999,1970-01-01 00:00:03.0")
     assertEquals(expected.sorted, StreamITCase.testResults.sorted)
   }
 
@@ -593,7 +649,7 @@ class MatchRecognizeITCase extends StreamingWithStateTestBase {
   }
 
   @Test
-  def testAccessingProctime(): Unit = {
+  def testAccessingCurrentTime(): Unit = {
     val env = StreamExecutionEnvironment.getExecutionEnvironment
     env.setParallelism(1)
     val tEnv = TableEnvironment.getTableEnvironment(env)
@@ -633,7 +689,7 @@ class MatchRecognizeITCase extends StreamingWithStateTestBase {
   }
 
   @Test
-  def testPartitioningByTimeIndicator(): Unit = {
+  def testAccessingProcTime(): Unit = {
     val env = StreamExecutionEnvironment.getExecutionEnvironment
     env.setParallelism(1)
     val tEnv = TableEnvironment.getTableEnvironment(env)
@@ -647,17 +703,15 @@ class MatchRecognizeITCase extends StreamingWithStateTestBase {
 
     val sqlQuery =
       s"""
-         |SELECT T.aid
+         |SELECT *
          |FROM MyTable
          |MATCH_RECOGNIZE (
          |  ORDER BY proctime
          |  MEASURES
-         |    A.id AS aid,
-         |    A.proctime AS aProctime,
-         |    LAST(A.proctime + INTERVAL '1' second) as calculatedField
+         |    HOUR(MATCH_PROCTIME()) as currentHour
          |  PATTERN (A)
          |  DEFINE
-         |    A AS proctime >= (CURRENT_TIMESTAMP - INTERVAL '1' day)
+         |    A AS A.name LIKE '%a%'
          |) AS T
          |""".stripMargin
 
@@ -665,11 +719,9 @@ class MatchRecognizeITCase extends StreamingWithStateTestBase {
     result.addSink(new StreamITCase.StringSink[Row])
     env.execute()
 
-    val expected = List("1")
+    // note sql works on timestamps in gmt
+    val expected = List(ZonedDateTime.now(ZoneId.of("GMT")).getHour.toString)
     assertEquals(expected.sorted, StreamITCase.testResults.sorted)
-
-    // We do not assert the proctime in the result, cause it is currently
-    // accessed from System.currentTimeMillis(), so there is no graceful way to assert the proctime
   }
 
   @Test

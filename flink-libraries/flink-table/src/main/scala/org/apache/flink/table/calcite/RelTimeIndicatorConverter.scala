@@ -25,6 +25,7 @@ import org.apache.calcite.rel.{RelNode, RelShuttle}
 import org.apache.calcite.rex._
 import org.apache.calcite.sql.`type`.SqlTypeName
 import org.apache.calcite.sql.fun.SqlStdOperatorTable
+import org.apache.calcite.sql.fun.SqlStdOperatorTable.FINAL
 import org.apache.flink.api.common.typeinfo.SqlTimeTypeInfo
 import org.apache.flink.table.api.{TableException, ValidationException}
 import org.apache.flink.table.calcite.FlinkTypeFactory.{isRowtimeIndicatorType, _}
@@ -107,7 +108,14 @@ class RelTimeIndicatorConverter(rexBuilder: RexBuilder) extends RelShuttle {
     val patternDefs = matchRel.getPatternDefinitions.mapValues(_.accept(materializer))
     val measures = matchRel.getMeasures
       .mapValues(_.accept(materializer))
-      .mapValues(materializerUtils.materialize)
+      .mapValues{
+        case call: RexCall if call.getOperator == BasicOperatorTable.MATCH_PROCTIME ||
+          call.getOperator == BasicOperatorTable.MATCH_ROWTIME =>
+          call
+        case node =>
+          materializerUtils.materialize(node)
+      }
+
     val partitionKeys = matchRel.getPartitionKeys
       .map(_.accept(materializer))
       .map(materializerUtils.materialize)
@@ -118,8 +126,9 @@ class RelTimeIndicatorConverter(rexBuilder: RexBuilder) extends RelShuttle {
     }
 
     // materialize all output types
-    // TODO allow passing through for rowtime accessor function, once introduced
-    val outputType = materializerUtils.getRowTypeWithoutIndicators(matchRel.getRowType)
+    val outputType = materializerUtils.getRowTypeWithoutIndicators(matchRel.getRowType,
+        fieldName => measures.get(fieldName)
+          .exists(r => !FlinkTypeFactory.isTimeIndicatorType(r.getType)))
 
     LogicalMatch.create(
       input,
@@ -475,7 +484,11 @@ class RexTimeIndicatorMaterializer(
     val materializedOperands = updatedCall.getOperator match {
 
       // skip materialization for special operators
-      case BasicOperatorTable.SESSION | BasicOperatorTable.HOP | BasicOperatorTable.TUMBLE =>
+      case BasicOperatorTable.SESSION |
+           BasicOperatorTable.HOP |
+           BasicOperatorTable.TUMBLE |
+           BasicOperatorTable.MATCH_PROCTIME |
+           BasicOperatorTable.MATCH_ROWTIME =>
         updatedCall.getOperands.toList
 
       case _ =>
@@ -490,13 +503,27 @@ class RexTimeIndicatorMaterializer(
       isTimeIndicatorType(updatedCall.getOperands.get(0).getType) =>
         updatedCall
 
+      // All calls in MEASURES and DEFINE are wrapped with FINAL/RUNNING, therefore
+      // we should treat FINAL(MATCH_ROW(PROC)TIME) as a time attribute extraction
+      case FINAL =>
+        val operand = updatedCall.getOperands.get(0)
+        operand match {
+          case operand: RexCall if operand.getOperator == BasicOperatorTable.MATCH_PROCTIME ||
+            operand.getOperator == BasicOperatorTable.MATCH_ROWTIME =>
+            operand
+          case _ =>
+            updatedCall
+        }
+
       // do not modify window time attributes
       case BasicOperatorTable.TUMBLE_ROWTIME |
           BasicOperatorTable.TUMBLE_PROCTIME |
           BasicOperatorTable.HOP_ROWTIME |
           BasicOperatorTable.HOP_PROCTIME |
           BasicOperatorTable.SESSION_ROWTIME |
-          BasicOperatorTable.SESSION_PROCTIME
+          BasicOperatorTable.SESSION_PROCTIME |
+          BasicOperatorTable.MATCH_ROWTIME |
+          BasicOperatorTable.MATCH_PROCTIME
           // since we materialize groupings on time indicators,
           // we cannot check the operands anymore but the return type at least
           if isTimeIndicatorType(updatedCall.getType) =>
@@ -541,19 +568,21 @@ class RexTimeIndicatorMaterializerUtils(rexBuilder: RexBuilder) {
       input.getRowType.getFieldNames)
   }
 
-  def getRowTypeWithoutIndicators(relType: RelDataType): RelDataType = {
+  def getRowTypeWithoutIndicators(
+      relType: RelDataType,
+      shouldMaterialize: String => Boolean): RelDataType = {
     val outputTypeBuilder = rexBuilder
       .getTypeFactory
       .asInstanceOf[FlinkTypeFactory]
       .builder()
 
-    relType.getFieldList.asScala.zipWithIndex.foreach { case (field, idx) =>
-      if (FlinkTypeFactory.isTimeIndicatorType(field.getType)) {
+    relType.getFieldList.asScala.foreach(field =>
+      if (FlinkTypeFactory.isTimeIndicatorType(field.getType) && shouldMaterialize(field.getName)) {
         outputTypeBuilder.add(field.getName, timestamp)
       } else {
         outputTypeBuilder.add(field.getName, field.getType)
       }
-    }
+    )
 
     outputTypeBuilder.build()
   }
