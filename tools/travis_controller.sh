@@ -52,27 +52,8 @@ function getCurrentStage() {
 		(1)
 			echo "$STAGE_COMPILE"
 			;;
-		(2)
-			echo "$STAGE_CORE"
-			;;
-		(3)
-			echo "$STAGE_LIBRARIES"
-			;;
-		(4)
-			echo "$STAGE_CONNECTORS"
-			;;
-		(5)
-			echo "$STAGE_TESTS"
-			;;
-		(6)
-			echo "$STAGE_MISC"
-			;;
-		(7)
-			echo "$STAGE_CLEANUP"
-			;;
 		(*)
-			echo "Invalid stage detected ($STAGE_NUMBER)"
-			return 1
+			echo "$STAGE_CONNECTORS"
 			;;
 	esac
 
