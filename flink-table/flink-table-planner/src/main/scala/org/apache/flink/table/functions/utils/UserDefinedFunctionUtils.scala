@@ -42,8 +42,11 @@ import org.apache.flink.table.functions.{AggregateFunction, ScalarFunction, Tabl
 import org.apache.flink.table.plan.logical._
 import org.apache.flink.table.plan.schema.FlinkTableFunctionImpl
 import org.apache.flink.util.InstantiationUtil
+import java.util.{Optional, List => JList}
 
 import scala.collection.mutable
+import scala.collection.JavaConverters._
+import org.apache.flink.table.util.JavaScalaConversionUtil.toJava
 
 object UserDefinedFunctionUtils {
 
@@ -81,6 +84,19 @@ object UserDefinedFunctionUtils {
   // ----------------------------------------------------------------------------------------------
   // Utilities for user-defined methods
   // ----------------------------------------------------------------------------------------------
+
+  /**
+    * Returns the signature of the eval method matching the given signature of [[TypeInformation]].
+    * Elements of the signature can be null (act as a wildcard).
+    */
+  def getEvalMethodSignature(
+    function: UserDefinedFunction,
+    signature: JList[TypeInformation[_]])
+  : Optional[Array[Class[_]]] = {
+
+    toJava(getUserDefinedMethod(function, "eval", typeInfoToClass(signature.asScala))
+      .map(_.getParameterTypes))
+  }
 
   /**
     * Returns the signature of the eval method matching the given signature of [[TypeInformation]].

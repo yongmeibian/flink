@@ -636,7 +636,7 @@ case class WindowAggregate(
       case aggExpr: DistinctAgg =>
         validateAggregateExpression(aggExpr.child)
       // check no nested aggregation exists.
-      case aggExpr: Aggregation =>
+      case aggExpr: Aggregation =>PlannerExpressionConverter
         aggExpr.children.foreach { child =>
           child.preOrderVisit {
             case agg: Aggregation =>
