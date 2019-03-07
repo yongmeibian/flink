@@ -18,16 +18,22 @@
 
 package org.apache.flink.table.plan
 
-import java.util.{Optional, List => JList, Map => JMap}
+import java.util.{Collections, Optional, List => JList, Map => JMap}
 
 import org.apache.flink.api.java.operators.join.JoinType
 import org.apache.flink.table.api._
-import org.apache.flink.table.expressions.{Alias, Asc, Expression, ExpressionBridge, Ordering, PlannerExpression, UnresolvedAlias, WindowProperty}
+import org.apache.flink.table.expressions.{ApiExpressionDefaultVisitor, BuiltInFunctionDefinitions, CallExpression, Expression, ExpressionBridge, ExpressionResolver, PlannerExpression, TableReferenceExpression}
+import org.apache.flink.table.expressions.ExpressionResolver.{ExpressionResolverBuilder, resolverFor}
+import org.apache.flink.table.expressions.BuiltInFunctionDefinitions.AS
+import org.apache.flink.table.expressions.ApiExpressionUtils.valueLiteral
+import org.apache.flink.table.expressions.lookups.TableReferenceLookup
+import org.apache.flink.table.expressions.rules.ResolverRules
 import org.apache.flink.table.functions.utils.UserDefinedFunctionUtils
 import org.apache.flink.table.operations.TableOperation
-import org.apache.flink.table.plan.ProjectionTranslator.{expandProjectList, flattenExpression, resolveOverWindows}
 import org.apache.flink.table.plan.logical._
+import org.apache.flink.table.util.JavaScalaConversionUtil
 import org.apache.flink.table.util.JavaScalaConversionUtil.toScala
+import org.apache.flink.util.Preconditions
 
 import _root_.scala.collection.JavaConverters._
 
@@ -38,6 +44,24 @@ class OperationTreeBuilder(private val tableEnv: TableEnvironment) {
 
   private val expressionBridge: ExpressionBridge[PlannerExpression] = tableEnv.expressionBridge
 
+  private val noWindowPropertyChecker = new NoWindowPropertyChecker(
+    "Window start and end properties are not available for Over windows.")
+
+  private def bridgeExpression(expression: Expression): PlannerExpression = {
+    val expr = expressionBridge.bridge(expression)
+    if (!expr.valid) {
+      throw new ValidationException(s"Could not validate expression: $expression")
+    }
+    expr
+  }
+
+  private val tableCatalog = new TableReferenceLookup {
+    override def lookupTable(name: String): Optional[TableReferenceExpression] =
+      JavaScalaConversionUtil
+      .toJava(tableEnv.scanInternal(Array(name))
+        .map(op => new TableReferenceExpression(name, op.getTableOperation)))
+  }
+
   def project(
       projectList: JList[Expression],
       child: TableOperation,
@@ -46,12 +70,40 @@ class OperationTreeBuilder(private val tableEnv: TableEnvironment) {
 
     val childNode = child.asInstanceOf[LogicalNode]
 
-    val convertedProjectList = projectList.asScala
-      .map(expressionBridge.bridge)
-      .flatMap(expr => flattenExpression(expr, childNode, tableEnv))
-      .map(UnresolvedAlias).toList
+    projectInternal(projectList, childNode, explicitAlias, Collections.emptyList())
+  }
 
-    Project(convertedProjectList, childNode, explicitAlias).validate(tableEnv)
+  def project(
+      projectList: JList[Expression],
+      child: TableOperation,
+      overWindows: JList[OverWindow])
+    : TableOperation = {
+
+    Preconditions.checkArgument(!overWindows.isEmpty)
+
+    val childNode = child.asInstanceOf[LogicalNode]
+
+    projectList.asScala.map(_.accept(noWindowPropertyChecker))
+
+    projectInternal(projectList,
+      childNode,
+      explicitAlias = true,
+      overWindows)
+  }
+
+  private def projectInternal(
+      projectList: JList[Expression],
+      child: LogicalNode,
+      explicitAlias: Boolean,
+      overWindows: JList[OverWindow])
+    : LogicalNode = {
+
+    val resolver = resolverFor(tableCatalog, child).withOverWindows(overWindows)
+      .appendCustomRule(ResolverRules.NAME_EXPRESSION)
+      .build
+    val projections = resolveExpressions(projectList, resolver)
+
+    Project(projections, child, explicitAlias).validate(tableEnv)
   }
 
   def aggregate(
@@ -61,14 +113,31 @@ class OperationTreeBuilder(private val tableEnv: TableEnvironment) {
     : TableOperation = {
 
     val childNode = child.asInstanceOf[LogicalNode]
+    val resolver = resolverFor(tableCatalog, childNode).build
 
-    val convertedGroupings = groupingExpressions.asScala
-      .map(expressionBridge.bridge)
-
-    val convertedAggregates = namedAggregates.asScala
-      .map(a => Alias(expressionBridge.bridge(a._1), a._2)).toSeq
+    val convertedGroupings = resolveExpressions(groupingExpressions, resolver)
+    val convertedAggregates = resolveNamedExpressions(namedAggregates, resolver)
 
     Aggregate(convertedGroupings, convertedAggregates, childNode).validate(tableEnv)
+  }
+
+  private def resolveExpressions(
+      expressions: JList[Expression],
+      resolver: ExpressionResolver)
+    : Seq[PlannerExpression] = {
+    resolver.resolve(expressions).asScala.map(bridgeExpression)
+  }
+
+  private def resolveNamedExpressions(
+      namedExpressions: JMap[Expression, String],
+      resolver: ExpressionResolver)
+    : Seq[PlannerExpression] = {
+
+    val renamedExpressions = namedExpressions.asScala
+      .map(expr => new CallExpression(AS, List(expr._1, valueLiteral(expr._2)).asJava).asInstanceOf[Expression])
+        .toList.asJava
+
+    resolver.resolve(renamedExpressions).asScala.map(bridgeExpression)
   }
 
   def windowAggregate(
@@ -81,48 +150,21 @@ class OperationTreeBuilder(private val tableEnv: TableEnvironment) {
 
     val childNode = child.asInstanceOf[LogicalNode]
 
-    val convertedGroupings = groupingExpressions.asScala
-      .map(expressionBridge.bridge)
+    val resolver = resolverFor(tableCatalog, childNode).withGroupWindow(window).build
 
-    val convertedAggregates = namedAggregates.asScala
-      .map(a => Alias(expressionBridge.bridge(a._1), a._2)).toSeq
+    val convertedGroupings = resolveExpressions(groupingExpressions, resolver)
 
-    val convertedProperties = namedProperties.asScala
-      .map(a => Alias(expressionBridge.bridge(a._1), a._2)).toSeq
+    val convertedAggregates = resolveNamedExpressions(namedAggregates, resolver)
+
+    val convertedProperties = resolveNamedExpressions(namedProperties, resolver)
 
     WindowAggregate(
         convertedGroupings,
-        createLogicalWindow(window),
+        resolver.resolveGroupWindow(window),
         convertedProperties,
         convertedAggregates,
         childNode)
       .validate(tableEnv)
-  }
-
-  def project(
-      projectList: JList[Expression],
-      child: TableOperation,
-      overWindows: JList[OverWindow])
-    : TableOperation = {
-
-    val childNode = child.asInstanceOf[LogicalNode]
-
-    val expandedFields = expandProjectList(
-      projectList.asScala.map(expressionBridge.bridge),
-      childNode,
-      tableEnv)
-
-    if (expandedFields.exists(_.isInstanceOf[WindowProperty])){
-      throw new ValidationException(
-        "Window start and end properties are not available for Over windows.")
-    }
-
-    val expandedOverFields = resolveOverWindows(
-        expandedFields,
-        overWindows.asScala.map(createLogicalWindow))
-      .map(UnresolvedAlias)
-
-    Project(expandedOverFields, childNode, explicitAlias = true).validate(tableEnv)
   }
 
   def join(
@@ -132,12 +174,23 @@ class OperationTreeBuilder(private val tableEnv: TableEnvironment) {
       condition: Optional[Expression],
       correlated: Boolean)
     : TableOperation = {
-    Join(
-      left.asInstanceOf[LogicalNode],
-      right.asInstanceOf[LogicalNode],
-      joinType,
-      toScala(condition).map(expressionBridge.bridge),
-      correlated).validate(tableEnv)
+
+    val leftNode = left.asInstanceOf[LogicalNode]
+    val rightNode = right.asInstanceOf[LogicalNode]
+
+    val resolver = resolverFor(tableCatalog, leftNode, rightNode).build()
+
+    val resolvedCondition = toScala(condition).map(c => resolver.resolve(List(c).asJava)) match {
+      case Some(resolvedExprs) if resolvedExprs.size != 1 =>
+        throw new ValidationException(s"Invalid join condition $condition")
+      case Some(resolvedExprs) =>
+        Some(resolvedExprs.get(0))
+      case None => None
+    }
+
+    val plannerExpression = resolvedCondition.map(bridgeExpression)
+
+    Join(leftNode, rightNode, joinType, plannerExpression, correlated).validate(tableEnv)
   }
 
   def joinLateral(
@@ -149,25 +202,33 @@ class OperationTreeBuilder(private val tableEnv: TableEnvironment) {
 
     val leftNode = left.asInstanceOf[LogicalNode]
 
+    val resolver = resolverFor(tableCatalog, leftNode).build()
+    val resolvedFunction = resolveSingleExpression(tableFunction, resolver)
+
     val temporalTable = UserDefinedFunctionUtils.createLogicalFunctionCall(
-      expressionBridge.bridge(tableFunction),
+      expressionBridge.bridge(resolvedFunction),
       leftNode).validate(tableEnv)
 
     join(left, temporalTable, joinType, condition, correlated = true)
   }
 
-  def createTemporalTable(
-      timeAttribute: Expression,
-      primaryKey: Expression,
-      underlyingOperation: TableOperation)
-    : TemporalTable = {
-    val underlyingOperationNode = underlyingOperation.asInstanceOf[LogicalNode]
-    TemporalTable(
-      expressionBridge.bridge(timeAttribute),
-      expressionBridge.bridge(primaryKey),
-      underlyingOperationNode)
-      .validate(tableEnv)
-      .asInstanceOf[TemporalTable]
+  def resolveExpression(expression: Expression, tableOperation: TableOperation*)
+    : PlannerExpression = {
+    val resolver = resolverFor(tableCatalog, tableOperation: _*).build()
+
+    resolveSingleExpression(expression, resolver)
+  }
+
+  private def resolveSingleExpression(
+      expression: Expression,
+      resolver: ExpressionResolver)
+    : PlannerExpression = {
+    val resolvedTimeAttributes = resolver.resolve(List(expression).asJava)
+    if (resolvedTimeAttributes.size() != 1) {
+      throw new ValidationException("Expected single expression")
+    } else {
+      expressionBridge.bridge(resolvedTimeAttributes.get(0))
+    }
   }
 
   def sort(
@@ -176,10 +237,12 @@ class OperationTreeBuilder(private val tableEnv: TableEnvironment) {
     : TableOperation = {
     val childNode = child.asInstanceOf[LogicalNode]
 
-    val order: Seq[Ordering] = fields.asScala.map(expressionBridge.bridge).map {
-      case o: Ordering => o
-      case e => Asc(e)
-    }
+    val customRules = ExpressionResolverBuilder.getDefaultRules.asScala.toList :+
+      ResolverRules.WRAP_IN_ORDER
+
+    val resolver = resolverFor(tableCatalog, childNode)
+      .appendCustomRule(ResolverRules.WRAP_IN_ORDER).build()
+    val order = resolveExpressions(fields, resolver).map(expressionBridge.bridge)
 
     Sort(order, childNode).validate(tableEnv)
   }
@@ -225,7 +288,8 @@ class OperationTreeBuilder(private val tableEnv: TableEnvironment) {
     : TableOperation = {
 
     val childNode = child.asInstanceOf[LogicalNode]
-    val convertedFields = expressionBridge.bridge(condition)
+    val resolver = resolverFor(tableCatalog, childNode).build()
+    val convertedFields = expressionBridge.bridge(resolveSingleExpression(condition, resolver))
 
     Filter(convertedFields, childNode).validate(tableEnv)
   }
@@ -261,38 +325,18 @@ class OperationTreeBuilder(private val tableEnv: TableEnvironment) {
     Union(left.asInstanceOf[LogicalNode], right.asInstanceOf[LogicalNode], all).validate(tableEnv)
   }
 
-  /**
-    * Converts an API class to a logical window for planning.
-    */
-  private def createLogicalWindow(overWindow: OverWindow): LogicalOverWindow = {
-    LogicalOverWindow(
-      expressionBridge.bridge(overWindow.getAlias),
-      overWindow.getPartitioning.asScala.map(expressionBridge.bridge),
-      expressionBridge.bridge(overWindow.getOrder),
-      expressionBridge.bridge(overWindow.getPreceding),
-      toScala(overWindow.getFollowing).map(expressionBridge.bridge)
-    )
-  }
+  class NoWindowPropertyChecker(val exceptionMessage: String)
+    extends ApiExpressionDefaultVisitor[Void] {
+    override def visitCall(call: CallExpression): Void = {
+      val functionDefinition = call.getFunctionDefinition
+      if (BuiltInFunctionDefinitions.WINDOW_PROPERTIES
+        .contains(functionDefinition)) {
+        throw new ValidationException(exceptionMessage)
+      }
+      call.getChildren.asScala.foreach(expr => expr.accept(this))
+      null
+    }
 
-  /**
-    * Converts an API class to a logical window for planning.
-    */
-  private def createLogicalWindow(window: GroupWindow): LogicalWindow = window match {
-    case tw: TumbleWithSizeOnTimeWithAlias =>
-      TumblingGroupWindow(
-        expressionBridge.bridge(tw.getAlias),
-        expressionBridge.bridge(tw.getTimeField),
-        expressionBridge.bridge(tw.getSize))
-    case sw: SlideWithSizeAndSlideOnTimeWithAlias =>
-      SlidingGroupWindow(
-        expressionBridge.bridge(sw.getAlias),
-        expressionBridge.bridge(sw.getTimeField),
-        expressionBridge.bridge(sw.getSize),
-        expressionBridge.bridge(sw.getSlide))
-    case sw: SessionWithGapOnTimeWithAlias =>
-      SessionGroupWindow(
-        expressionBridge.bridge(sw.getAlias),
-        expressionBridge.bridge(sw.getTimeField),
-        expressionBridge.bridge(sw.getGap))
+    override protected def defaultMethod(expression: Expression): Void = null
   }
 }

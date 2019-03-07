@@ -233,6 +233,10 @@ class DeclarativeAggCodeGen(
       typeLiteral
     }
 
+    override def visitLocalReference(localReference: LocalReferenceExpression): Expression = {
+      localReference
+    }
+
     private def visitUnresolvedReference(input: UnresolvedReferenceExpression)
       : Expression = {
       function.aggBufferAttributes.indexOf(input) match {

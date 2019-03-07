@@ -18,7 +18,7 @@
 
 package org.apache.flink.table.expressions;
 
-import org.apache.flink.annotation.PublicEvolving;
+import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.util.Preconditions;
 
 import java.util.Collections;
@@ -26,22 +26,26 @@ import java.util.List;
 import java.util.Objects;
 
 /**
- * An unresolved reference to a field.
- *
- * <p>This is a purely API facing expression that will be resolved into {@link FieldReferenceExpression},
- * {@link LocalReferenceExpression} or {@link TableReferenceExpression}.
+ * Reference to entity local to a certain Operation. That entity does not come from any of the Operations input.
+ * It might be for example a group window in window aggregation.
  */
-@PublicEvolving
-public final class UnresolvedReferenceExpression implements Expression {
+public class LocalReferenceExpression implements Expression {
 
 	private final String name;
 
-	public UnresolvedReferenceExpression(String name) {
+	private final TypeInformation<?> resultType;
+
+	public LocalReferenceExpression(String name, TypeInformation<?> resultType) {
 		this.name = Preconditions.checkNotNull(name);
+		this.resultType = Preconditions.checkNotNull(resultType);
 	}
 
 	public String getName() {
 		return name;
+	}
+
+	public TypeInformation<?> getResultType() {
+		return resultType;
 	}
 
 	@Override
@@ -51,7 +55,7 @@ public final class UnresolvedReferenceExpression implements Expression {
 
 	@Override
 	public <R> R accept(ExpressionVisitor<R> visitor) {
-		return visitor.visit(this);
+		return visitor.visitLocalReference(this);
 	}
 
 	@Override
@@ -62,13 +66,14 @@ public final class UnresolvedReferenceExpression implements Expression {
 		if (o == null || getClass() != o.getClass()) {
 			return false;
 		}
-		UnresolvedReferenceExpression that = (UnresolvedReferenceExpression) o;
-		return Objects.equals(name, that.name);
+		LocalReferenceExpression that = (LocalReferenceExpression) o;
+		return Objects.equals(name, that.name) &&
+			Objects.equals(resultType, that.resultType);
 	}
 
 	@Override
 	public int hashCode() {
-		return Objects.hash(name);
+		return Objects.hash(name, resultType);
 	}
 
 	@Override

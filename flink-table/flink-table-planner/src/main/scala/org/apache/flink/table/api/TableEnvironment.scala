@@ -1078,14 +1078,14 @@ abstract class TableEnvironment(val config: TableConfig) {
             } else {
               referenceByName(name, t).map((_, name))
             }
-          case (Alias(UnresolvedFieldReference(origName), name: String, _), _) =>
+          case (Alias(UnresolvedFieldReference(origName), name: String), _) =>
             if (isRefByPos) {
               throw new TableException(
                 s"Alias '$name' is not allowed if other fields are referenced by position.")
             } else {
               referenceByName(origName, t).map((_, name))
             }
-          case (_: TimeAttribute, _) | (Alias(_: TimeAttribute, _, _), _) =>
+          case (_: TimeAttribute, _) | (Alias(_: TimeAttribute, _), _) =>
             None
           case _ => throw new TableException(
             "Field reference expression or alias on field expression expected.")
@@ -1093,11 +1093,11 @@ abstract class TableEnvironment(val config: TableConfig) {
 
       case p: PojoTypeInfo[A] =>
         exprs flatMap {
-          case (UnresolvedFieldReference(name: String)) =>
+          case UnresolvedFieldReference(name: String) =>
             referenceByName(name, p).map((_, name))
-          case Alias(UnresolvedFieldReference(origName), name: String, _) =>
+          case Alias(UnresolvedFieldReference(origName), name: String) =>
             referenceByName(origName, p).map((_, name))
-          case _: TimeAttribute | Alias(_: TimeAttribute, _, _) =>
+          case _: TimeAttribute | Alias(_: TimeAttribute, _) =>
             None
           case _ => throw new TableException(
             "Field reference expression or alias on field expression expected.")

@@ -205,6 +205,11 @@ public class RexNodeConverter implements ExpressionVisitor<RexNode> {
 	}
 
 	@Override
+	public RexNode visitLocalReference(LocalReferenceExpression localReference) {
+		throw new UnsupportedOperationException();
+	}
+
+	@Override
 	public RexNode visit(Expression other) {
 		if (other instanceof UnresolvedReferenceExpression) {
 			return visitUnresolvedReferenceExpression((UnresolvedReferenceExpression) other);

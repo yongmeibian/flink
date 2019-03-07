@@ -124,15 +124,13 @@ class TableImpl(
       timeAttribute: Expression,
       primaryKey: Expression)
     : TemporalTableFunction = {
-    val temporalTable = operationTreeBuilder.createTemporalTable(
-      timeAttribute,
-      primaryKey,
-      operationTree)
+    val resolvedTimeAttribute = operationTreeBuilder.resolveExpression(timeAttribute, operationTree)
+    val resolvedPrimaryKey = operationTreeBuilder.resolveExpression(primaryKey, operationTree)
 
     TemporalTableFunctionImpl.create(
       operationTree,
-      temporalTable.timeAttribute,
-      temporalTable.primaryKey)
+      resolvedTimeAttribute,
+      resolvedPrimaryKey)
   }
 
   override def as(fields: String): Table = {
