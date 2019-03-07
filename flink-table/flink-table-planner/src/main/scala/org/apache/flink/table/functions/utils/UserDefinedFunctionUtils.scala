@@ -42,8 +42,11 @@ import org.apache.flink.table.functions.{AggregateFunction, ScalarFunction, Tabl
 import org.apache.flink.table.plan.logical._
 import org.apache.flink.table.plan.schema.FlinkTableFunctionImpl
 import org.apache.flink.util.InstantiationUtil
+import java.util.{Optional, List => JList}
 
 import scala.collection.mutable
+import scala.collection.JavaConverters._
+import org.apache.flink.table.util.JavaScalaConversionUtil.toJava
 
 object UserDefinedFunctionUtils {
 
