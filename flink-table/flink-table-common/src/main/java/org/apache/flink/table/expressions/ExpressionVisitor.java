@@ -35,6 +35,8 @@ public interface ExpressionVisitor<R> {
 
 	R visitFieldReference(FieldReferenceExpression fieldReference);
 
+	R visitUnresolvedFieldReference(UnresolvedFieldReferenceExpression fieldReference);
+
 	R visitTypeLiteral(TypeLiteralExpression typeLiteral);
 
 	R visit(Expression other);

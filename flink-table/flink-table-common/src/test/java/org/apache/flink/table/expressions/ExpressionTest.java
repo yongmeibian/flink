@@ -71,7 +71,7 @@ public class ExpressionTest {
 				new CallExpression(
 					EQUALS,
 					asList(
-						new FieldReferenceExpression("field"),
+						new UnresolvedFieldReferenceExpression("field"),
 						new CallExpression(
 							new ScalarFunctionDefinition("dummy", DUMMY_FUNCTION),
 							singletonList(new ValueLiteralExpression(nestedValue, Types.INT))

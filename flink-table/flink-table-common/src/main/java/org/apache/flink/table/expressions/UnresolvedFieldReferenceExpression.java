@@ -19,7 +19,6 @@
 package org.apache.flink.table.expressions;
 
 import org.apache.flink.annotation.PublicEvolving;
-import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.util.Preconditions;
 
 import java.util.Collections;
@@ -27,41 +26,21 @@ import java.util.List;
 import java.util.Objects;
 
 /**
- * A reference to a field in an input. The reference contains:
- * <ul>
- *     <li>type</li>
- *     <li>index of an input the field belongs to</li>
- *     <li>index of a field within the corresponding input</li>
- * </ul>
+ * An unresolved reference to a field.
+ *
+ * <p>This is a purely API facing expression that will be resolved into {@link FieldReferenceExpression}.
  */
 @PublicEvolving
-public final class FieldReferenceExpression implements Expression {
+public final class UnresolvedFieldReferenceExpression implements Expression {
 
 	private final String name;
 
-	private final TypeInformation<?> resultType;
-
-	private final int inputIndex;
-
-	private final int fieldIndex;
-
-	public FieldReferenceExpression(
-			String name,
-			TypeInformation<?> resultType,
-			int inputIndex,
-			int fieldIndex) {
+	public UnresolvedFieldReferenceExpression(String name) {
 		this.name = Preconditions.checkNotNull(name);
-		this.resultType = resultType;
-		this.inputIndex = inputIndex;
-		this.fieldIndex = fieldIndex;
 	}
 
 	public String getName() {
 		return name;
-	}
-
-	public TypeInformation<?> getResultType() {
-		return resultType;
 	}
 
 	@Override
@@ -71,7 +50,7 @@ public final class FieldReferenceExpression implements Expression {
 
 	@Override
 	public <R> R accept(ExpressionVisitor<R> visitor) {
-		return visitor.visitFieldReference(this);
+		return visitor.visitUnresolvedFieldReference(this);
 	}
 
 	@Override
@@ -82,16 +61,13 @@ public final class FieldReferenceExpression implements Expression {
 		if (o == null || getClass() != o.getClass()) {
 			return false;
 		}
-		FieldReferenceExpression that = (FieldReferenceExpression) o;
-		return inputIndex == that.inputIndex &&
-			fieldIndex == that.fieldIndex &&
-			Objects.equals(name, that.name) &&
-			Objects.equals(resultType, that.resultType);
+		UnresolvedFieldReferenceExpression that = (UnresolvedFieldReferenceExpression) o;
+		return Objects.equals(name, that.name);
 	}
 
 	@Override
 	public int hashCode() {
-		return Objects.hash(name, resultType, inputIndex, fieldIndex);
+		return Objects.hash(name);
 	}
 
 	@Override

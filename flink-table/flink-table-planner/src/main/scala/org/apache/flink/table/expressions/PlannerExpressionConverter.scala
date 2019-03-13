@@ -694,13 +694,14 @@ class PlannerExpressionConverter private extends ExpressionVisitor[PlannerExpres
   }
 
   override def visitFieldReference(fieldReference: FieldReferenceExpression): PlannerExpression = {
-    if (fieldReference.getResultType.isPresent) {
-      ResolvedFieldReference(
-        fieldReference.getName,
-        fieldReference.getResultType.get())
-    } else {
-      UnresolvedFieldReference(fieldReference.getName)
-    }
+    ResolvedFieldReference(
+      fieldReference.getName,
+      fieldReference.getResultType)
+  }
+
+  override def visitUnresolvedFieldReference(fieldReference: UnresolvedFieldReferenceExpression)
+    : PlannerExpression = {
+    UnresolvedFieldReference(fieldReference.getName)
   }
 
   override def visitTypeLiteral(typeLiteral: TypeLiteralExpression): PlannerExpression = {

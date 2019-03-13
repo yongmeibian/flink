@@ -67,6 +67,12 @@ class ExpressionBridge[E <: Expression](
       valueLiteralExpression
     }
 
+    override def visitUnresolvedFieldReference(
+      fieldReference: UnresolvedFieldReferenceExpression)
+    : Expression = {
+      fieldReference
+    }
+
     override def visitFieldReference(fieldReference: FieldReferenceExpression): Expression = {
       fieldReference
     }
