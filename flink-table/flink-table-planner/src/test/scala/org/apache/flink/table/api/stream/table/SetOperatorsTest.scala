@@ -154,7 +154,7 @@ class SetOperatorsTest extends TableTestBase {
                 unaryNode(
                   "DataStreamCalc",
                   streamTableNode(1),
-                  term("select", "x", "y"),
+                  term("select", "y", "x"),
                   term("where", "LIKE(y, '%Hanoi%')")
                 ),
                 term("groupBy", "y"),

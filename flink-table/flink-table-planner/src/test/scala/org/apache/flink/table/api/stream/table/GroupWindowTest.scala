@@ -50,13 +50,13 @@ class GroupWindowTest extends TableTestBase {
           unaryNode(
             "DataStreamCalc",
             streamTableNode(0),
-            term("select", "string", "int", "proctime")
+            term("select", "proctime", "int", "string")
           ),
           term("groupBy", "string"),
           term("window", "TumblingGroupWindow('w1, 'proctime, 50.millis)"),
           term("select", "string", "COUNT(int) AS TMP_1", "proctime('w1) AS TMP_0")
         ),
-        term("select", "string", "TMP_0 AS proctime")
+        term("select", "TMP_0 AS proctime", "string")
       ),
       term("window", "SlidingGroupWindow('w2, 'proctime, 20.millis, 10.millis)"),
       term("select", "COUNT(string) AS TMP_2")
@@ -79,7 +79,7 @@ class GroupWindowTest extends TableTestBase {
       unaryNode(
         "DataStreamCalc",
         streamTableNode(0),
-        term("select", "string", "int", "proctime")
+        term("select", "proctime", "int", "string")
       ),
       term("groupBy", "string"),
       term("window", "TumblingGroupWindow('w, 'proctime, 50.millis)"),
@@ -104,7 +104,7 @@ class GroupWindowTest extends TableTestBase {
       unaryNode(
         "DataStreamCalc",
         streamTableNode(0),
-        term("select", "string", "int", "proctime")
+        term("select", "proctime", "int", "string")
       ),
       term("groupBy", "string"),
       term("window", "TumblingGroupWindow('w, 'proctime, 2.rows)"),
@@ -173,7 +173,7 @@ class GroupWindowTest extends TableTestBase {
       unaryNode(
         "DataStreamCalc",
         streamTableNode(0),
-        term("select", "string", "int", "proctime")
+        term("select", "proctime", "int", "string")
       ),
       term("groupBy", "string"),
       term("window", "SlidingGroupWindow('w, 'proctime, 50.millis, 50.millis)"),
@@ -198,7 +198,7 @@ class GroupWindowTest extends TableTestBase {
       unaryNode(
         "DataStreamCalc",
         streamTableNode(0),
-        term("select", "string", "int", "proctime")
+        term("select", "proctime", "int", "string")
       ),
       term("groupBy", "string"),
       term("window", "SlidingGroupWindow('w, 'proctime, 2.rows, 1.rows)"),
@@ -223,7 +223,7 @@ class GroupWindowTest extends TableTestBase {
       unaryNode(
         "DataStreamCalc",
         streamTableNode(0),
-        term("select", "string", "int", "rowtime")
+        term("select", "int", "string", "rowtime")
       ),
       term("groupBy", "string"),
       term("window", "SlidingGroupWindow('w, 'rowtime, 8.millis, 10.millis)"),
@@ -337,7 +337,7 @@ class GroupWindowTest extends TableTestBase {
       unaryNode(
         "DataStreamCalc",
         streamTableNode(0),
-        term("select", "string", "int", "proctime")
+        term("select", "proctime", "int", "string")
       ),
       term("groupBy", "string"),
       term("window", "TumblingGroupWindow('w, 'proctime, 50.millis)"),
@@ -362,7 +362,7 @@ class GroupWindowTest extends TableTestBase {
       unaryNode(
         "DataStreamCalc",
         streamTableNode(0),
-        term("select", "int", "proctime")
+        term("select", "proctime", "int")
       ),
       term("window", "TumblingGroupWindow('w, 'proctime, 2.rows)"),
       term("select", "COUNT(int) AS TMP_0")
@@ -435,7 +435,7 @@ class GroupWindowTest extends TableTestBase {
       unaryNode(
         "DataStreamCalc",
         streamTableNode(0),
-        term("select", "int", "proctime")
+        term("select", "proctime", "int")
       ),
       term("window", "SlidingGroupWindow('w, 'proctime, 50.millis, 50.millis)"),
       term("select", "COUNT(int) AS TMP_0")
@@ -459,7 +459,7 @@ class GroupWindowTest extends TableTestBase {
       unaryNode(
         "DataStreamCalc",
         streamTableNode(0),
-        term("select", "int", "proctime")
+        term("select", "proctime", "int")
       ),
       term("window", "SlidingGroupWindow('w, 'proctime, 2.rows, 1.rows)"),
       term("select", "COUNT(int) AS TMP_0")
@@ -508,7 +508,7 @@ class GroupWindowTest extends TableTestBase {
       unaryNode(
         "DataStreamCalc",
         streamTableNode(0),
-        term("select", "int", "long")
+        term("select", "long", "int")
       ),
       term("window", "SlidingGroupWindow('w, 'long, 8.millis, 10.millis)"),
       term("select", "COUNT(int) AS TMP_0")
@@ -532,7 +532,7 @@ class GroupWindowTest extends TableTestBase {
       unaryNode(
         "DataStreamCalc",
         streamTableNode(0),
-        term("select", "int", "long")
+        term("select", "long", "int")
       ),
       term("window", "SessionGroupWindow('w, 'long, 7.millis)"),
       term("select", "COUNT(int) AS TMP_0")
@@ -556,7 +556,7 @@ class GroupWindowTest extends TableTestBase {
       unaryNode(
         "DataStreamCalc",
         streamTableNode(0),
-        term("select", "string", "int", "rowtime")
+        term("select", "int", "string", "rowtime")
       ),
       term("groupBy", "string"),
       term("window", "TumblingGroupWindow('w, 'rowtime, 5.millis)"),
@@ -624,7 +624,7 @@ class GroupWindowTest extends TableTestBase {
       unaryNode(
         "DataStreamCalc",
         streamTableNode(0),
-        term("select", "string", "int", "rowtime")
+        term("select", "int", "string", "rowtime")
       ),
       term("groupBy", "string"),
       term("window", "SlidingGroupWindow('w, 'rowtime, 10.millis, 5.millis)"),
@@ -658,10 +658,10 @@ class GroupWindowTest extends TableTestBase {
         term("select",
           "string",
           "COUNT(int) AS TMP_1",
-          "end('w) AS TMP_0",
+          "end('w) AS TMP_3",
           "start('w) AS TMP_2")
       ),
-      term("select", "TMP_0 AS we1", "string", "TMP_1 AS cnt", "TMP_2 AS ws", "TMP_0 AS we2")
+      term("select", "TMP_3 AS we1", "string", "TMP_1 AS cnt", "TMP_2 AS ws", "TMP_3 AS we2")
     )
 
     util.verifyTable(windowedTable, expected)
@@ -687,18 +687,18 @@ class GroupWindowTest extends TableTestBase {
         term("window", "TumblingGroupWindow('w, 'long, 5.millis)"),
         term("select",
           "string",
-          "SUM(int) AS TMP_0",
-          "start('w) AS TMP_1",
-          "end('w) AS TMP_2")
+          "SUM(int) AS TMP_1",
+          "start('w) AS TMP_3",
+          "end('w) AS TMP_5")
       ),
       term("select",
         "string",
-        "+(TMP_0, 1) AS s1",
-        "+(TMP_0, 3) AS s2",
-        "TMP_1 AS x",
-        "TMP_1 AS x2",
-        "TMP_2 AS x3",
-        "TMP_2")
+        "+(TMP_1, 1) AS s1",
+        "+(TMP_1, 3) AS s2",
+        "TMP_3 AS x",
+        "TMP_3 AS x2",
+        "TMP_5 AS x3",
+        "TMP_5")
     )
 
     util.verifyTable(windowedTable, expected)

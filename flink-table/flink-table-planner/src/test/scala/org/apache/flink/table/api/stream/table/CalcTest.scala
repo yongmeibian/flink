@@ -48,7 +48,7 @@ class CalcTest extends TableTestBase {
         unaryNode(
           "DataStreamCalc",
           streamTableNode(0),
-          term("select", "c", "a", "rowtime", "UPPER(c) AS $f3")
+          term("select", "a", "c", "rowtime", "UPPER(c) AS $f3")
         ),
         term("window", "TumblingGroupWindow('w, 'rowtime, 5.millis)"),
         term("select", "COUNT($f3) AS TMP_0", "SUM(a) AS TMP_1")
@@ -74,7 +74,7 @@ class CalcTest extends TableTestBase {
           unaryNode(
             "DataStreamCalc",
             streamTableNode(0),
-            term("select", "c", "a", "b", "rowtime", "UPPER(c) AS $f4")
+            term("select", "b", "a", "c", "rowtime", "UPPER(c) AS $f4")
           ),
           term("groupBy", "b"),
           term("window", "TumblingGroupWindow('w, 'rowtime, 5.millis)"),

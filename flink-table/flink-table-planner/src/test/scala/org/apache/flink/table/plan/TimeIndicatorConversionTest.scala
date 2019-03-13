@@ -134,7 +134,7 @@ class TimeIndicatorConversionTest extends TableTestBase {
         unaryNode(
           "DataStreamCalc",
           streamTableNode(0),
-          term("select", "CAST(rowtime) AS rowtime", "long")
+          term("select", "long", "CAST(rowtime) AS rowtime")
         ),
         term("groupBy", "long"),
         term("select", "long", "MIN(rowtime) AS TMP_0")
@@ -396,9 +396,9 @@ class TimeIndicatorConversionTest extends TableTestBase {
             anySubtree(),
             term(
               "select",
+              "PROCTIME(proctime) AS proctime",
               "*(o_amount, rate) AS converted_amount",
-              "currency",
-              "PROCTIME(proctime) AS proctime")
+              "currency")
           )
         )
       )
@@ -470,9 +470,9 @@ class TimeIndicatorConversionTest extends TableTestBase {
             anySubtree(),
             term(
               "select",
+              "CAST(o_rowtime) AS o_rowtime",
               "*(o_amount, rate) AS converted_amount",
-              "currency",
-              "CAST(o_rowtime) AS o_rowtime")
+              "currency")
           )
         )
       )

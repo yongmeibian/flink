@@ -141,7 +141,7 @@ class CalcTest extends TableTestBase {
       unaryNode(
         "DataSetCalc",
         batchTableNode(0),
-        term("select", "a", "b")
+        term("select", "b", "a")
       ),
       term("select", "SUM(a) AS TMP_0", "MAX(b) AS TMP_1")
     )
