@@ -19,14 +19,12 @@
 package org.apache.flink.table.plan;
 
 import org.apache.flink.api.java.tuple.Tuple2;
-import org.apache.flink.table.expressions.BuiltInFunctionDefinitions;
 import org.apache.flink.table.expressions.CallExpression;
 import org.apache.flink.table.expressions.Expression;
 import org.apache.flink.table.expressions.FieldReferenceExpression;
 import org.apache.flink.table.expressions.FunctionDefinition;
 import org.apache.flink.table.expressions.UnresolvedCallExpression;
 import org.apache.flink.table.expressions.UnresolvedFieldReferenceExpression;
-import org.apache.flink.table.plan.logical.LogicalOverWindow;
 import org.apache.flink.table.validate.FunctionCatalog;
 
 import java.util.ArrayList;
@@ -37,7 +35,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;

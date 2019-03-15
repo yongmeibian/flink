@@ -29,7 +29,7 @@ import java.util.Optional;
 
 public final class JoinOperation extends BinaryOperation {
 
-	private final JoinType joinType;
+	private final JoinTypeA joinType;
 
 	private final Expression condition;
 
@@ -40,7 +40,7 @@ public final class JoinOperation extends BinaryOperation {
 	public JoinOperation(
 			Operation left,
 			Operation right,
-			JoinType joinType,
+			JoinTypeA joinType,
 			@Nullable Expression condition,
 			boolean correlated) {
 		super(left, right);
@@ -72,7 +72,7 @@ public final class JoinOperation extends BinaryOperation {
 		return c;
 	}
 
-	public JoinType getJoinType() {
+	public JoinTypeA getJoinType() {
 		return joinType;
 	}
 

@@ -18,11 +18,15 @@
 
 package org.apache.flink.table.plan
 
+import java.util.{List => JList}
+
 import org.apache.flink.api.common.typeutils.CompositeType
 import org.apache.flink.table.api.TableEnvironment
 import org.apache.flink.table.expressions._
 import org.apache.flink.table.plan.logical.{LogicalNode, LogicalOverWindow, Project}
 import org.apache.flink.table.typeutils.RowIntervalTypeInfo
+
+import scala.collection.JavaConverters._
 
 object ProjectionTranslator {
 
@@ -35,6 +39,13 @@ object ProjectionTranslator {
       tableEnv: TableEnvironment)
     : Seq[PlannerExpression] = {
     exprs.flatMap(expr => flattenExpression(expr, parent, tableEnv))
+  }
+
+  def jFlattenExpression(
+      expr: PlannerExpression,
+      parent: LogicalNode,
+      tableEnv: TableEnvironment): JList[PlannerExpression] = {
+    flattenExpression(expr, parent, tableEnv).asJava
   }
 
   def flattenExpression(

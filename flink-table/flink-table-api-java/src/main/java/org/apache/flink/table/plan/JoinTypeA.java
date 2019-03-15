@@ -21,7 +21,7 @@ package org.apache.flink.table.plan;
 /**
  * Enumeration of join types.
  */
-public enum JoinType {
+public enum JoinTypeA {
 	INNER, LEFT, RIGHT, FULL, SEMI, ANTI;
 
 	public boolean isOuter() {

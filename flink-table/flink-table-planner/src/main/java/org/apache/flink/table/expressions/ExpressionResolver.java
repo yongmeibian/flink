@@ -18,17 +18,24 @@
 
 package org.apache.flink.table.expressions;
 
+import org.apache.flink.api.common.typeinfo.TypeInformation;
+import org.apache.flink.api.common.typeutils.CompositeType;
 import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.table.api.ValidationException;
+import org.apache.flink.table.plan.DefaultExpressionVisitor;
 import org.apache.flink.table.plan.logical.LogicalNode;
-import org.apache.flink.table.validate.FunctionCatalog;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+
+import static java.util.Arrays.asList;
+import static java.util.Collections.singletonList;
+import static org.apache.flink.table.expressions.ApiExpressionUtils.valueLiteral;
 
 /**
  * Tries to resolve all unresolved expressions such as {@link UnresolvedFieldReferenceExpression},
@@ -36,45 +43,96 @@ import java.util.stream.IntStream;
  */
 public class ExpressionResolver {
 
-	private final FunctionCatalog functionCatalog;
+	private final Map<String, FieldReferenceExpression> fieldReferences;
 
-	public ExpressionResolver(FunctionCatalog functionCatalog) {
-		this.functionCatalog = functionCatalog;
+	private final ExpressionResolverVisitor resolverVisitor = new ExpressionResolverVisitor();
+	private final FieldFlatteningVisitor flatteningVisitor = new FieldFlatteningVisitor();
+	private final FlatteningCallVisitor flatteningCallVisitor = new FlatteningCallVisitor();
+
+	private ExpressionResolver(LogicalNode[] inputs) {
+		this.fieldReferences = IntStream.range(0, inputs.length)
+			.mapToObj(i -> Tuple2.of(i, inputs[i].tableSchema()))
+			.flatMap(p -> IntStream.range(0, p.f1.getFieldCount())
+				.mapToObj(i -> new FieldReferenceExpression(
+					p.f1.getFieldName(i).get(),
+					p.f1.getFieldType(i).get(),
+					p.f0,
+					i)))
+			.collect(Collectors.toMap(
+				FieldReferenceExpression::getName,
+				Function.identity(),
+				(fieldRef1, fieldRef2) -> {
+					throw new ValidationException("Ambigous column");
+				}
+			));
 	}
 
-	public Expression resolveExpression(Expression unresolved, LogicalNode... inputs) {
-		ExpressionResolverVisitor resolverVisitor = new ExpressionResolverVisitor(inputs);
-		return unresolved.accept(resolverVisitor);
+	public static ExpressionResolver resolverFor(LogicalNode... inputs) {
+		return new ExpressionResolver(inputs);
 	}
 
-	class ExpressionResolverVisitor extends ApiExpressionVisitor<Expression> {
+	public List<Expression> resolve(Expression expression) {
+		return expression.accept(flatteningVisitor)
+			.stream()
+			.map(expr -> expr.accept(resolverVisitor))
+			.flatMap(expr -> expr.accept(flatteningCallVisitor).stream())
+			.collect(Collectors.toList());
+	}
 
-		private final Map<String, FieldReferenceExpression> fieldReferences;
+	private class FieldFlatteningVisitor extends DefaultExpressionVisitor<List<Expression>> {
 
-		ExpressionResolverVisitor(LogicalNode[] inputs) {
-			this.fieldReferences = IntStream.range(0, inputs.length)
-				.mapToObj(i -> Tuple2.of(i, inputs[i].tableSchema()))
-				.flatMap(p -> IntStream.range(0, p.f1.getFieldCount())
-					.mapToObj(i -> new FieldReferenceExpression(
-						p.f1.getFieldName(i).get(),
-						p.f1.getFieldType(i).get(),
-						p.f0,
-						i)))
-				.collect(Collectors.toMap(
-					FieldReferenceExpression::getName,
-					Function.identity(),
-					(fieldRef1, fieldRef2) -> {
-						throw new ValidationException("Ambigous column");
-					}
-				));
+		@Override
+		public List<Expression> visitUnresolvedFieldReference(UnresolvedFieldReferenceExpression fieldReference) {
+			if (fieldReference.getName().equals("*")) {
+				return new ArrayList<>(fieldReferences.values());
+			} else {
+				return singletonList(fieldReference);
+			}
 		}
 
 		@Override
+		protected List<Expression> defaultMethod(Expression expression) {
+			return singletonList(expression);
+		}
+	}
+
+	private class FlatteningCallVisitor extends DefaultExpressionVisitor<List<Expression>> {
+
+		private final PlannerExpressionConverter expressionConverter = PlannerExpressionConverter.INSTANCE();
+
+		@Override
+		public List<Expression> visitCall(CallExpression call) {
+			if (call.getFunctionDefinition() == BuiltInFunctionDefinitions.FLATTEN) {
+				Expression arg = call.getChildren().get(0);
+				TypeInformation<?> resultType = arg.accept(expressionConverter).resultType();
+				if (resultType instanceof CompositeType) {
+					CompositeType<?> compositeType = (CompositeType<?>) resultType;
+					return IntStream.range(0, compositeType.getArity())
+						.mapToObj(idx -> new CallExpression(
+								BuiltInFunctionDefinitions.GET,
+								asList(arg, valueLiteral(idx))
+							)
+						)
+						.collect(Collectors.toList());
+				} else {
+					return singletonList(arg);
+				}
+			}
+
+			return singletonList(call);
+		}
+
+		@Override
+		protected List<Expression> defaultMethod(Expression expression) {
+			return singletonList(expression);
+		}
+	}
+
+	private class ExpressionResolverVisitor extends DefaultExpressionVisitor<Expression> {
+
+		@Override
 		public Expression visitUnresolvedCall(UnresolvedCallExpression unresolvedCall) {
-			FunctionDefinition resolvedDefinition = functionCatalog.lookupFunction(unresolvedCall.getUnresolvedName());
-			return new CallExpression(
-				resolvedDefinition,
-				unresolvedCall.getChildren().stream().map(expr -> expr.accept(this)).collect(Collectors.toList()));
+			throw new IllegalStateException("All calls should be resolved by now. Got: " + unresolvedCall);
 		}
 
 		@Override
@@ -97,21 +155,6 @@ public class ExpressionResolver {
 		}
 
 		@Override
-		public Expression visitSymbol(SymbolExpression symbolExpression) {
-			return symbolExpression;
-		}
-
-		@Override
-		public Expression visitValueLiteral(ValueLiteralExpression valueLiteralExpression) {
-			return valueLiteralExpression;
-		}
-
-		@Override
-		public Expression visitFieldReference(FieldReferenceExpression fieldReference) {
-			return fieldReference;
-		}
-
-		@Override
 		public Expression visitUnresolvedFieldReference(UnresolvedFieldReferenceExpression fieldReference) {
 			FieldReferenceExpression resolvedReference = fieldReferences.get(fieldReference.getName());
 
@@ -123,18 +166,8 @@ public class ExpressionResolver {
 		}
 
 		@Override
-		public Expression visitTypeLiteral(TypeLiteralExpression typeLiteral) {
-			return typeLiteral;
-		}
-
-		@Override
-		public Expression visitTableReference(TableReferenceExpression tableReference) {
-			return tableReference;
-		}
-
-		@Override
-		public Expression visitNonApiExpression(Expression other) {
-			return other;
+		protected Expression defaultMethod(Expression expression) {
+			return expression;
 		}
 	}
 }

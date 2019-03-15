@@ -42,9 +42,36 @@ case class Flattening(child: PlannerExpression) extends UnaryExpression {
 
 case class GetCompositeField(child: PlannerExpression, key: Any) extends UnaryExpression {
 
-  private var fieldIndex: Option[Int] = None
+  private var fieldIndex: Option[Int] = computeFieldIndex()
 
   override def toString = s"$child.get($key)"
+
+  private def computeFieldIndex(): Option[Int] = {
+    // check for composite type
+    if (!child.resultType.isInstanceOf[CompositeType[_]]) {
+      return None
+    }
+    val compositeType = child.resultType.asInstanceOf[CompositeType[_]]
+
+    // check key
+    key match {
+      case name: String =>
+        val index = compositeType.getFieldIndex(name)
+        if (index < 0) {
+          None
+        } else {
+          Some(index)
+        }
+      case index: Int =>
+        if (index >= compositeType.getArity) {
+          None
+        } else {
+          Some(index)
+        }
+      case _ =>
+        None
+    }
+  }
 
   override private[flink] def validateInput(): ValidationResult = {
     // check for composite type

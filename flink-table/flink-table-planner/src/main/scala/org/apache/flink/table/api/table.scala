@@ -27,6 +27,7 @@ import org.apache.flink.table.expressions.{Alias, Asc, Expression, ExpressionBri
 import org.apache.flink.table.functions.TemporalTableFunction
 import org.apache.flink.table.functions.utils.UserDefinedFunctionUtils
 import org.apache.flink.table.plan.ExpressionConversionUtils.{extractAggregationsAndProperties, extractFieldReferences, replaceAggregationsAndProperties, resolveCalls}
+import org.apache.flink.table.plan.OperationTreeBuilder
 import org.apache.flink.table.plan.ProjectionTranslator._
 import org.apache.flink.table.plan.logical.{Minus, _}
 import org.apache.flink.table.sinks.TableSink
@@ -69,6 +70,8 @@ class Table(
 
   private[flink] val expressionBridge: ExpressionBridge[PlannerExpression] =
     tableEnv.expressionBridge
+
+  private[flink] val operationTreeBuilder = new OperationTreeBuilder
 
   private lazy val tableSchema: TableSchema = new TableSchema(
     logicalPlan.output.map(_.name).toArray,
@@ -137,32 +140,22 @@ class Table(
     }
 
     if (!aggNames.isEmpty) {
-      val projectsOnAgg =
-        replaceAggregationsAndProperties(
+      val projectsOnAgg = replaceAggregationsAndProperties(
           expressionsWithResolvedCalls,
           aggNames,
-          propNames).asScala
-          .map(expressionBridge.bridge)
-          .flatMap(expr => flattenExpression(expr, logicalPlan, tableEnv))
-          .map(UnresolvedAlias)
+          propNames)
       val projectFields = extractFieldReferences(expressionsWithResolvedCalls)
-        .asScala
-        .map(expressionBridge.bridge)
-        .flatMap(expr => flattenExpression(expr, logicalPlan, tableEnv))
-        .map(UnresolvedAlias).toList
 
       new Table(tableEnv,
-        Project(projectsOnAgg,
+        operationTreeBuilder.project(projectsOnAgg,
           Aggregate(Nil, aggNames.asScala.map(a => Alias(expressionBridge.bridge(a._1), a._2)).toSeq,
-            Project(projectFields, logicalPlan).validate(tableEnv)
+            operationTreeBuilder.project(projectFields, logicalPlan).validate(tableEnv)
           ).validate(tableEnv)
         ).validate(tableEnv)
       )
     } else {
       new Table(tableEnv,
-        Project(expressionsWithResolvedCalls.asScala.map(expressionBridge.bridge)
-          .flatMap(expr => flattenExpression(expr, logicalPlan, tableEnv))
-          .map(UnresolvedAlias), logicalPlan).validate(tableEnv))
+        operationTreeBuilder.project(expressionsWithResolvedCalls, logicalPlan).validate(tableEnv))
     }
   }
 
@@ -429,7 +422,7 @@ class Table(
     * }}}
     */
   def join(right: Table, joinPredicate: Expression): Table = {
-    joinInternal(right, Some(expressionBridge.bridge(joinPredicate)), JoinType.INNER)
+    joinInternal(right, Some(joinPredicate), JoinType.INNER)
   }
 
   /**
@@ -480,7 +473,7 @@ class Table(
     * }}}
     */
   def leftOuterJoin(right: Table, joinPredicate: Expression): Table = {
-    joinInternal(right, Some(expressionBridge.bridge(joinPredicate)), JoinType.LEFT_OUTER)
+    joinInternal(right, Some(joinPredicate), JoinType.LEFT_OUTER)
   }
 
   /**
@@ -514,7 +507,7 @@ class Table(
     * }}}
     */
   def rightOuterJoin(right: Table, joinPredicate: Expression): Table = {
-    joinInternal(right, Some(expressionBridge.bridge(joinPredicate)), JoinType.RIGHT_OUTER)
+    joinInternal(right, Some(joinPredicate), JoinType.RIGHT_OUTER)
   }
 
   /**
@@ -548,12 +541,12 @@ class Table(
     * }}}
     */
   def fullOuterJoin(right: Table, joinPredicate: Expression): Table = {
-    joinInternal(right, Some(expressionBridge.bridge(joinPredicate)), JoinType.FULL_OUTER)
+    joinInternal(right, Some(joinPredicate), JoinType.FULL_OUTER)
   }
 
   private def joinInternal(
       right: Table,
-      joinPredicate: Option[PlannerExpression],
+      joinPredicate: Option[Expression],
       joinType: JoinType)
     : Table = {
     // check that the TableEnvironment of right table is not null
@@ -562,10 +555,13 @@ class Table(
       throw new ValidationException("Only tables from the same TableEnvironment can be joined.")
     }
 
-    new Table(
-      tableEnv,
-      Join(this.logicalPlan, right.logicalPlan, joinType, joinPredicate, correlated = false)
-        .validate(tableEnv))
+    val join = if (joinPredicate.isDefined) {
+      operationTreeBuilder.join(this.logicalPlan, right.logicalPlan, joinType, joinPredicate.get, false)
+    } else {
+      operationTreeBuilder.join(this.logicalPlan, right.logicalPlan, joinType, false)
+    }
+
+    new Table(tableEnv, join.validate(tableEnv))
   }
 
   /**
@@ -655,7 +651,7 @@ class Table(
   def joinLateral(tableFunctionCall: Expression, joinPredicate: Expression): Table = {
     joinLateralInternal(
       expressionBridge.bridge(tableFunctionCall),
-      Some(expressionBridge.bridge(joinPredicate)),
+      Some(joinPredicate),
       JoinType.INNER)
   }
 
@@ -750,13 +746,13 @@ class Table(
   def leftOuterJoinLateral(tableFunctionCall: Expression, joinPredicate: Expression): Table = {
     joinLateralInternal(
       expressionBridge.bridge(tableFunctionCall),
-      Some(expressionBridge.bridge(joinPredicate)),
+      Some(joinPredicate),
       JoinType.LEFT_OUTER)
   }
 
   private def joinLateralInternal(
       callExpr: PlannerExpression,
-      joinPredicate: Option[PlannerExpression],
+      joinPredicate: Option[Expression],
       joinType: JoinType): Table = {
 
     // check join type
@@ -767,18 +763,16 @@ class Table(
 
     val logicalCall = UserDefinedFunctionUtils.createLogicalFunctionCall(
       callExpr,
-      logicalPlan)
-    val validatedLogicalCall = logicalCall.validate(tableEnv)
+      logicalPlan).validate(tableEnv)
 
-    new Table(
-      tableEnv,
-      Join(
-        logicalPlan,
-        validatedLogicalCall,
-        joinType,
-        joinPredicate,
-        correlated = true
-      ).validate(tableEnv))
+    val join = joinPredicate match {
+      case Some(condition) =>
+        operationTreeBuilder.join(logicalPlan, logicalCall, joinType, condition, true)
+      case None =>
+        operationTreeBuilder.join(logicalPlan, logicalCall, joinType, true)
+    }
+
+    new Table(tableEnv, join.validate(tableEnv))
   }
 
   /**
@@ -1245,25 +1239,18 @@ class GroupedTable(
       throw new ValidationException("Window properties can only be used on windowed tables.")
     }
 
-    val projectsOnAgg =
-      replaceAggregationsAndProperties(
+    val projectsOnAgg = replaceAggregationsAndProperties(
         expressionsWithResolvedCalls,
         aggNames,
-        propNames).asScala
-        .map(table.expressionBridge.bridge)
-        .flatMap(expr => flattenExpression(expr, table.logicalPlan, table.tableEnv))
-        .map(UnresolvedAlias)
+        propNames)
     val projectFields = extractFieldReferences((expressionsWithResolvedCalls.asScala ++ groupKey).asJava)
-      .asScala
-      .map(table.expressionBridge.bridge)
-      .flatMap(expr => flattenExpression(expr, table.logicalPlan, table.tableEnv))
-      .map(UnresolvedAlias).toList
+
 
     new Table(table.tableEnv,
-      Project(projectsOnAgg,
+      table.operationTreeBuilder.project(projectsOnAgg,
         Aggregate(groupKey.map(table.expressionBridge.bridge),
           aggNames.asScala.map(a => Alias(table.expressionBridge.bridge(a._1), a._2)).toSeq,
-          Project(projectFields, table.logicalPlan).validate(table.tableEnv)
+          table.operationTreeBuilder.project(projectFields, table.logicalPlan).validate(table.tableEnv)
         ).validate(table.tableEnv)
       ).validate(table.tableEnv))
   }
@@ -1391,33 +1378,25 @@ class WindowGroupedTable @Deprecated() (
     val aggNames = extracted.f0
     val propNames = extracted.f1
 
-    val projectsOnAgg =
-      replaceAggregationsAndProperties(
+    val projectsOnAgg = replaceAggregationsAndProperties(
         expressionsWithResolvedCalls,
         aggNames,
-        propNames).asScala
-        .map(table.expressionBridge.bridge)
-        .flatMap(expr => flattenExpression(expr, table.logicalPlan, table.tableEnv))
-        .map(UnresolvedAlias)
+        propNames)
     val projectFields = extractFieldReferences((expressionsWithResolvedCalls.asScala ++ groupKeys :+ this.window.getTimeField)
         .asJava)
-      .asScala
-      .map(table.expressionBridge.bridge)
-      .flatMap(expr => flattenExpression(expr, table.logicalPlan, table.tableEnv))
-      .map(UnresolvedAlias).toList
+
 
     new Table(table.tableEnv,
-      Project(
+      // required for proper resolution of the time attribute in multi-windows
+      table.operationTreeBuilder.projectWithExplicitAlias(
         projectsOnAgg,
         WindowAggregate(
           groupKeys.map(table.expressionBridge.bridge),
           window,
           propNames.asScala.map(a => Alias(table.expressionBridge.bridge(a._1), a._2)).toSeq,
           aggNames.asScala.map(a => Alias(table.expressionBridge.bridge(a._1), a._2)).toSeq,
-          Project(projectFields, table.logicalPlan).validate(table.tableEnv)
-        ).validate(table.tableEnv),
-        // required for proper resolution of the time attribute in multi-windows
-        explicitAlias = true
+          table.operationTreeBuilder.project(projectFields, table.logicalPlan).validate(table.tableEnv)
+        ).validate(table.tableEnv)
       ).validate(table.tableEnv))
   }
 

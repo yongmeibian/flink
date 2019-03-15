@@ -41,6 +41,7 @@ import org.apache.flink.table.validate.{ValidationFailure, ValidationSuccess}
 
 import scala.collection.JavaConverters._
 import scala.collection.mutable
+import scala.tools.nsc.interpreter.JList
 
 case class Project(
     projectList: Seq[NamedExpression],
@@ -48,12 +49,19 @@ case class Project(
     explicitAlias: Boolean = false)
   extends UnaryNode {
 
+  def this(
+      javaProjectList: JList[NamedExpression],
+      child: LogicalNode,
+      explicitAlias: Boolean) {
+    this(javaProjectList.asScala, child, explicitAlias)
+  }
+
   override def output: Seq[Attribute] = projectList.map(_.toAttribute)
 
   override def resolveExpressions(tableEnv: TableEnvironment): LogicalNode = {
-    val afterResolve = super.resolveExpressions(tableEnv).asInstanceOf[Project]
+//    val afterResolve = super.resolveExpressions(tableEnv).asInstanceOf[Project]
     val newProjectList =
-      afterResolve.projectList.zipWithIndex.map { case (e, i) =>
+      projectList.zipWithIndex.map { case (e, i) =>
         e match {
           case u @ UnresolvedAlias(c) => c match {
             case ne: NamedExpression => ne
@@ -417,7 +425,6 @@ case class Join(
   }
 
   override def resolveExpressions(tableEnv: TableEnvironment): LogicalNode = {
-    val node = super.resolveExpressions(tableEnv).asInstanceOf[Join]
     val partialFunction: PartialFunction[PlannerExpression, PlannerExpression] = {
       case field: ResolvedFieldReference => JoinFieldReference(
         field.name,
@@ -425,8 +432,8 @@ case class Join(
         left,
         right)
     }
-    val resolvedCondition = node.condition.map(_.postOrderTransform(partialFunction))
-    Join(node.left, node.right, node.joinType, resolvedCondition, correlated)
+    val resolvedCondition = condition.map(_.postOrderTransform(partialFunction))
+    Join(left, right, joinType, resolvedCondition, correlated)
   }
 
   override protected[logical] def construct(relBuilder: RelBuilder): RelBuilder = {
