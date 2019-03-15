@@ -19,6 +19,7 @@
 package org.apache.flink.table.expressions;
 
 import org.apache.flink.annotation.PublicEvolving;
+import org.apache.flink.table.expressions.utils.ApiExpressionUtils;
 import org.apache.flink.table.functions.FunctionDefinition;
 import org.apache.flink.table.functions.FunctionIdentifier;
 import org.apache.flink.table.types.DataType;
@@ -26,8 +27,6 @@ import org.apache.flink.util.Preconditions;
 
 import javax.annotation.Nullable;
 
-import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
@@ -61,8 +60,10 @@ public final class UnresolvedCallExpression implements Expression {
 			Preconditions.checkNotNull(functionIdentifier, "Function identifier must not be null.");
 		this.functionDefinition =
 			Preconditions.checkNotNull(functionDefinition, "Function definition must not be null.");
-		this.args = Collections.unmodifiableList(
-			new ArrayList<>(Preconditions.checkNotNull(args, "Arguments must not be null.")));
+		this.args = Preconditions.checkNotNull(args)
+			.stream()
+			.map(ApiExpressionUtils::unwrapFromApi)
+			.collect(Collectors.toList());
 	}
 
 	public UnresolvedCallExpression(
@@ -71,8 +72,10 @@ public final class UnresolvedCallExpression implements Expression {
 		this.functionIdentifier = null;
 		this.functionDefinition =
 			Preconditions.checkNotNull(functionDefinition, "Function definition must not be null.");
-		this.args = Collections.unmodifiableList(
-			new ArrayList<>(Preconditions.checkNotNull(args, "Arguments must not be null.")));
+		this.args = Preconditions.checkNotNull(args)
+			.stream()
+			.map(ApiExpressionUtils::unwrapFromApi)
+			.collect(Collectors.toList());
 	}
 
 	public Optional<FunctionIdentifier> getFunctionIdentifier() {

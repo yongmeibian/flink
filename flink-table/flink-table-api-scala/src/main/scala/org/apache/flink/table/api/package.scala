@@ -19,6 +19,8 @@
 package org.apache.flink.table
 
 import org.apache.flink.table.api.{ImplicitExpressionConversions, ImplicitExpressionOperations, Table, TableEnvironment}
+import org.apache.flink.table.expressions.Expression
+import org.apache.flink.table.expressions.utils.ApiExpressionUtils.unresolvedRef
 
 /**
   * == Table & SQL API ==
@@ -44,5 +46,8 @@ package object api /* extends ImplicitExpressionConversions */ {
   // This package object should extend from ImplicitExpressionConversions but would clash with
   // "org.apache.flink.table.api.scala._" therefore we postpone splitting the package object into
   // two and let users update there imports first
+  implicit class ColumnExpression(val sc: StringContext) extends AnyVal {
+    def $(args: Any*): Expression = unresolvedRef(sc.s(args: _*))
+  }
 }
 
