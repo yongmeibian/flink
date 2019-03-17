@@ -23,14 +23,14 @@ import org.apache.calcite.rel.RelNode
 import org.apache.flink.api.common.typeinfo.TypeInformation
 import org.apache.flink.api.java.operators.join.JoinType
 import org.apache.flink.table.calcite.{FlinkRelBuilder, FlinkTypeFactory}
-import org.apache.flink.table.expressions.{Alias, Asc, Expression, ExpressionBridge, ExpressionParser, Ordering, PlannerExpression, ResolvedFieldReference, UnresolvedAlias, WindowProperty}
+import org.apache.flink.table.expressions.{Alias, Asc, Expression, ExpressionBridge, ExpressionParser, Ordering, PlannerExpression, ResolvedFieldReference, UnresolvedAlias}
 import org.apache.flink.table.functions.TemporalTableFunction
 import org.apache.flink.table.functions.utils.UserDefinedFunctionUtils
 import org.apache.flink.table.plan.ExpressionConversionUtils.{extractAggregationsAndProperties, extractFieldReferences, replaceAggregationsAndProperties, resolveCalls}
 import org.apache.flink.table.plan.OperationTreeBuilder
-import org.apache.flink.table.plan.ProjectionTranslator._
 import org.apache.flink.table.plan.logical.{Minus, _}
 import org.apache.flink.table.sinks.TableSink
+import org.apache.flink.table.util.JavaScalaConversionUtil.toJava
 
 import _root_.scala.annotation.varargs
 import _root_.scala.collection.JavaConverters._
@@ -1385,7 +1385,6 @@ class WindowGroupedTable @Deprecated() (
     val projectFields = extractFieldReferences((expressionsWithResolvedCalls.asScala ++ groupKeys :+ this.window.getTimeField)
         .asJava)
 
-
     new Table(table.tableEnv,
       // required for proper resolution of the time attribute in multi-windows
       table.operationTreeBuilder.projectWithExplicitAlias(
@@ -1456,35 +1455,23 @@ class OverWindowedTable(
     */
   def select(fields: Expression*): Table = {
     selectInternal(
-      fields.map(table.expressionBridge.bridge),
+      fields,
       overWindows.map(createLogicalWindow))
   }
 
   private def selectInternal(
-      fields: Seq[PlannerExpression],
+      fields: Seq[Expression],
       logicalOverWindows: Seq[LogicalOverWindow])
     : Table = {
 
-    val expandedFields = expandProjectList(
-      fields,
-      table.logicalPlan,
-      table.tableEnv)
+    val fieldsWithLookedUpCalls = resolveCalls(fields.asJava, table.tableEnv.functionCatalog)
 
-    if (fields.exists(_.isInstanceOf[WindowProperty])){
-      throw new ValidationException(
-        "Window start and end properties are not available for Over windows.")
-    }
-
-    val expandedOverFields = resolveOverWindows(expandedFields, logicalOverWindows, table.tableEnv)
+    val project = table.operationTreeBuilder
+      .projectWithOverWindows(fieldsWithLookedUpCalls, table.logicalPlan, logicalOverWindows.asJava)
 
     new Table(
       table.tableEnv,
-      Project(
-        expandedOverFields.map(UnresolvedAlias),
-        table.logicalPlan,
-        // required for proper projection push down
-        explicitAlias = true)
-        .validate(table.tableEnv)
+      project.validate(table.tableEnv)
     )
   }
 
@@ -1493,11 +1480,11 @@ class OverWindowedTable(
     */
   private def createLogicalWindow(overWindow: OverWindow): LogicalOverWindow = {
     LogicalOverWindow(
-      table.expressionBridge.bridge(overWindow.getAlias),
-      overWindow.getPartitioning.map(table.expressionBridge.bridge),
-      table.expressionBridge.bridge(overWindow.getOrder),
-      table.expressionBridge.bridge(overWindow.getPreceding),
-      overWindow.getFollowing.map(table.expressionBridge.bridge)
+      overWindow.getAlias,
+      toJava(overWindow.getPartitioning),
+      overWindow.getOrder,
+      overWindow.getPreceding,
+      toJava(overWindow.getFollowing)
     )
   }
 }

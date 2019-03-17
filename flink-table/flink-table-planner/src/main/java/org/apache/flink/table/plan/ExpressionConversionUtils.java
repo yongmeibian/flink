@@ -32,6 +32,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -66,6 +67,49 @@ public class ExpressionConversionUtils {
 		}
 
 		return Tuple2.of(splitter.aggregates, splitter.properties);
+	}
+
+	/**
+	 * Resolves calls with function names to calls with actual function definitions.
+	 *
+	 * @param expressions list of expressions to resolve calls
+	 * @param functionCatalog catalog to use for resolving functions
+	 * @return list of expressions that contain no {@link UnresolvedCallExpression}
+	 */
+	public static List<Expression> resolveCalls(List<Expression> expressions, FunctionCatalog functionCatalog) {
+		UnresolvedCallResolver callResolver = new UnresolvedCallResolver(functionCatalog);
+		return expressions.stream().map(expr -> expr.accept(callResolver)).collect(Collectors.toList());
+	}
+
+	/**
+	 * Replaces expressions with deduplicated aggregations and properties.
+	 *
+	 * @param exprs     a list of expressions to replace
+	 * @param aggNames  the deduplicated aggregations
+	 * @param propNames the deduplicated properties
+	 * @return a list of replaced expressions
+	 */
+	public static List<Expression> replaceAggregationsAndProperties(
+		Iterable<Expression> exprs,
+		Map<Expression, String> aggNames,
+		Map<Expression, String> propNames) {
+		AggregationAndPropertiesReplacer replacer = new AggregationAndPropertiesReplacer(aggNames, propNames);
+		return StreamSupport.stream(exprs.spliterator(), false)
+			.map(expr -> expr.accept(replacer))
+			.collect(Collectors.toList());
+	}
+
+	/**
+	 * Extract all field references from the given expressions.
+	 *
+	 * @param exprs a list of expressions to extract
+	 * @return a list of field references extracted from the given expressions
+	 */
+	public static Set<Expression> extractFieldReferences(Iterable<Expression> exprs) {
+		FieldReferenceExtractor referenceExtractor = new FieldReferenceExtractor();
+		return StreamSupport.stream(exprs.spliterator(), false)
+			.flatMap(expr -> expr.accept(referenceExtractor).stream())
+			.collect(Collectors.toCollection(LinkedHashSet::new));
 	}
 
 	private static final Set<FunctionDefinition> WINDOW_PROPERTIES = new HashSet<>(Arrays.asList(
@@ -106,24 +150,6 @@ public class ExpressionConversionUtils {
 		}
 	}
 
-	/**
-	 * Replaces expressions with deduplicated aggregations and properties.
-	 *
-	 * @param exprs     a list of expressions to replace
-	 * @param aggNames  the deduplicated aggregations
-	 * @param propNames the deduplicated properties
-	 * @return a list of replaced expressions
-	 */
-	public static List<Expression> replaceAggregationsAndProperties(
-			Iterable<Expression> exprs,
-			Map<Expression, String> aggNames,
-			Map<Expression, String> propNames) {
-		AggregationAndPropertiesReplacer replacer = new AggregationAndPropertiesReplacer(aggNames, propNames);
-		return StreamSupport.stream(exprs.spliterator(), false)
-			.map(expr -> expr.accept(replacer))
-			.collect(Collectors.toList());
-	}
-
 	private static class AggregationAndPropertiesReplacer extends DefaultExpressionVisitor<Expression> {
 
 		private final Map<Expression, String> aggregates;
@@ -162,19 +188,6 @@ public class ExpressionConversionUtils {
 		}
 	}
 
-	/**
-	 * Extract all field references from the given expressions.
-	 *
-	 * @param exprs a list of expressions to extract
-	 * @return a list of field references extracted from the given expressions
-	 */
-	public static Set<Expression> extractFieldReferences(Iterable<Expression> exprs) {
-		FieldReferenceExtractor referenceExtractor = new FieldReferenceExtractor();
-		return StreamSupport.stream(exprs.spliterator(), false)
-			.flatMap(expr -> expr.accept(referenceExtractor).stream())
-			.collect(Collectors.toSet());
-	}
-
 	private static class FieldReferenceExtractor extends DefaultExpressionVisitor<Set<Expression>> {
 
 		@Override
@@ -211,14 +224,6 @@ public class ExpressionConversionUtils {
 		}
 	}
 
-	public static List<Expression> resolveCalls(List<Expression> expressions, FunctionCatalog functionCatalog) {
-		UnresolvedCallResolver callResolver = new UnresolvedCallResolver(functionCatalog);
-		return expressions.stream().map(expr -> expr.accept(callResolver)).collect(Collectors.toList());
-	}
-
-	/**
-	 * Resolves calls with function names to calls with actual function definitions.
-	 */
 	private static class UnresolvedCallResolver extends DefaultExpressionVisitor<Expression> {
 
 		private final FunctionCatalog functionCatalog;

@@ -24,9 +24,11 @@ import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.table.api.ValidationException;
 import org.apache.flink.table.plan.DefaultExpressionVisitor;
 import org.apache.flink.table.plan.logical.LogicalNode;
+import org.apache.flink.table.plan.logical.LogicalOverWindow;
+import org.apache.flink.table.typeutils.RowIntervalTypeInfo;
+import org.apache.flink.table.typeutils.TypeCoercion;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
@@ -35,7 +37,10 @@ import java.util.stream.IntStream;
 
 import static java.util.Arrays.asList;
 import static java.util.Collections.singletonList;
+import static org.apache.flink.table.expressions.ApiExpressionUtils.typeLiteral;
 import static org.apache.flink.table.expressions.ApiExpressionUtils.valueLiteral;
+import static org.apache.flink.table.expressions.BuiltInFunctionDefinitions.GET;
+import static org.apache.flink.table.util.JavaScalaConversionUtil.toJava;
 
 /**
  * Tries to resolve all unresolved expressions such as {@link UnresolvedFieldReferenceExpression},
@@ -44,12 +49,16 @@ import static org.apache.flink.table.expressions.ApiExpressionUtils.valueLiteral
 public class ExpressionResolver {
 
 	private final Map<String, FieldReferenceExpression> fieldReferences;
+	private final Map<Expression, LogicalOverWindow> overWindows;
 
 	private final ExpressionResolverVisitor resolverVisitor = new ExpressionResolverVisitor();
-	private final FieldFlatteningVisitor flatteningVisitor = new FieldFlatteningVisitor();
+	private final FieldFlatteningVisitor flatteningStarVisitor = new FieldFlatteningVisitor();
 	private final FlatteningCallVisitor flatteningCallVisitor = new FlatteningCallVisitor();
+	private final CallArgumentsCastingVisitor callArgumentsCastingVisitor = new CallArgumentsCastingVisitor();
 
-	private ExpressionResolver(LogicalNode[] inputs) {
+	private final PlannerExpressionConverter bridgeConverter = PlannerExpressionConverter.INSTANCE();
+
+	private ExpressionResolver(LogicalNode[] inputs, List<LogicalOverWindow> overWindows) {
 		this.fieldReferences = IntStream.range(0, inputs.length)
 			.mapToObj(i -> Tuple2.of(i, inputs[i].tableSchema()))
 			.flatMap(p -> IntStream.range(0, p.f1.getFieldCount())
@@ -65,17 +74,50 @@ public class ExpressionResolver {
 					throw new ValidationException("Ambigous column");
 				}
 			));
+
+		this.overWindows = overWindows.stream()
+			.map(window -> new LogicalOverWindow(
+				window.alias(),
+				window.partitionBy().stream().map(expr -> expr.accept(resolverVisitor)).collect(Collectors.toList()),
+				window.orderBy().accept(resolverVisitor),
+				window.preceding().accept(resolverVisitor),
+				window.following().map(expr -> expr.accept(resolverVisitor))
+			))
+			.collect(Collectors.toMap(
+				LogicalOverWindow::alias,
+				Function.identity()
+			));
 	}
 
-	public static ExpressionResolver resolverFor(LogicalNode... inputs) {
-		return new ExpressionResolver(inputs);
+	public static ExpressionResolverBuilder resolverFor(LogicalNode... inputs) {
+		return new ExpressionResolverBuilder(inputs);
+	}
+
+	public static class ExpressionResolverBuilder {
+		private final LogicalNode[] logicalNodes;
+		private List<LogicalOverWindow> logicalOverWindows = new ArrayList<>();
+
+
+		private ExpressionResolverBuilder(LogicalNode[] logicalNodes) {
+			this.logicalNodes = logicalNodes;
+		}
+
+		public ExpressionResolverBuilder withOverWindows(List<LogicalOverWindow> windows) {
+			this.logicalOverWindows = windows;
+			return this;
+		}
+
+		public ExpressionResolver build() {
+			return new ExpressionResolver(logicalNodes, logicalOverWindows);
+		}
 	}
 
 	public List<Expression> resolve(Expression expression) {
-		return expression.accept(flatteningVisitor)
+		return expression.accept(flatteningStarVisitor)
 			.stream()
 			.map(expr -> expr.accept(resolverVisitor))
 			.flatMap(expr -> expr.accept(flatteningCallVisitor).stream())
+			.map(expr -> expr.accept(callArgumentsCastingVisitor))
 			.collect(Collectors.toList());
 	}
 
@@ -98,28 +140,31 @@ public class ExpressionResolver {
 
 	private class FlatteningCallVisitor extends DefaultExpressionVisitor<List<Expression>> {
 
-		private final PlannerExpressionConverter expressionConverter = PlannerExpressionConverter.INSTANCE();
-
 		@Override
 		public List<Expression> visitCall(CallExpression call) {
 			if (call.getFunctionDefinition() == BuiltInFunctionDefinitions.FLATTEN) {
-				Expression arg = call.getChildren().get(0);
-				TypeInformation<?> resultType = arg.accept(expressionConverter).resultType();
-				if (resultType instanceof CompositeType) {
-					CompositeType<?> compositeType = (CompositeType<?>) resultType;
-					return IntStream.range(0, compositeType.getArity())
-						.mapToObj(idx -> new CallExpression(
-								BuiltInFunctionDefinitions.GET,
-								asList(arg, valueLiteral(idx))
-							)
-						)
-						.collect(Collectors.toList());
-				} else {
-					return singletonList(arg);
-				}
+				return executeFlatten(call);
 			}
 
 			return singletonList(call);
+		}
+
+		private List<Expression> executeFlatten(CallExpression call) {
+			Expression arg = call.getChildren().get(0);
+			PlannerExpression plannerExpression = arg.accept(bridgeConverter);
+			plannerExpression.validateInput();
+			TypeInformation<?> resultType = plannerExpression.resultType();
+			if (resultType instanceof CompositeType) {
+				return flattenCompositeType(arg, (CompositeType<?>) resultType);
+			} else {
+				return singletonList(arg);
+			}
+		}
+
+		private List<Expression> flattenCompositeType(Expression arg, CompositeType<?> resultType) {
+			return IntStream.range(0, resultType.getArity())
+				.mapToObj(idx -> new CallExpression(GET, asList(arg, valueLiteral(idx))))
+				.collect(Collectors.toList());
 		}
 
 		@Override
@@ -131,27 +176,61 @@ public class ExpressionResolver {
 	private class ExpressionResolverVisitor extends DefaultExpressionVisitor<Expression> {
 
 		@Override
-		public Expression visitUnresolvedCall(UnresolvedCallExpression unresolvedCall) {
-			throw new IllegalStateException("All calls should be resolved by now. Got: " + unresolvedCall);
-		}
-
-		@Override
 		public Expression visitCall(CallExpression call) {
-			boolean exprResolved = false;
+
+			boolean argsChanged = false;
 			List<Expression> resolvedArgs = new ArrayList<>();
-			for (Expression child : call.getChildren()) {
+			List<Expression> callArgs = getCallArgs(call);
+
+			for (Expression child : callArgs) {
 				Expression resolved = child.accept(this);
 				if (resolved != child) {
-					exprResolved = true;
+					argsChanged = true;
 				}
 				resolvedArgs.add(resolved);
 			}
 
-			if (exprResolved) {
+			if (argsChanged) {
 				return new CallExpression(call.getFunctionDefinition(), resolvedArgs);
 			} else {
 				return call;
 			}
+		}
+
+		private List<Expression> getCallArgs(CallExpression call) {
+			List<Expression> callArgs = call.getChildren();
+
+			if (call.getFunctionDefinition() == BuiltInFunctionDefinitions.OVER) {
+				Expression alias = callArgs.get(1);
+				LogicalOverWindow referenceWindow = overWindows.get(alias);
+				if (referenceWindow == null) {
+					throw new ValidationException("Could not resolve over call.");
+				}
+
+				Expression following = calculateOverWindowFollowing(referenceWindow);
+				List<Expression> newArgs = new ArrayList<>(asList(
+					callArgs.get(0),
+					referenceWindow.orderBy(),
+					referenceWindow.preceding(),
+					following));
+
+				newArgs.addAll(referenceWindow.partitionBy());
+				return newArgs;
+			} else {
+				return callArgs;
+			}
+		}
+
+		private Expression calculateOverWindowFollowing(LogicalOverWindow referenceWindow) {
+			return referenceWindow.following().orElseGet(() -> {
+					PlannerExpression preceding = referenceWindow.preceding().accept(bridgeConverter);
+					if (preceding.resultType() instanceof RowIntervalTypeInfo) {
+						return new CurrentRow();
+					} else {
+						return new CurrentRange();
+					}
+				}
+			);
 		}
 
 		@Override
@@ -162,6 +241,51 @@ public class ExpressionResolver {
 				return resolvedReference;
 			} else {
 				throw new ValidationException("Could not resolve field reference: " + fieldReference.getName());
+			}
+		}
+
+		@Override
+		protected Expression defaultMethod(Expression expression) {
+			return expression;
+		}
+	}
+
+	private class CallArgumentsCastingVisitor extends DefaultExpressionVisitor<Expression> {
+
+		@Override
+		public Expression visitCall(CallExpression call) {
+			PlannerExpression plannerCall = call.accept(bridgeConverter);
+			if (plannerCall instanceof InputTypeSpec) {
+				List<TypeInformation<?>> expectedTypes = toJava(((InputTypeSpec) plannerCall).expectedTypes());
+				List<PlannerExpression> args = call.getChildren()
+					.stream()
+					.map(expr -> expr.accept(bridgeConverter)).collect(Collectors.toList());
+
+				List<Expression> newArgs = new ArrayList<>();
+
+				for (int i = 0; i < args.size(); i++) {
+					PlannerExpression childExpression = args.get(i);
+					TypeInformation<?> expectedType = expectedTypes.get(i);
+					newArgs.add(castIfNeeded(childExpression, expectedType));
+				}
+
+				return new CallExpression(call.getFunctionDefinition(), newArgs);
+			} else {
+				return call;
+			}
+		}
+
+		private Expression castIfNeeded(
+				PlannerExpression childExpression,
+				TypeInformation<?> expectedType) {
+			TypeInformation<?> actualType = childExpression.resultType();
+			if (!actualType.equals(expectedType) && TypeCoercion.canSafelyCast(actualType, expectedType)) {
+				return new CallExpression(
+					BuiltInFunctionDefinitions.CAST,
+					asList(childExpression, typeLiteral(expectedType))
+				);
+			} else {
+				return childExpression;
 			}
 		}
 

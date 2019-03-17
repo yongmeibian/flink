@@ -622,10 +622,13 @@ class PlannerExpressionConverter private extends ExpressionVisitor[PlannerExpres
             RowtimeAttribute(args.head)
 
           case OVER =>
-            assert(args.size == 2)
-            UnresolvedOverCall(
+            assert(args.size >= 4)
+            OverCall(
               args.head,
-              args.last
+              args.slice(4, args.size),
+              args(1),
+              args(2),
+              args(3)
             )
 
           case UNBOUNDED_RANGE =>
