@@ -232,7 +232,7 @@ object PlannerExpressionParserImpl extends JavaTokenParsers
   lazy val literalExpr: PackratParser[Expression] =
     numberLiteral | doubleQuoteStringLiteral | singleQuoteStringLiteral | boolLiteral
 
-  lazy val fieldReference: PackratParser[UnresolvedFieldReferenceExpression] = (STAR | ident) ^^ {
+  lazy val fieldReference: PackratParser[UnresolvedReferenceExpression] = (STAR | ident) ^^ {
     sym => unresolvedFieldRef(sym)
   }
 
