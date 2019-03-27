@@ -19,7 +19,7 @@
 package org.apache.flink.table.expressions;
 
 import org.apache.flink.annotation.PublicEvolving;
-import org.apache.flink.table.api.Table;
+import org.apache.flink.table.operations.TableOperation;
 import org.apache.flink.util.Preconditions;
 
 import java.util.Collections;
@@ -35,9 +35,9 @@ import java.util.Objects;
 public final class TableReferenceExpression implements Expression {
 
 	private final String name;
-	private final Table table;
+	private final TableOperation table;
 
-	public TableReferenceExpression(String name, Table table) {
+	public TableReferenceExpression(String name, TableOperation table) {
 		this.name = Preconditions.checkNotNull(name);
 		this.table = Preconditions.checkNotNull(table);
 	}
@@ -46,7 +46,7 @@ public final class TableReferenceExpression implements Expression {
 		return name;
 	}
 
-	public Table getTable() {
+	public TableOperation getTable() {
 		return table;
 	}
 
