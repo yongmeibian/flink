@@ -72,7 +72,7 @@ case class ResolvedFieldReference(
   }
 }
 
-case class Alias(child: PlannerExpression, name: String, extraNames: Seq[String] = Seq())
+case class Alias(child: PlannerExpression, name: String)
     extends UnaryExpression with NamedExpression {
 
   override def toString = s"$child as '$name"
@@ -85,7 +85,7 @@ case class Alias(child: PlannerExpression, name: String, extraNames: Seq[String]
 
   override private[flink] def makeCopy(anyRefs: Array[AnyRef]): this.type = {
     val child: PlannerExpression = anyRefs.head.asInstanceOf[PlannerExpression]
-    copy(child, name, extraNames).asInstanceOf[this.type]
+    copy(child, name).asInstanceOf[this.type]
   }
 
   override private[flink] def toAttribute: Attribute = {
@@ -99,11 +99,35 @@ case class Alias(child: PlannerExpression, name: String, extraNames: Seq[String]
   override private[flink] def validateInput(): ValidationResult = {
     if (name == "*") {
       ValidationFailure("Alias can not accept '*' as name.")
-    } else if (extraNames.nonEmpty) {
-      ValidationFailure("Invalid call to Alias with multiple names.")
     } else {
       ValidationSuccess
     }
+  }
+}
+
+case class TableAlias(child: PlannerExpression, name: String, extraNames: Seq[String] = Seq())
+  extends UnaryExpression with NamedExpression {
+
+  override def toString = s"$child as '$name"
+
+  override private[flink] def toRexNode(implicit relBuilder: RelBuilder): RexNode = {
+    throw new TableException("This is just a marker for table function expressions.")
+  }
+
+  override private[flink] def resultType: TypeInformation[_] = child.resultType
+
+  override private[flink] def makeCopy(anyRefs: Array[AnyRef]): this.type = {
+    val child: PlannerExpression = anyRefs.head.asInstanceOf[PlannerExpression]
+    copy(child, name, extraNames).asInstanceOf[this.type]
+  }
+
+  override private[flink] def toAttribute: Attribute = {
+    throw new TableException("This is just a marker for table function expressions.")
+  }
+
+  override private[flink] def validateInput(): ValidationResult = {
+    // validation happens when creating table function call
+    ValidationSuccess
   }
 }
 

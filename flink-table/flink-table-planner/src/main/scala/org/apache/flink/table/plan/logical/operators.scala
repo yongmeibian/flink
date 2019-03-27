@@ -101,7 +101,7 @@ case class Project(
     } else {
       // remove AS expressions, according to Calcite they should not be in a final RexNode
       projectList.map {
-        case Alias(e: PlannerExpression, _, _) => e
+        case Alias(e: PlannerExpression, _) => e
         case e: PlannerExpression => e
       }
     }
@@ -221,7 +221,7 @@ case class Aggregate(
     relBuilder.aggregate(
       relBuilder.groupKey(groupingExpressions.map(_.toRexNode(relBuilder)).asJava),
       aggregateExpressions.map {
-        case Alias(agg: Aggregation, name, _) => agg.toAggCall(name)(relBuilder)
+        case Alias(agg: Aggregation, name) => agg.toAggCall(name)(relBuilder)
         case _ => throw new RuntimeException("This should never happen.")
       }.asJava)
   }
@@ -611,11 +611,11 @@ case class WindowAggregate(
       window,
       relBuilder.groupKey(groupingExpressions.map(_.toRexNode(relBuilder)).asJava),
       propertyExpressions.map {
-        case Alias(prop: WindowProperty, name, _) => prop.toNamedWindowProperty(name)
+        case Alias(prop: WindowProperty, name) => prop.toNamedWindowProperty(name)
         case _ => throw new RuntimeException("This should never happen.")
       },
       aggregateExpressions.map {
-        case Alias(agg: Aggregation, name, _) => agg.toAggCall(name)(relBuilder)
+        case Alias(agg: Aggregation, name) => agg.toAggCall(name)(relBuilder)
         case _ => throw new RuntimeException("This should never happen.")
       }.asJava)
   }
