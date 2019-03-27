@@ -63,6 +63,8 @@ class TableImpl(
 
   override def printSchema(): Unit = print(tableSchema.toString)
 
+  override def getTableOperation: TableOperation = operationTree
+
   override def select(fields: String): Table = {
     select(ExpressionParser.parseExpressionList(fields).asScala: _*)
   }
@@ -100,7 +102,7 @@ class TableImpl(
       wrap(
         operationTreeBuilder.project(projectsOnAgg,
           operationTreeBuilder.aggregate(emptyList[Expression], aggNames,
-            operationTreeBuilder.project(projectFields, operationTree.asInstanceOf[LogicalNode])
+            operationTreeBuilder.project(projectFields, operationTree)
           )
         )
       )
@@ -235,7 +237,7 @@ class TableImpl(
 
     wrap(operationTreeBuilder.join(
         this.operationTree,
-        right.asInstanceOf[TableImpl].operationTree,
+        right.getTableOperation,
         joinType,
         toJava(joinPredicate),
         correlated = false))
