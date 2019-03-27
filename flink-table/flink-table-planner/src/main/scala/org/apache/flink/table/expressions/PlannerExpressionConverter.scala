@@ -71,7 +71,11 @@ class PlannerExpressionConverter private extends ApiExpressionVisitor[PlannerExp
             val extraNames = args
               .drop(2)
               .map(e => getValue[String](e))
-            Alias(args.head, name, extraNames)
+            if (extraNames.nonEmpty) {
+              TableAlias(args.head, name, extraNames)
+            } else {
+              Alias(args.head, name)
+            }
 
           case FLATTEN =>
             assert(args.size == 1)

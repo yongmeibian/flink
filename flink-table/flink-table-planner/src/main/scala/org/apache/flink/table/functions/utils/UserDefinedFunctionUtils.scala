@@ -782,8 +782,11 @@ object UserDefinedFunctionUtils {
 
     // unwrap an Expression until we get a TableFunctionCall
     def unwrap(expr: PlannerExpression): PlannerTableFunctionCall = expr match {
-      case Alias(child, name, extraNames) =>
+      case TableAlias(child, name, extraNames) =>
         alias = Some(Seq(name) ++ extraNames)
+        unwrap(child)
+      case Alias(child, name) =>
+        alias = Some(Seq(name))
         unwrap(child)
       case c: PlannerTableFunctionCall => c
       case _ =>
