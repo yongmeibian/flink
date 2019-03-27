@@ -194,8 +194,8 @@ object PlannerExpressionParserImpl extends JavaTokenParsers
     """-?(\d+(\.\d+)?|\d*\.\d+)([eE][+-]?\d+)?[fFdD]?""".r
 
   lazy val numberLiteral: PackratParser[Expression] =
-    (wholeNumber <~ ("l" | "L")) ^^ { n => Literal(n.toLong) } |
-      (decimalNumber <~ ("p" | "P")) ^^ { n => Literal(BigDecimal(n)) } |
+    (wholeNumber <~ ("l" | "L")) ^^ { n => valueLiteral(n.toLong) } |
+      (decimalNumber <~ ("p" | "P")) ^^ { n => valueLiteral(BigDecimal(n).bigDecimal) } |
       (floatingPointNumberFlink | decimalNumber) ^^ {
         n =>
           if (n.matches("""-?\d+""")) {
