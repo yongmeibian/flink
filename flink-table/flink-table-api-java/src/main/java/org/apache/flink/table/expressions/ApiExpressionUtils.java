@@ -78,8 +78,8 @@ public final class ApiExpressionUtils {
 		return new SymbolExpression(symbol);
 	}
 
-	public static UnresolvedFieldReferenceExpression unresolvedFieldRef(String name) {
-		return new UnresolvedFieldReferenceExpression(name);
+	public static UnresolvedReferenceExpression unresolvedFieldRef(String name) {
+		return new UnresolvedReferenceExpression(name);
 	}
 
 	public static TableReferenceExpression tableRef(String name, Table table) {
@@ -329,8 +329,8 @@ public final class ApiExpressionUtils {
 		}
 
 		@Override
-		public List<Expression> visitUnresolvedField(UnresolvedFieldReferenceExpression fieldReference) {
-			return Collections.singletonList(fieldReference);
+		public List<Expression> visitUnresolvedReference(UnresolvedReferenceExpression unresolvedReference) {
+			return Collections.singletonList(unresolvedReference);
 		}
 
 		@Override
