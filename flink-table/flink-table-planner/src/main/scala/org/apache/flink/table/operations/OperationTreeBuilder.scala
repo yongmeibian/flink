@@ -22,6 +22,7 @@ import java.util.{Collections, Optional, List => JList}
 
 import org.apache.flink.api.java.operators.join.JoinType
 import org.apache.flink.table.api._
+import org.apache.flink.table.expressions.ApiExpressionUtils.valueLiteral
 import org.apache.flink.table.expressions.ExpressionResolver.resolverFor
 import org.apache.flink.table.expressions.FunctionDefinition.Type.SCALAR_FUNCTION
 import org.apache.flink.table.expressions._
@@ -51,16 +52,10 @@ class OperationTreeBuilder(private val tableEnv: TableEnvironment) {
   private val algebraicOperationFactory = new AlgebraicOperationFactory(isStreaming)
   private val aggregationOperationFactory = new AggregateOperationFactory(expressionBridge,
     isStreaming)
+  private val joinOperationFactory = new JoinOperationFactory(expressionBridge)
+
   private val noWindowPropertyChecker = new NoWindowPropertyChecker(
     "Window start and end properties are not available for Over windows.")
-
-  private def bridgeExpression(expression: Expression): PlannerExpression = {
-    val expr = expressionBridge.bridge(expression)
-    if (!expr.valid) {
-      throw new ValidationException(s"Could not validate expression: $expression")
-    }
-    expr
-  }
 
   private val tableCatalog = new TableReferenceLookup {
     override def lookupTable(name: String): Optional[TableReferenceExpression] =
@@ -165,13 +160,6 @@ class OperationTreeBuilder(private val tableEnv: TableEnvironment) {
     aggregationOperationFactory.createAggregate(resolvedGroupings, resolvedAggregates, childNode)
   }
 
-  private def resolveExpressions(
-      expressions: JList[Expression],
-      resolver: ExpressionResolver)
-    : Seq[PlannerExpression] = {
-    resolver.resolve(expressions).asScala.map(bridgeExpression)
-  }
-
   def windowAggregate(
       groupingExpressions: JList[Expression],
       window: GroupWindow,
@@ -210,17 +198,10 @@ class OperationTreeBuilder(private val tableEnv: TableEnvironment) {
 
     val resolver = resolverFor(tableCatalog, functionCatalog, leftNode, rightNode).build()
 
-    val resolvedCondition = toScala(condition).map(c => resolver.resolve(List(c).asJava)) match {
-      case Some(resolvedExprs) if resolvedExprs.size != 1 =>
-        throw new ValidationException(s"Invalid join condition $condition")
-      case Some(resolvedExprs) =>
-        Some(resolvedExprs.get(0))
-      case None => None
-    }
+    val resolvedCondition = toScala(condition).map(expr => resolveSingleExpression(expr, resolver))
 
-    val plannerExpression = resolvedCondition.map(bridgeExpression)
-
-    Join(leftNode, rightNode, joinType, plannerExpression, correlated).validate(tableEnv)
+    joinOperationFactory
+      .create(left, right, joinType, resolvedCondition.getOrElse(valueLiteral(true)), correlated)
   }
 
   def joinLateral(
