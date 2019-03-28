@@ -18,9 +18,8 @@
 
 package org.apache.flink.table.plan.logical
 
-import org.apache.flink.table.api.TableEnvironment
+import org.apache.flink.table.api.ValidationException
 import org.apache.flink.table.expressions.{PlannerExpression, WindowReference}
-import org.apache.flink.table.validate.{ValidationFailure, ValidationResult, ValidationSuccess}
 
 /**
   * Logical super class for group windows.
@@ -30,14 +29,12 @@ import org.apache.flink.table.validate.{ValidationFailure, ValidationResult, Val
   */
 abstract class LogicalWindow(
     val aliasAttribute: PlannerExpression,
-    val timeAttribute: PlannerExpression)
-  extends Resolvable[LogicalWindow] {
+    val timeAttribute: PlannerExpression) {
 
-  def resolveExpressions(resolver: (PlannerExpression) => PlannerExpression): LogicalWindow = this
-
-  def validate(tableEnv: TableEnvironment): ValidationResult = aliasAttribute match {
-    case WindowReference(_, _) => ValidationSuccess
-    case _ => ValidationFailure("Window reference for window expected.")
+  def validate(isStreaming: Boolean): Unit = aliasAttribute match {
+    case WindowReference(_, _) =>
+    case _ =>
+      throw new ValidationException("Window reference for window expected.")
   }
 
   override def toString: String = getClass.getSimpleName
