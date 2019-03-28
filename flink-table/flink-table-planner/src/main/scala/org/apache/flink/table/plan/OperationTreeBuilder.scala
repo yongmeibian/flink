@@ -45,6 +45,8 @@ class OperationTreeBuilder(private val tableEnv: TableEnvironment) {
   private val projectionOperationFactory = new ProjectionOperationFactory(expressionBridge)
   private val sortOperationFactory = new SortOperationFactory(expressionBridge, isStreaming)
   private val calculatedTableFactory = new CalculatedTableFactory(expressionBridge)
+  private val aggregationOperationFactory = new AggregateOperationFactory(expressionBridge,
+    isStreaming)
   private val aliasOperationFactory = new AliasOperationFactory()
   private val noWindowPropertyChecker = new NoWindowPropertyChecker(
     "Window start and end properties are not available for Over windows.")
@@ -154,11 +156,10 @@ class OperationTreeBuilder(private val tableEnv: TableEnvironment) {
     val childNode = child.asInstanceOf[LogicalNode]
     val resolver = resolverFor(tableCatalog, child).build
 
-    val convertedGroupings = resolveExpressions(groupingExpressions, resolver)
-    val convertedAggregates = resolveExpressions(namedAggregates, resolver)
+    val resolvedGroupings = resolver.resolve(groupingExpressions)
+    val resolvedAggregates = resolver.resolve(namedAggregates)
 
-    Aggregate(convertedGroupings, convertedAggregates, childNode).validate(tableEnv)
-    Aggregate(convertedGroupings, convertedAggregates, childNode).validate(tableEnv)
+    aggregationOperationFactory.createAggregate(resolvedGroupings, resolvedAggregates, childNode)
   }
 
   private def resolveExpressions(
@@ -179,19 +180,18 @@ class OperationTreeBuilder(private val tableEnv: TableEnvironment) {
     val childNode = child.asInstanceOf[LogicalNode]
     val resolver = resolverFor(tableCatalog, child).withGroupWindow(window).build
 
-    val convertedGroupings = resolveExpressions(groupingExpressions, resolver)
+    val convertedGroupings = resolver.resolve(groupingExpressions)
 
-    val convertedAggregates = resolveExpressions(aggregates, resolver)
+    val convertedAggregates = resolver.resolve(aggregates)
 
-    val convertedProperties = resolveExpressions(windowProperties, resolver)
+    val convertedProperties = resolver.resolve(windowProperties)
 
-    WindowAggregate(
-        convertedGroupings,
-        resolver.resolveGroupWindow(window),
-        convertedProperties,
-        convertedAggregates,
-        childNode)
-      .validate(tableEnv)
+    aggregationOperationFactory.createWindowAggregate(
+      convertedGroupings,
+      convertedAggregates,
+      convertedProperties,
+      resolver.resolveGroupWindow(window),
+      childNode)
   }
 
   def join(
