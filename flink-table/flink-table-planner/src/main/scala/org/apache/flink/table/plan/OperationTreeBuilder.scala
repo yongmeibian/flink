@@ -18,7 +18,7 @@
 
 package org.apache.flink.table.plan
 
-import java.util.{Optional, List => JList, Map => JMap}
+import java.util.{Optional, List => JList}
 
 import org.apache.flink.api.java.operators.join.JoinType
 import org.apache.flink.table.api._
@@ -26,7 +26,7 @@ import org.apache.flink.table.expressions.{Alias, Asc, Expression, ExpressionBri
 import org.apache.flink.table.functions.utils.UserDefinedFunctionUtils
 import org.apache.flink.table.operations.TableOperation
 import org.apache.flink.table.plan.ProjectionTranslator.{expandProjectList, flattenExpression, resolveOverWindows}
-import org.apache.flink.table.plan.logical._
+import org.apache.flink.table.plan.logical.{Minus => LMinus, _}
 import org.apache.flink.table.util.JavaScalaConversionUtil.toScala
 
 import _root_.scala.collection.JavaConverters._
@@ -164,7 +164,7 @@ class OperationTreeBuilder(private val tableEnv: TableEnvironment) {
 
   def aggregate(
       groupingExpressions: JList[Expression],
-      namedAggregates: JMap[Expression, String],
+      aggregates: JList[Expression],
       child: TableOperation)
     : TableOperation = {
 
@@ -173,8 +173,8 @@ class OperationTreeBuilder(private val tableEnv: TableEnvironment) {
     val convertedGroupings = groupingExpressions.asScala
       .map(expressionBridge.bridge)
 
-    val convertedAggregates = namedAggregates.asScala
-      .map(a => Alias(expressionBridge.bridge(a._1), a._2)).toSeq
+    val convertedAggregates = aggregates.asScala
+      .map(expressionBridge.bridge)
 
     Aggregate(convertedGroupings, convertedAggregates, childNode).validate(tableEnv)
   }
@@ -182,8 +182,8 @@ class OperationTreeBuilder(private val tableEnv: TableEnvironment) {
   def windowAggregate(
       groupingExpressions: JList[Expression],
       window: GroupWindow,
-      namedProperties: JMap[Expression, String],
-      namedAggregates: JMap[Expression, String],
+      windowProperties: JList[Expression],
+      aggregates: JList[Expression],
       child: TableOperation)
     : TableOperation = {
 
@@ -192,11 +192,11 @@ class OperationTreeBuilder(private val tableEnv: TableEnvironment) {
     val convertedGroupings = groupingExpressions.asScala
       .map(expressionBridge.bridge)
 
-    val convertedAggregates = namedAggregates.asScala
-      .map(a => Alias(expressionBridge.bridge(a._1), a._2)).toSeq
+    val convertedAggregates = aggregates.asScala
+      .map(expressionBridge.bridge)
 
-    val convertedProperties = namedProperties.asScala
-      .map(a => Alias(expressionBridge.bridge(a._1), a._2)).toSeq
+    val convertedProperties = windowProperties.asScala
+      .map(expressionBridge.bridge)
 
     WindowAggregate(
         convertedGroupings,
@@ -349,7 +349,7 @@ class OperationTreeBuilder(private val tableEnv: TableEnvironment) {
       right: TableOperation,
       all: Boolean)
     : TableOperation = {
-    Minus(left.asInstanceOf[LogicalNode], right.asInstanceOf[LogicalNode], all).validate(tableEnv)
+    LMinus(left.asInstanceOf[LogicalNode], right.asInstanceOf[LogicalNode], all).validate(tableEnv)
   }
 
   def intersect(

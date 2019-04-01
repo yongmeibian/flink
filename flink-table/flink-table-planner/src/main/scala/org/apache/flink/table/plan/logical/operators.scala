@@ -206,7 +206,7 @@ case class Filter(condition: PlannerExpression, child: LogicalNode) extends Unar
 
 case class Aggregate(
     groupingExpressions: Seq[PlannerExpression],
-    aggregateExpressions: Seq[NamedExpression],
+    aggregateExpressions: Seq[PlannerExpression],
     child: LogicalNode) extends UnaryNode {
 
   override def output: Seq[Attribute] = {
@@ -555,8 +555,8 @@ case class LogicalRelNode(
 case class WindowAggregate(
     groupingExpressions: Seq[PlannerExpression],
     window: LogicalWindow,
-    propertyExpressions: Seq[NamedExpression],
-    aggregateExpressions: Seq[NamedExpression],
+    propertyExpressions: Seq[PlannerExpression],
+    aggregateExpressions: Seq[PlannerExpression],
     child: LogicalNode)
   extends UnaryNode {
 
