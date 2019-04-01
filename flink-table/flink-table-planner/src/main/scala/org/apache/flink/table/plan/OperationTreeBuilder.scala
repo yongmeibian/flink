@@ -27,7 +27,7 @@ import org.apache.flink.table.expressions._
 import org.apache.flink.table.expressions.lookups.TableReferenceLookup
 import org.apache.flink.table.expressions.rules.ResolverRules
 import org.apache.flink.table.functions.utils.UserDefinedFunctionUtils
-import org.apache.flink.table.operations.{ColumnOperationsFactory, ProjectionOperationFactory, TableOperation}
+import org.apache.flink.table.operations.{AliasOperationFactory, ColumnOperationsFactory, ProjectionOperationFactory, TableOperation}
 import org.apache.flink.table.plan.logical.{Minus => LMinus, _}
 import org.apache.flink.table.util.JavaScalaConversionUtil
 import org.apache.flink.table.util.JavaScalaConversionUtil.toScala
@@ -44,6 +44,7 @@ class OperationTreeBuilder(private val tableEnv: TableEnvironment) {
   private val columnOperationsFactory = new ColumnOperationsFactory
 
   private val projectionOperationFactory = new ProjectionOperationFactory(expressionBridge)
+  private val aliasOperationFactory = new AliasOperationFactory()
   private val noWindowPropertyChecker = new NoWindowPropertyChecker(
     "Window start and end properties are not available for Over windows.")
 
@@ -301,10 +302,9 @@ class OperationTreeBuilder(private val tableEnv: TableEnvironment) {
       child: TableOperation)
     : TableOperation = {
 
-    val childNode = child.asInstanceOf[LogicalNode]
-    val convertedFields = fields.asScala.map(expressionBridge.bridge)
+    val newFields = aliasOperationFactory.createAliasList(fields, child)
 
-    AliasNode(convertedFields, childNode).validate(tableEnv)
+    project(newFields, child, explicitAlias = true)
   }
 
   def filter(
