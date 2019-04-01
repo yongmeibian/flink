@@ -47,7 +47,7 @@ class OperationTreeBuilder(private val tableEnv: TableEnvironment) {
   private val isStreaming = tableEnv.isInstanceOf[StreamTableEnvironment]
   private val projectionOperationFactory = new ProjectionOperationFactory(expressionBridge)
   private val sortOperationFactory = new SortOperationFactory(isStreaming)
-  private val calculatedTableFactory = new CalculatedTableFactory(expressionBridge)
+  private val calculatedTableFactory = new CalculatedTableFactory()
   private val algebraicOperationFactory = new AlgebraicOperationFactory(isStreaming)
   private val aggregationOperationFactory = new AggregateOperationFactory(expressionBridge,
     isStreaming)
