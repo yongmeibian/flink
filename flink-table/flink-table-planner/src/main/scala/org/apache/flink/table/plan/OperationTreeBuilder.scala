@@ -25,8 +25,9 @@ import org.apache.flink.table.api._
 import org.apache.flink.table.expressions.ExpressionResolver.resolverFor
 import org.apache.flink.table.expressions._
 import org.apache.flink.table.expressions.lookups.TableReferenceLookup
+import org.apache.flink.table.operations.AlgebraicOperationFactory.AlgebraicTableOperationType.{INTERSECT, MINUS, UNION}
 import org.apache.flink.table.operations._
-import org.apache.flink.table.plan.logical.{Minus => LMinus, _}
+import org.apache.flink.table.plan.logical._
 import org.apache.flink.table.util.JavaScalaConversionUtil
 import org.apache.flink.table.util.JavaScalaConversionUtil.toScala
 import org.apache.flink.util.Preconditions
@@ -45,6 +46,7 @@ class OperationTreeBuilder(private val tableEnv: TableEnvironment) {
   private val projectionOperationFactory = new ProjectionOperationFactory(expressionBridge)
   private val sortOperationFactory = new SortOperationFactory(expressionBridge, isStreaming)
   private val calculatedTableFactory = new CalculatedTableFactory(expressionBridge)
+  private val algebraicOperationFactory = new AlgebraicOperationFactory(isStreaming)
   private val aggregationOperationFactory = new AggregateOperationFactory(expressionBridge,
     isStreaming)
   private val aliasOperationFactory = new AliasOperationFactory()
@@ -322,7 +324,7 @@ class OperationTreeBuilder(private val tableEnv: TableEnvironment) {
   def distinct(
       child: TableOperation)
     : TableOperation = {
-    Distinct(child.asInstanceOf[LogicalNode]).validate(tableEnv)
+    Distinct(child.asInstanceOf[LogicalNode])
   }
 
   def minus(
@@ -330,7 +332,7 @@ class OperationTreeBuilder(private val tableEnv: TableEnvironment) {
       right: TableOperation,
       all: Boolean)
     : TableOperation = {
-    LMinus(left.asInstanceOf[LogicalNode], right.asInstanceOf[LogicalNode], all).validate(tableEnv)
+    algebraicOperationFactory.create(MINUS, left, right, all)
   }
 
   def intersect(
@@ -338,8 +340,7 @@ class OperationTreeBuilder(private val tableEnv: TableEnvironment) {
       right: TableOperation,
       all: Boolean)
     : TableOperation = {
-    Intersect(left.asInstanceOf[LogicalNode], right.asInstanceOf[LogicalNode], all)
-      .validate(tableEnv)
+    algebraicOperationFactory.create(INTERSECT, left, right, all)
   }
 
   def union(
@@ -347,7 +348,7 @@ class OperationTreeBuilder(private val tableEnv: TableEnvironment) {
       right: TableOperation,
       all: Boolean)
     : TableOperation = {
-    Union(left.asInstanceOf[LogicalNode], right.asInstanceOf[LogicalNode], all).validate(tableEnv)
+    algebraicOperationFactory.create(UNION, left, right, all)
   }
 
   class NoWindowPropertyChecker(val exceptionMessage: String)
