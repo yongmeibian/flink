@@ -195,6 +195,11 @@ public class TableOperationToRelNodeConverter extends TableOperationDefaultVisit
 				null);
 		}
 
+		@Override
+		public RelNode visitCatalogTable(CatalogTableOperation catalogTable) {
+			return relBuilder.scan(catalogTable.getTablePath()).build();
+		}
+
 		private RexNode convertToRexNode(Expression expression) {
 			return expressionBridge.bridge(expression).toRexNode(relBuilder);
 		}

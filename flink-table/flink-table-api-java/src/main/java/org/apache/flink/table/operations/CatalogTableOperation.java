@@ -19,28 +19,41 @@
 package org.apache.flink.table.operations;
 
 import org.apache.flink.annotation.Internal;
+import org.apache.flink.table.api.TableSchema;
+
+import java.util.Collections;
+import java.util.List;
 
 /**
- * Class that implements visitor pattern. It allows type safe logic on top of tree
- * of {@link TableOperation}s.
+ * Describes a relational operation that was created from a lookup to a catalog.
  */
 @Internal
-public interface TableOperationVisitor<T> {
-	T visitProject(ProjectTableOperation projection);
+public class CatalogTableOperation implements TableOperation {
 
-	T visitAggregate(AggregationTableOperation aggregation);
+	private final List<String> tablePath;
+	private final TableSchema tableSchema;
 
-	T visitAlgebraicOperation(AlgebraicTableOperation algebraicOperation);
+	public CatalogTableOperation(List<String> tablePath, TableSchema tableSchema) {
+		this.tablePath = tablePath;
+		this.tableSchema = tableSchema;
+	}
 
-	T visitFilter(FilterTableOperation filter);
+	public List<String> getTablePath() {
+		return tablePath;
+	}
 
-	T visitDistinct(DistinctTableOperation distinct);
+	@Override
+	public TableSchema getTableSchema() {
+		return tableSchema;
+	}
 
-	T visitSort(SortTableOperation sort);
+	@Override
+	public List<TableOperation> getChildren() {
+		return Collections.emptyList();
+	}
 
-	T visitCalculatedTable(CalculatedTableOperation calculatedTable);
-
-	T visitCatalogTable(CatalogTableOperation catalogTable);
-
-	T visitOther(TableOperation other);
+	@Override
+	public <T> T accept(TableOperationVisitor<T> visitor) {
+		return visitor.visitCatalogTable(this);
+	}
 }
