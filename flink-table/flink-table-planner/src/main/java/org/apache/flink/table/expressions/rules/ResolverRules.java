@@ -62,11 +62,6 @@ public final class ResolverRules {
 	 */
 	public static final ResolverRule WRAP_IN_ORDER = new WrapInOrderRule();
 
-	/**
-	 * Used in projection operation. It derives name for expression. See {@link NameExpressionRule} for details.
-	 */
-	public static final ResolverRule NAME_EXPRESSION = new NameExpressionRule();
-
 	private ResolverRules() {
 	}
 }

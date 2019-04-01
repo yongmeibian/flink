@@ -23,11 +23,11 @@ import java.util.{Collections, Optional, List => JList}
 import org.apache.flink.api.java.operators.join.JoinType
 import org.apache.flink.table.api._
 import org.apache.flink.table.expressions.ExpressionResolver.{ExpressionResolverBuilder, resolverFor}
+import org.apache.flink.table.expressions._
 import org.apache.flink.table.expressions.lookups.TableReferenceLookup
 import org.apache.flink.table.expressions.rules.ResolverRules
-import org.apache.flink.table.expressions._
 import org.apache.flink.table.functions.utils.UserDefinedFunctionUtils
-import org.apache.flink.table.operations.{ColumnOperationsFactory, TableOperation}
+import org.apache.flink.table.operations.{ColumnOperationsFactory, ProjectionOperationFactory, TableOperation}
 import org.apache.flink.table.plan.logical.{Minus => LMinus, _}
 import org.apache.flink.table.util.JavaScalaConversionUtil
 import org.apache.flink.table.util.JavaScalaConversionUtil.toScala
@@ -43,6 +43,7 @@ class OperationTreeBuilder(private val tableEnv: TableEnvironment) {
   private val expressionBridge: ExpressionBridge[PlannerExpression] = tableEnv.expressionBridge
   private val columnOperationsFactory = new ColumnOperationsFactory
 
+  private val projectionOperationFactory = new ProjectionOperationFactory(expressionBridge)
   private val noWindowPropertyChecker = new NoWindowPropertyChecker(
     "Window start and end properties are not available for Over windows.")
 
@@ -97,12 +98,10 @@ class OperationTreeBuilder(private val tableEnv: TableEnvironment) {
       overWindows: JList[OverWindow])
     : LogicalNode = {
 
-    val resolver = resolverFor(tableCatalog, child).withOverWindows(overWindows)
-      .appendCustomRule(ResolverRules.NAME_EXPRESSION)
-      .build
-    val projections = resolveExpressions(projectList, resolver)
+    val resolver = resolverFor(tableCatalog, child).withOverWindows(overWindows).build
+    val projections = resolver.resolve(projectList)
 
-    Project(projections, child, explicitAlias).validate(tableEnv)
+    projectionOperationFactory.create(projections, child, explicitAlias)
   }
 
   /**
