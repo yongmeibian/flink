@@ -34,7 +34,6 @@ import org.apache.flink.table.expressions.LocalReferenceExpression;
 import org.apache.flink.table.expressions.PlannerExpression;
 import org.apache.flink.table.expressions.TableReferenceExpression;
 import org.apache.flink.table.expressions.ValueLiteralExpression;
-import org.apache.flink.table.plan.logical.LogicalNode;
 import org.apache.flink.table.plan.logical.Project;
 
 import java.util.Arrays;
@@ -68,7 +67,7 @@ public final class ProjectionOperationFactory {
 
 	public Project create(
 			List<Expression> projectList,
-			LogicalNode childNode,
+		TableOperation childNode,
 			boolean explicitAlias) {
 		List<Expression> namedExpressions = nameExpressions(projectList);
 		validateNames(namedExpressions);

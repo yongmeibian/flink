@@ -32,7 +32,6 @@ import org.apache.flink.table.expressions.FunctionDefinition;
 import org.apache.flink.table.expressions.LocalReferenceExpression;
 import org.apache.flink.table.expressions.PlannerExpression;
 import org.apache.flink.table.plan.logical.Aggregate;
-import org.apache.flink.table.plan.logical.LogicalNode;
 import org.apache.flink.table.plan.logical.LogicalWindow;
 import org.apache.flink.table.plan.logical.SlidingGroupWindow;
 import org.apache.flink.table.plan.logical.TumblingGroupWindow;
@@ -74,13 +73,12 @@ public class AggregateOperationFactory {
 		List<Expression> aggregates,
 		TableOperation child) {
 
-		LogicalNode childNode = (LogicalNode) child;
 		validateGroupings(groupings);
 		validateAggregates(groupings, aggregates);
 
 		List<PlannerExpression> convertedGroupings = bridge(groupings);
 		List<PlannerExpression> convertedAggregates = bridge(aggregates);
-		return new Aggregate(convertedGroupings, convertedAggregates, childNode);
+		return new Aggregate(convertedGroupings, convertedAggregates, child);
 	}
 
 	/**
@@ -100,7 +98,6 @@ public class AggregateOperationFactory {
 			LogicalWindow window,
 			TableOperation child) {
 
-		LogicalNode childNode = (LogicalNode) child;
 		validateGroupings(groupings);
 		validateAggregates(groupings, aggregates);
 
@@ -110,7 +107,7 @@ public class AggregateOperationFactory {
 
 		validateWindow(windowProperties, window);
 
-		return new WindowAggregate(convertedGroupings, window, convertedWindowProperties, convertedAggregates, childNode);
+		return new WindowAggregate(convertedGroupings, window, convertedWindowProperties, convertedAggregates, child);
 	}
 
 	private void validateWindow(List<Expression> windowProperties, LogicalWindow window) {

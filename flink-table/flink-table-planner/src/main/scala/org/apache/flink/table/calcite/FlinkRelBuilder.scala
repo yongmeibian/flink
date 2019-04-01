@@ -30,7 +30,8 @@ import org.apache.calcite.rex.RexBuilder
 import org.apache.calcite.tools.RelBuilder.{AggCall, GroupKey}
 import org.apache.calcite.tools.{FrameworkConfig, RelBuilder}
 import org.apache.flink.table.calcite.FlinkRelBuilder.NamedWindowProperty
-import org.apache.flink.table.expressions.WindowProperty
+import org.apache.flink.table.expressions.{ExpressionBridge, PlannerExpression, WindowProperty}
+import org.apache.flink.table.operations.{TableOperation, TableOperationToRelNodeConverter}
 import org.apache.flink.table.plan.logical.LogicalWindow
 import org.apache.flink.table.plan.logical.rel.LogicalWindowAggregate
 
@@ -40,11 +41,14 @@ import org.apache.flink.table.plan.logical.rel.LogicalWindowAggregate
 class FlinkRelBuilder(
     context: Context,
     relOptCluster: RelOptCluster,
-    relOptSchema: RelOptSchema)
+    relOptSchema: RelOptSchema,
+    expressionBridge: ExpressionBridge[PlannerExpression])
   extends RelBuilder(
     context,
     relOptCluster,
     relOptSchema) {
+
+  private val toRelNodeConverter = new TableOperationToRelNodeConverter(this)
 
   def getRelOptSchema: RelOptSchema = relOptSchema
 
@@ -71,11 +75,21 @@ class FlinkRelBuilder(
     this
   }
 
+  def flinkTableOperation(tableOperation: TableOperation): RelBuilder= {
+    val relNode = tableOperation.accept(toRelNodeConverter)
+
+    push(relNode)
+    this
+  }
+
 }
 
 object FlinkRelBuilder {
 
-  def create(config: FrameworkConfig): FlinkRelBuilder = {
+  def create(
+      config: FrameworkConfig,
+      expressionBridge: ExpressionBridge[PlannerExpression])
+    : FlinkRelBuilder = {
 
     // create Flink type factory
     val typeSystem = config.getTypeSystem
@@ -93,7 +107,7 @@ object FlinkRelBuilder {
       typeFactory,
       CalciteConfig.connectionConfig(config.getParserConfig))
 
-    new FlinkRelBuilder(config.getContext, cluster, relOptSchema)
+    new FlinkRelBuilder(config.getContext, cluster, relOptSchema, expressionBridge)
   }
 
   /**

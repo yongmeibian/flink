@@ -24,6 +24,7 @@ import org.apache.calcite.rel.RelNode
 import org.apache.flink.api.java.operators.join.JoinType
 import org.apache.flink.table.expressions.{Expression, ExpressionParser, LookupCallResolver}
 import org.apache.flink.table.functions.{TemporalTableFunction, TemporalTableFunctionImpl}
+import org.apache.flink.table.operations.TableOperation
 import org.apache.flink.table.operations.OperationExpressionsUtils.{extractAggregationsAndProperties, extractFieldReferences}
 import org.apache.flink.table.operations.{OperationTreeBuilder, TableOperation}
 import org.apache.flink.table.plan.logical._
@@ -55,8 +56,7 @@ class TableImpl(
 
   var tableName: String = _
 
-  def getRelNode: RelNode = operationTree.asInstanceOf[LogicalNode]
-    .toRelNode(tableEnv.getRelBuilder)
+  def getRelNode: RelNode = tableEnv.getRelBuilder.flinkTableOperation(operationTree).build()
 
   override def getSchema: TableSchema = tableSchema
 

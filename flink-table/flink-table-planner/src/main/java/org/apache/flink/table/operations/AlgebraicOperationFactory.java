@@ -20,34 +20,21 @@ package org.apache.flink.table.operations;
 
 import org.apache.flink.annotation.Internal;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
-import org.apache.flink.table.api.TableException;
 import org.apache.flink.table.api.TableSchema;
 import org.apache.flink.table.api.ValidationException;
-import org.apache.flink.table.plan.logical.Intersect;
-import org.apache.flink.table.plan.logical.LogicalNode;
-import org.apache.flink.table.plan.logical.Minus;
-import org.apache.flink.table.plan.logical.Union;
+import org.apache.flink.table.operations.AlgebraicTableOperation.AlgebraicTableOperationType;
 
 import java.util.stream.IntStream;
 
-import static org.apache.flink.table.operations.AlgebraicOperationFactory.AlgebraicTableOperationType.UNION;
+import static org.apache.flink.table.operations.AlgebraicTableOperation.AlgebraicTableOperationType.UNION;
 
 /**
- * Utility class for creating a valid algebraic operation such as {@link Minus}, {@link Intersect} or {@link Union}.
+ * Utility class for creating a valid {@link AlgebraicTableOperation}.
  */
 @Internal
 public class AlgebraicOperationFactory {
 
 	private final boolean isStreaming;
-
-	/**
-	 * Describes what kind of operation should be created.
-	 */
-	public enum AlgebraicTableOperationType {
-		INTERSECT,
-		MINUS,
-		UNION
-	}
 
 	public AlgebraicOperationFactory(boolean isStreaming) {
 		this.isStreaming = isStreaming;
@@ -67,19 +54,9 @@ public class AlgebraicOperationFactory {
 			TableOperation left,
 			TableOperation right,
 			boolean all) {
-		LogicalNode leftNode = (LogicalNode) left;
-		LogicalNode rightNode = (LogicalNode) right;
 		failIfStreaming(type, all);
-		validateAlgebraicOperation(type, leftNode, right);
-		switch (type) {
-			case INTERSECT:
-				return new Intersect(leftNode, rightNode, all);
-			case MINUS:
-				return new Minus(leftNode, rightNode, all);
-			case UNION:
-				return new Union(leftNode, rightNode, all);
-		}
-		throw new TableException("Unknown algebraic operation type: " + type);
+		validateAlgebraicOperation(type, left, right);
+		return new AlgebraicTableOperation(left, right, type, all);
 	}
 
 	private void validateAlgebraicOperation(
