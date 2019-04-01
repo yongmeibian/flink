@@ -18,19 +18,17 @@
 
 package org.apache.flink.table.plan
 
-import java.util.{Collections, Optional, List => JList, Map => JMap}
+import java.util.{Collections, Optional, List => JList}
 
 import org.apache.flink.api.java.operators.join.JoinType
 import org.apache.flink.table.api._
-import org.apache.flink.table.expressions.{Alias, ApiExpressionDefaultVisitor, Asc, BuiltInFunctionDefinitions, CallExpression, Expression, ExpressionBridge, ExpressionResolver, Ordering, PlannerExpression, TableReferenceExpression, UnresolvedAlias, UnresolvedFieldReference, UnresolvedReferenceExpression, WindowProperty}
 import org.apache.flink.table.expressions.ExpressionResolver.{ExpressionResolverBuilder, resolverFor}
-import org.apache.flink.table.expressions.BuiltInFunctionDefinitions.AS
-import org.apache.flink.table.expressions.ApiExpressionUtils.valueLiteral
 import org.apache.flink.table.expressions.lookups.TableReferenceLookup
 import org.apache.flink.table.expressions.rules.ResolverRules
+import org.apache.flink.table.expressions._
 import org.apache.flink.table.functions.utils.UserDefinedFunctionUtils
 import org.apache.flink.table.operations.{ColumnOperationsFactory, TableOperation}
-import org.apache.flink.table.plan.logical._
+import org.apache.flink.table.plan.logical.{Minus => LMinus, _}
 import org.apache.flink.table.util.JavaScalaConversionUtil
 import org.apache.flink.table.util.JavaScalaConversionUtil.toScala
 import org.apache.flink.util.Preconditions
@@ -148,16 +146,17 @@ class OperationTreeBuilder(private val tableEnv: TableEnvironment) {
 
   def aggregate(
       groupingExpressions: JList[Expression],
-      namedAggregates: JMap[Expression, String],
+      namedAggregates: JList[Expression],
       child: TableOperation)
     : TableOperation = {
 
     val childNode = child.asInstanceOf[LogicalNode]
-    val resolver = resolverFor(tableCatalog, childNode).build
+    val resolver = resolverFor(tableCatalog, child).build
 
     val convertedGroupings = resolveExpressions(groupingExpressions, resolver)
-    val convertedAggregates = resolveNamedExpressions(namedAggregates, resolver)
+    val convertedAggregates = resolveExpressions(namedAggregates, resolver)
 
+    Aggregate(convertedGroupings, convertedAggregates, childNode).validate(tableEnv)
     Aggregate(convertedGroupings, convertedAggregates, childNode).validate(tableEnv)
   }
 
@@ -168,35 +167,22 @@ class OperationTreeBuilder(private val tableEnv: TableEnvironment) {
     resolver.resolve(expressions).asScala.map(bridgeExpression)
   }
 
-  private def resolveNamedExpressions(
-      namedExpressions: JMap[Expression, String],
-      resolver: ExpressionResolver)
-    : Seq[PlannerExpression] = {
-
-    val renamedExpressions = namedExpressions.asScala
-      .map(expr => new CallExpression(AS, List(expr._1, valueLiteral(expr._2)).asJava).asInstanceOf[Expression])
-        .toList.asJava
-
-    resolver.resolve(renamedExpressions).asScala.map(bridgeExpression)
-  }
-
   def windowAggregate(
       groupingExpressions: JList[Expression],
       window: GroupWindow,
-      namedProperties: JMap[Expression, String],
-      namedAggregates: JMap[Expression, String],
+      windowProperties: JList[Expression],
+      aggregates: JList[Expression],
       child: TableOperation)
     : TableOperation = {
 
     val childNode = child.asInstanceOf[LogicalNode]
-
-    val resolver = resolverFor(tableCatalog, childNode).withGroupWindow(window).build
+    val resolver = resolverFor(tableCatalog, child).withGroupWindow(window).build
 
     val convertedGroupings = resolveExpressions(groupingExpressions, resolver)
 
-    val convertedAggregates = resolveNamedExpressions(namedAggregates, resolver)
+    val convertedAggregates = resolveExpressions(aggregates, resolver)
 
-    val convertedProperties = resolveNamedExpressions(namedProperties, resolver)
+    val convertedProperties = resolveExpressions(windowProperties, resolver)
 
     WindowAggregate(
         convertedGroupings,
@@ -345,7 +331,7 @@ class OperationTreeBuilder(private val tableEnv: TableEnvironment) {
       right: TableOperation,
       all: Boolean)
     : TableOperation = {
-    Minus(left.asInstanceOf[LogicalNode], right.asInstanceOf[LogicalNode], all).validate(tableEnv)
+    LMinus(left.asInstanceOf[LogicalNode], right.asInstanceOf[LogicalNode], all).validate(tableEnv)
   }
 
   def intersect(

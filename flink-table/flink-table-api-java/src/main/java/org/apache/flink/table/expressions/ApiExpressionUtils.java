@@ -49,6 +49,7 @@ import static org.apache.flink.table.expressions.FunctionDefinition.Type.AGGREGA
 public final class ApiExpressionUtils {
 
 	private static final ExtractNameVisitor extractNameVisitor = new ExtractNameVisitor();
+	private static final FieldReferenceExtractor referenceExtractor = new FieldReferenceExtractor();
 
 	public static final long MILLIS_PER_SECOND = 1000L;
 
@@ -165,21 +166,28 @@ public final class ApiExpressionUtils {
 	 */
 	@Internal
 	public static class CategorizedExpressions {
-		private final Map<Expression, String> aggregations;
-		private final Map<Expression, String> windowProperties;
+		private final List<Expression> projections;
+		private final List<Expression> aggregations;
+		private final List<Expression> windowProperties;
 
 		CategorizedExpressions(
-			Map<Expression, String> aggregations,
-			Map<Expression, String> windowProperties) {
+				List<Expression> projections,
+				List<Expression> aggregations,
+				List<Expression> windowProperties) {
+			this.projections = projections;
 			this.aggregations = aggregations;
 			this.windowProperties = windowProperties;
 		}
 
-		public Map<Expression, String> getAggregations() {
+		public List<Expression> getProjections() {
+			return projections;
+		}
+
+		public List<Expression> getAggregations() {
 			return aggregations;
 		}
 
-		public Map<Expression, String> getWindowProperties() {
+		public List<Expression> getWindowProperties() {
 			return windowProperties;
 		}
 	}
@@ -199,7 +207,22 @@ public final class ApiExpressionUtils {
 		AggregationAndPropertiesSplitter splitter = new AggregationAndPropertiesSplitter(uniqueAttributeGenerator);
 		expressions.forEach(expr -> expr.accept(splitter));
 
-		return new CategorizedExpressions(splitter.aggregates, splitter.properties);
+		List<Expression> projections = expressions.stream()
+			.map(expr -> expr.accept(new AggregationAndPropertiesReplacer(splitter.aggregates,
+				splitter.properties)))
+			.collect(Collectors.toList());
+
+		List<Expression> aggregates = nameExpressions(splitter.aggregates);
+		List<Expression> properties = nameExpressions(splitter.properties);
+
+		return new CategorizedExpressions(projections, aggregates, properties);
+	}
+
+	private static List<Expression> nameExpressions(Map<Expression, String> expressions) {
+		return expressions.entrySet()
+			.stream()
+			.map(entry -> call(AS, entry.getKey(), valueLiteral(entry.getValue())))
+			.collect(Collectors.toList());
 	}
 
 	private static class AggregationAndPropertiesSplitter extends ApiExpressionDefaultVisitor<Void> {
@@ -236,32 +259,14 @@ public final class ApiExpressionUtils {
 		}
 	}
 
-	/**
-	 * Replaces expressions with deduplicated aggregations and properties.
-	 *
-	 * @param expressions     a list of expressions to replace
-	 * @param aggNames  the deduplicated aggregations
-	 * @param propNames the deduplicated properties
-	 * @return a list of replaced expressions
-	 */
-	public static List<Expression> replaceAggregationsAndProperties(
-			List<Expression> expressions,
-			Map<Expression, String> aggNames,
-			Map<Expression, String> propNames) {
-		AggregationAndPropertiesReplacer replacer = new AggregationAndPropertiesReplacer(aggNames, propNames);
-		return expressions.stream()
-			.map(expr -> expr.accept(replacer))
-			.collect(Collectors.toList());
-	}
-
 	private static class AggregationAndPropertiesReplacer extends ApiExpressionDefaultVisitor<Expression> {
 
 		private final Map<Expression, String> aggregates;
 		private final Map<Expression, String> properties;
 
 		private AggregationAndPropertiesReplacer(
-			Map<Expression, String> aggregates,
-			Map<Expression, String> properties) {
+				Map<Expression, String> aggregates,
+				Map<Expression, String> properties) {
 			this.aggregates = aggregates;
 			this.properties = properties;
 		}
@@ -299,7 +304,6 @@ public final class ApiExpressionUtils {
 	 * @return a list of field references extracted from the given expressions
 	 */
 	public static List<Expression> extractFieldReferences(List<Expression> expressions) {
-		FieldReferenceExtractor referenceExtractor = new FieldReferenceExtractor();
 		return expressions.stream()
 			.flatMap(expr -> expr.accept(referenceExtractor).stream())
 			.distinct()
