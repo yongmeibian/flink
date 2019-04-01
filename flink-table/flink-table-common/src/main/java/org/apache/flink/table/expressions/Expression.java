@@ -20,6 +20,7 @@ package org.apache.flink.table.expressions;
 
 import org.apache.flink.annotation.PublicEvolving;
 
+import java.io.Serializable;
 import java.util.List;
 
 /**
@@ -30,7 +31,7 @@ import java.util.List;
  * or field references.
  */
 @PublicEvolving
-public interface Expression {
+public interface Expression extends Serializable {
 
 	List<Expression> getChildren();
 

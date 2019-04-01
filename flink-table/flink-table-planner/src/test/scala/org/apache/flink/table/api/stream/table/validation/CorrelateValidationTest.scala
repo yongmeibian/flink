@@ -72,8 +72,7 @@ class CorrelateValidationTest extends TableTestBase {
     // Java Table API call
     expectExceptionThrown(
       t.joinLateral("func0(a)"),
-      "only accepts a string expression which defines a table function call",
-      classOf[TableException])
+      "only accepts a string expression which defines a table function call")
     // SQL API call
     // NOTE: it doesn't throw an exception but an AssertionError, maybe a Calcite bug
     expectExceptionThrown(
@@ -86,7 +85,7 @@ class CorrelateValidationTest extends TableTestBase {
     util.addFunction("func2", new TableFunc2)
     expectExceptionThrown(
       t.joinLateral("func2(c, c)"),
-      "Given parameters of function 'func2' do not match any signature")
+      "Invalid arguments [[c, c]] for call: func2(c, c)")
     // SQL API call
     expectExceptionThrown(
       util.tableEnv.sqlQuery("SELECT * FROM MyTable, LATERAL TABLE(func2(c, c))"),

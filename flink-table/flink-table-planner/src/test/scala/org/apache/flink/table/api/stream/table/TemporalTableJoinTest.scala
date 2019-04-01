@@ -24,7 +24,7 @@ import org.apache.flink.api.scala._
 import org.apache.flink.table.api.{TableSchema, ValidationException}
 import org.apache.flink.table.api.scala._
 import org.apache.flink.table.api.stream.table.TemporalTableJoinTest._
-import org.apache.flink.table.expressions.ResolvedFieldReference
+import org.apache.flink.table.expressions.{FieldReferenceExpression, ResolvedFieldReference}
 import org.apache.flink.table.functions.{TemporalTableFunction, TemporalTableFunctionImpl}
 import org.apache.flink.table.plan.logical.rel.LogicalTemporalTableJoin._
 import org.apache.flink.table.utils.TableTestUtil._
@@ -156,12 +156,12 @@ class TemporalTableJoinTest extends TableTestBase {
       inputRates: TemporalTableFunction,
       proctime: Boolean = false): Unit = {
     val rates = inputRates.asInstanceOf[TemporalTableFunctionImpl]
-    assertTrue(rates.getPrimaryKey.isInstanceOf[ResolvedFieldReference])
-    assertEquals("currency", rates.getPrimaryKey.asInstanceOf[ResolvedFieldReference].name)
-    assertTrue(rates.getTimeAttribute.isInstanceOf[ResolvedFieldReference])
+    assertTrue(rates.getPrimaryKey.isInstanceOf[FieldReferenceExpression])
+    assertEquals("currency", rates.getPrimaryKey.asInstanceOf[FieldReferenceExpression].getName)
+    assertTrue(rates.getTimeAttribute.isInstanceOf[FieldReferenceExpression])
     assertEquals(
       if (proctime) "proctime" else "rowtime",
-      rates.getTimeAttribute.asInstanceOf[ResolvedFieldReference].name)
+      rates.getTimeAttribute.asInstanceOf[FieldReferenceExpression].getName)
     assertArrayEquals(
       expectedSchema.getFieldNames.asInstanceOf[Array[Object]],
       rates.getResultType.getFieldNames.asInstanceOf[Array[Object]])
