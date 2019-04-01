@@ -19,23 +19,31 @@
 package org.apache.flink.table.operations;
 
 import org.apache.flink.annotation.Internal;
+import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.api.common.typeinfo.Types;
 import org.apache.flink.table.api.TableException;
+import org.apache.flink.table.calcite.FlinkTypeFactory;
 import org.apache.flink.table.expressions.Aggregation;
 import org.apache.flink.table.expressions.CallExpression;
 import org.apache.flink.table.expressions.Expression;
 import org.apache.flink.table.expressions.ExpressionBridge;
 import org.apache.flink.table.expressions.ExpressionDefaultVisitor;
 import org.apache.flink.table.expressions.PlannerExpression;
+import org.apache.flink.table.functions.TableFunction;
+import org.apache.flink.table.functions.utils.TableSqlFunction;
 import org.apache.flink.table.plan.logical.LogicalNode;
+import org.apache.flink.table.plan.schema.FlinkTableFunctionImpl;
 
 import org.apache.calcite.rel.RelNode;
+import org.apache.calcite.rel.logical.LogicalTableFunctionScan;
 import org.apache.calcite.rex.RexNode;
 import org.apache.calcite.tools.RelBuilder;
 import org.apache.calcite.tools.RelBuilder.AggCall;
 import org.apache.calcite.tools.RelBuilder.GroupKey;
 
+import java.util.Collections;
 import java.util.List;
+import java.util.stream.IntStream;
 
 import static java.util.Arrays.asList;
 import static java.util.stream.Collectors.toList;
@@ -152,6 +160,39 @@ public class TableOperationToRelNodeConverter extends TableOperationDefaultVisit
 			}
 
 			throw new TableException("Unknown table operation: " + other);
+		}
+
+		@Override
+		public RelNode visitCalculatedTable(CalculatedTableOperation calculatedTable) {
+			String[] fieldNames = calculatedTable.getTableSchema().getFieldNames();
+			int[] fieldIndices = IntStream.range(0, fieldNames.length).toArray();
+			TypeInformation<?> resultType = calculatedTable.getResultType();
+
+			@SuppressWarnings("unchecked")
+			FlinkTableFunctionImpl function = new FlinkTableFunctionImpl(
+				resultType,
+				fieldIndices,
+				fieldNames);
+			TableFunction<?> tableFunction = calculatedTable.getTableFunction();
+
+			FlinkTypeFactory typeFactory = (FlinkTypeFactory) relBuilder.getTypeFactory();
+			TableSqlFunction sqlFunction = new TableSqlFunction(
+				tableFunction.functionIdentifier(),
+				tableFunction.toString(),
+				tableFunction,
+				resultType,
+				typeFactory,
+				function);
+
+			List<RexNode> parameters = convertToRexNodes(calculatedTable.getParameters());
+
+			return LogicalTableFunctionScan.create(
+				relBuilder.peek().getCluster(),
+				Collections.emptyList(),
+				relBuilder.call(sqlFunction, parameters),
+				function.getElementType(null),
+				function.getRowType(typeFactory, null),
+				null);
 		}
 
 		private RexNode convertToRexNode(Expression expression) {
