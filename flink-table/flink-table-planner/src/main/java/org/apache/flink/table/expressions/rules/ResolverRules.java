@@ -52,16 +52,6 @@ public final class ResolverRules {
 	 */
 	public static final ResolverRule FLATTEN_STAR_REFERENCE = new StarReferenceFlatteningRule();
 
-	/*
-		NON DEFAULT RULES
-	 */
-
-	/**
-	 * Used in sort operation. It assures expression is wrapped in ordering expression. See {@link WrapInOrderRule}
-	 * for details.
-	 */
-	public static final ResolverRule WRAP_IN_ORDER = new WrapInOrderRule();
-
 	private ResolverRules() {
 	}
 }

@@ -22,12 +22,11 @@ import java.util.{Collections, Optional, List => JList}
 
 import org.apache.flink.api.java.operators.join.JoinType
 import org.apache.flink.table.api._
-import org.apache.flink.table.expressions.ExpressionResolver.{ExpressionResolverBuilder, resolverFor}
+import org.apache.flink.table.expressions.ExpressionResolver.resolverFor
 import org.apache.flink.table.expressions._
 import org.apache.flink.table.expressions.lookups.TableReferenceLookup
-import org.apache.flink.table.expressions.rules.ResolverRules
 import org.apache.flink.table.functions.utils.UserDefinedFunctionUtils
-import org.apache.flink.table.operations.{AliasOperationFactory, ColumnOperationsFactory, ProjectionOperationFactory, TableOperation}
+import org.apache.flink.table.operations._
 import org.apache.flink.table.plan.logical.{Minus => LMinus, _}
 import org.apache.flink.table.util.JavaScalaConversionUtil
 import org.apache.flink.table.util.JavaScalaConversionUtil.toScala
@@ -43,7 +42,9 @@ class OperationTreeBuilder(private val tableEnv: TableEnvironment) {
   private val expressionBridge: ExpressionBridge[PlannerExpression] = tableEnv.expressionBridge
   private val columnOperationsFactory = new ColumnOperationsFactory
 
+  private val isStreaming = tableEnv.isInstanceOf[StreamTableEnvironment]
   private val projectionOperationFactory = new ProjectionOperationFactory(expressionBridge)
+  private val sortOperationFactory = new SortOperationFactory(expressionBridge, isStreaming)
   private val aliasOperationFactory = new AliasOperationFactory()
   private val noWindowPropertyChecker = new NoWindowPropertyChecker(
     "Window start and end properties are not available for Over windows.")
@@ -261,16 +262,11 @@ class OperationTreeBuilder(private val tableEnv: TableEnvironment) {
       fields: JList[Expression],
       child: TableOperation)
     : TableOperation = {
-    val childNode = child.asInstanceOf[LogicalNode]
 
-    val customRules = ExpressionResolverBuilder.getDefaultRules.asScala.toList :+
-      ResolverRules.WRAP_IN_ORDER
+    val resolver = resolverFor(tableCatalog, child).build()
+    val resolvedFields = resolver.resolve(fields)
 
-    val resolver = resolverFor(tableCatalog, childNode)
-      .appendCustomRule(ResolverRules.WRAP_IN_ORDER).build()
-    val order = resolveExpressions(fields, resolver).map(expressionBridge.bridge)
-
-    Sort(order, childNode).validate(tableEnv)
+    sortOperationFactory.createSort(resolvedFields, child)
   }
 
   def limitWithOffset(offset: Int, child: TableOperation): TableOperation = {
@@ -294,7 +290,7 @@ class OperationTreeBuilder(private val tableEnv: TableEnvironment) {
   }
 
   def limit(offset: Int, fetch: Int, child: TableOperation): TableOperation = {
-    Limit(offset, fetch, child.asInstanceOf[LogicalNode]).validate(tableEnv)
+    sortOperationFactory.createLimit(offset, fetch, child)
   }
 
   def alias(
