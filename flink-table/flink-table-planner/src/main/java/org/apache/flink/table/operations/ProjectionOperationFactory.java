@@ -19,24 +19,22 @@
 package org.apache.flink.table.operations;
 
 import org.apache.flink.annotation.Internal;
+import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.api.common.typeinfo.Types;
 import org.apache.flink.table.api.TableException;
+import org.apache.flink.table.api.TableSchema;
 import org.apache.flink.table.api.ValidationException;
 import org.apache.flink.table.expressions.ApiExpressionDefaultVisitor;
 import org.apache.flink.table.expressions.ApiExpressionUtils;
 import org.apache.flink.table.expressions.CallExpression;
 import org.apache.flink.table.expressions.Expression;
 import org.apache.flink.table.expressions.ExpressionBridge;
-import org.apache.flink.table.expressions.FieldReferenceExpression;
 import org.apache.flink.table.expressions.FunctionDefinition;
-import org.apache.flink.table.expressions.LocalReferenceExpression;
 import org.apache.flink.table.expressions.PlannerExpression;
-import org.apache.flink.table.expressions.TableReferenceExpression;
 import org.apache.flink.table.expressions.ValueLiteralExpression;
-import org.apache.flink.table.plan.logical.Project;
 
 import java.util.Arrays;
-import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -54,8 +52,9 @@ import static org.apache.flink.table.expressions.BuiltInFunctionDefinitions.GET;
 @Internal
 public class ProjectionOperationFactory {
 
-	private final ExtractNameVisitor extractNameVisitor = new ExtractNameVisitor();
+	private final TransitiveExtractNameVisitor extractTransitiveNameVisitor = new TransitiveExtractNameVisitor();
 	private final NamingVisitor namingVisitor = new NamingVisitor();
+	private final StripAliases stripAliases = new StripAliases();
 	private int currentFieldIndex = 0;
 
 	private final ExpressionBridge<PlannerExpression> expressionBridge;
@@ -64,29 +63,46 @@ public class ProjectionOperationFactory {
 		this.expressionBridge = expressionBridge;
 	}
 
-	public Project create(
+	public TableOperation create(
 			List<Expression> projectList,
-		TableOperation childNode,
+			TableOperation childNode,
 			boolean explicitAlias) {
 
-		List<Expression> namedExpressions = nameExpressions(projectList);
-		validateNames(namedExpressions);
-		List<PlannerExpression> convertedExpressions = namedExpressions.stream()
-			.map(expressionBridge::bridge)
-			.collect(Collectors.toList());
+		final List<Expression> namedExpressions = nameExpressions(projectList);
+		String[] fieldNames = validateAndGetUniqueNames(namedExpressions);
 
-		return new Project(convertedExpressions, childNode, explicitAlias);
+		final List<Expression> finalExpression;
+		if (explicitAlias) {
+			finalExpression = namedExpressions;
+		} else {
+			finalExpression = namedExpressions.stream()
+				.map(expr -> expr.accept(stripAliases))
+				.collect(Collectors.toList());
+		}
+
+		TypeInformation[] fieldTypes = namedExpressions.stream()
+			.map(expressionBridge::bridge)
+			.map(PlannerExpression::resultType)
+			.toArray(TypeInformation[]::new);
+
+		TableSchema tableSchema = new TableSchema(fieldNames, fieldTypes);
+
+		return new ProjectTableOperation(finalExpression, childNode, tableSchema);
 	}
 
-	private void validateNames(List<Expression> namedExpressions) {
-		final Set<String> names = new HashSet<>();
-		namedExpressions.stream().map(expr -> expr.accept(extractNameVisitor))
+	private String[] validateAndGetUniqueNames(List<Expression> namedExpressions) {
+		// we need to maintain field names order to match with types
+		final Set<String> names = new LinkedHashSet<>();
+
+		ApiExpressionUtils.extractNames(namedExpressions).stream()
 			.map(name -> name.orElseThrow(() -> new TableException("Could not name a field in a projection.")))
 			.forEach(name -> {
 				if (!names.add(name)) {
 					throw new ValidationException("Ambiguous column name: " + name);
 				}
 			});
+
+		return names.toArray(new String[0]);
 	}
 
 	private List<Expression> nameExpressions(List<Expression> expression) {
@@ -118,12 +134,12 @@ public class ProjectionOperationFactory {
 		}
 
 		private Optional<String> nameForGet(CallExpression call) {
-			return Optional.of(call.accept(extractNameVisitor)
+			return Optional.of(call.accept(extractTransitiveNameVisitor)
 				.orElseGet(ProjectionOperationFactory.this::getUniqueName));
 		}
 
 		private Optional<String> nameForCast(CallExpression call) {
-			Optional<String> innerName = call.getChildren().get(0).accept(extractNameVisitor);
+			Optional<String> innerName = call.getChildren().get(0).accept(extractTransitiveNameVisitor);
 			Expression type = call.getChildren().get(1);
 			return Optional.of(innerName.map(n -> String.format("%s-%s", n, type))
 				.orElseGet(ProjectionOperationFactory.this::getUniqueName));
@@ -140,17 +156,37 @@ public class ProjectionOperationFactory {
 		}
 	}
 
-	private class ExtractNameVisitor extends ApiExpressionDefaultVisitor<Optional<String>> {
+	private class StripAliases extends ApiExpressionDefaultVisitor<Expression> {
+
+		@Override
+		public Expression visitCall(CallExpression call) {
+			if (call.getFunctionDefinition().equals(AS)) {
+				return call.getChildren().get(0).accept(this);
+			} else {
+				return call;
+			}
+		}
+
+		@Override
+		protected Expression defaultMethod(Expression expression) {
+			return expression;
+		}
+	}
+
+	private class TransitiveExtractNameVisitor extends ApiExpressionDefaultVisitor<Optional<String>> {
 
 		@Override
 		public Optional<String> visitCall(CallExpression call) {
 			if (call.getFunctionDefinition().equals(GET)) {
 				return extractNameFromGet(call);
-			} else if (call.getFunctionDefinition().equals(AS)) {
-				return ApiExpressionUtils.extractValue(call.getChildren().get(1), Types.STRING);
-			} else  {
-				return Optional.empty();
+			} else {
+				return defaultMethod(call);
 			}
+		}
+
+		@Override
+		protected Optional<String> defaultMethod(Expression expression) {
+			return ApiExpressionUtils.extractName(expression);
 		}
 
 		private Optional<String> extractNameFromGet(CallExpression call) {
@@ -163,26 +199,6 @@ public class ProjectionOperationFactory {
 				keySuffix = "$" + key.getValue();
 			}
 			return child.accept(this).map(p -> p + keySuffix);
-		}
-
-		@Override
-		public Optional<String> visitLocalReference(LocalReferenceExpression localReference) {
-			return Optional.of(localReference.getName());
-		}
-
-		@Override
-		public Optional<String> visitTableReference(TableReferenceExpression tableReference) {
-			return Optional.of(tableReference.getName());
-		}
-
-		@Override
-		public Optional<String> visitFieldReference(FieldReferenceExpression fieldReference) {
-			return Optional.of(fieldReference.getName());
-		}
-
-		@Override
-		protected Optional<String> defaultMethod(Expression expression) {
-			return Optional.empty();
 		}
 	}
 

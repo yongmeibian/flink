@@ -26,7 +26,10 @@ import org.apache.flink.annotation.Internal;
  */
 @Internal
 public interface TableOperationVisitor<T> {
+	T visitProject(ProjectTableOperation projection);
+
 	T visitAlgebraicOperation(AlgebraicTableOperation algebraicOperation);
 
 	T visitOther(TableOperation other);
+
 }

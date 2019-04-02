@@ -95,7 +95,7 @@ abstract class TableEnvironment(val config: TableConfig) {
     .operatorTable(getSqlOperatorTable)
     .sqlToRelConverterConfig(getSqlToRelConverterConfig)
     .context(Contexts
-      .of(new TableOperationToRelNodeConverter.ToRelConverterSupplier()))
+      .of(new TableOperationToRelNodeConverter.ToRelConverterSupplier(expressionBridge)))
     // set the executor to evaluate constant expressions
     .executor(new ExpressionReducer(config))
     .build

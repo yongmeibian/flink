@@ -28,6 +28,11 @@ import org.apache.flink.annotation.Internal;
 @Internal
 public abstract class TableOperationDefaultVisitor<T> implements TableOperationVisitor<T> {
 	@Override
+	public T visitProject(ProjectTableOperation projection) {
+		return defaultMethod(projection);
+	}
+
+	@Override
 	public T visitAlgebraicOperation(AlgebraicTableOperation algebraicOperation) {
 		return defaultMethod(algebraicOperation);
 	}
