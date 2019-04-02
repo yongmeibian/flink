@@ -20,10 +20,19 @@ package org.apache.flink.table.operations;
 
 import org.apache.flink.annotation.Internal;
 import org.apache.flink.table.api.TableException;
+import org.apache.flink.table.expressions.Expression;
+import org.apache.flink.table.expressions.ExpressionBridge;
+import org.apache.flink.table.expressions.PlannerExpression;
 import org.apache.flink.table.plan.logical.LogicalNode;
 
 import org.apache.calcite.rel.RelNode;
+import org.apache.calcite.rex.RexNode;
 import org.apache.calcite.tools.RelBuilder;
+
+import java.util.List;
+
+import static java.util.Arrays.asList;
+import static java.util.stream.Collectors.toList;
 
 /**
  * Converter from Flink's specific relational representation: {@link TableOperation} to Calcite's specific relational
@@ -37,16 +46,26 @@ public class TableOperationToRelNodeConverter extends TableOperationDefaultVisit
 	 */
 	@Internal
 	public static class ToRelConverterSupplier {
+		private final ExpressionBridge<PlannerExpression> expressionBridge;
+
+		public ToRelConverterSupplier(ExpressionBridge<PlannerExpression> expressionBridge) {
+			this.expressionBridge = expressionBridge;
+		}
+
 		public TableOperationToRelNodeConverter get(RelBuilder relBuilder) {
-			return new TableOperationToRelNodeConverter(relBuilder);
+			return new TableOperationToRelNodeConverter(relBuilder, expressionBridge);
 		}
 	}
 
 	private final RelBuilder relBuilder;
 	private final SingleRelVisitor singleRelVisitor = new SingleRelVisitor();
+	private final ExpressionBridge<PlannerExpression> expressionBridge;
 
-	public TableOperationToRelNodeConverter(RelBuilder relBuilder) {
+	public TableOperationToRelNodeConverter(
+			RelBuilder relBuilder,
+			ExpressionBridge<PlannerExpression> expressionBridge) {
 		this.relBuilder = relBuilder;
+		this.expressionBridge = expressionBridge;
 	}
 
 	@Override
@@ -56,6 +75,17 @@ public class TableOperationToRelNodeConverter extends TableOperationDefaultVisit
 	}
 
 	private class SingleRelVisitor implements TableOperationVisitor<RelNode> {
+
+		@Override
+		public RelNode visitProject(ProjectTableOperation projection) {
+			List<RexNode> rexNodes = convertToRexNodes(projection.getProjectList());
+
+			return relBuilder.project(
+				rexNodes,
+				asList(projection.getTableSchema().getFieldNames()),
+				true)
+				.build();
+		}
 
 		@Override
 		public RelNode visitAlgebraicOperation(AlgebraicTableOperation algebraicOperation) {
@@ -82,5 +112,12 @@ public class TableOperationToRelNodeConverter extends TableOperationDefaultVisit
 			throw new TableException("Unknown table operation: " + other);
 		}
 
+		private List<RexNode> convertToRexNodes(List<Expression> expressions) {
+			return expressions
+				.stream()
+				.map(expressionBridge::bridge)
+				.map(expr -> expr.toRexNode(relBuilder))
+				.collect(toList());
+		}
 	}
 }

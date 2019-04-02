@@ -40,34 +40,6 @@ import org.apache.flink.table.util.JavaScalaConversionUtil
 import scala.collection.JavaConverters._
 import scala.collection.mutable
 
-case class Project(
-    projectList: JList[PlannerExpression],
-    child: TableOperation,
-    explicitAlias: Boolean = false)
-  extends UnaryNode {
-
-  override def output: Seq[Attribute] = projectList.asScala
-    .map(_.asInstanceOf[NamedExpression].toAttribute)
-
-  override def toRelNode(relBuilder: RelBuilder): RelNode = {
-    val projectNames = projectList.asScala.map(_.asInstanceOf[NamedExpression].name).asJava
-    val exprs = if (explicitAlias) {
-      projectList.asScala
-    } else {
-      // remove AS expressions, according to Calcite they should not be in a final RexNode
-      projectList.asScala.map {
-        case Alias(e: PlannerExpression, _, _) => e
-        case e: PlannerExpression => e
-      }
-    }
-
-    relBuilder.project(
-      exprs.map(_.toRexNode(relBuilder)).asJava,
-      projectNames,
-      true).build()
-  }
-}
-
 case class Distinct(child: TableOperation) extends UnaryNode {
 
   override def getTableSchema: TableSchema = child.getTableSchema

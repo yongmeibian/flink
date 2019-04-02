@@ -48,7 +48,7 @@ class FlinkRelBuilder(
     relOptCluster,
     relOptSchema) {
 
-  private val toRelNodeConverter = new TableOperationToRelNodeConverter(this)
+  private val toRelNodeConverter = new TableOperationToRelNodeConverter(this, expressionBridge)
 
   def getRelOptSchema: RelOptSchema = relOptSchema
 
