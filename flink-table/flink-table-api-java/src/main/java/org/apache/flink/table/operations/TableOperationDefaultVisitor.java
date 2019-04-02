@@ -33,6 +33,11 @@ public abstract class TableOperationDefaultVisitor<T> implements TableOperationV
 	}
 
 	@Override
+	public T visitAggregate(AggregationTableOperation aggregation) {
+		return defaultMethod(aggregation);
+	}
+
+	@Override
 	public T visitAlgebraicOperation(AlgebraicTableOperation algebraicOperation) {
 		return defaultMethod(algebraicOperation);
 	}

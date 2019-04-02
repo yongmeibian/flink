@@ -19,20 +19,30 @@
 package org.apache.flink.table.operations;
 
 import org.apache.flink.annotation.Internal;
+import org.apache.flink.api.common.typeinfo.Types;
 import org.apache.flink.table.api.TableException;
+import org.apache.flink.table.expressions.Aggregation;
+import org.apache.flink.table.expressions.CallExpression;
 import org.apache.flink.table.expressions.Expression;
 import org.apache.flink.table.expressions.ExpressionBridge;
+import org.apache.flink.table.expressions.ExpressionDefaultVisitor;
 import org.apache.flink.table.expressions.PlannerExpression;
 import org.apache.flink.table.plan.logical.LogicalNode;
 
 import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rex.RexNode;
 import org.apache.calcite.tools.RelBuilder;
+import org.apache.calcite.tools.RelBuilder.AggCall;
+import org.apache.calcite.tools.RelBuilder.GroupKey;
 
 import java.util.List;
 
 import static java.util.Arrays.asList;
 import static java.util.stream.Collectors.toList;
+import static org.apache.flink.table.expressions.ApiExpressionUtils.extractValue;
+import static org.apache.flink.table.expressions.ApiExpressionUtils.isFunctionOfType;
+import static org.apache.flink.table.expressions.BuiltInFunctionDefinitions.AS;
+import static org.apache.flink.table.expressions.FunctionDefinition.Type.AGGREGATE_FUNCTION;
 
 /**
  * Converter from Flink's specific relational representation: {@link TableOperation} to Calcite's specific relational
@@ -60,6 +70,7 @@ public class TableOperationToRelNodeConverter extends TableOperationDefaultVisit
 	private final RelBuilder relBuilder;
 	private final SingleRelVisitor singleRelVisitor = new SingleRelVisitor();
 	private final ExpressionBridge<PlannerExpression> expressionBridge;
+	private final AggregateVisitor aggregateVisitor = new AggregateVisitor();
 
 	public TableOperationToRelNodeConverter(
 			RelBuilder relBuilder,
@@ -85,6 +96,19 @@ public class TableOperationToRelNodeConverter extends TableOperationDefaultVisit
 				asList(projection.getTableSchema().getFieldNames()),
 				true)
 				.build();
+		}
+
+		@Override
+		public RelNode visitAggregate(AggregationTableOperation aggregate) {
+			List<AggCall> aggregations = aggregate.getAggregateExpressions()
+				.stream()
+				.map(expr -> expr.accept(aggregateVisitor))
+				.collect(toList());
+
+			List<RexNode> groupings = convertToRexNodes(aggregate.getGroupingExpressions());
+			GroupKey groupKey = relBuilder.groupKey(groupings);
+
+			return relBuilder.aggregate(groupKey, aggregations).build();
 		}
 
 		@Override
@@ -118,6 +142,30 @@ public class TableOperationToRelNodeConverter extends TableOperationDefaultVisit
 				.map(expressionBridge::bridge)
 				.map(expr -> expr.toRexNode(relBuilder))
 				.collect(toList());
+		}
+	}
+
+	private class AggregateVisitor extends ExpressionDefaultVisitor<AggCall> {
+
+		@Override
+		public AggCall visitCall(CallExpression call) {
+			if (call.getFunctionDefinition() == AS) {
+				String aggregateName = extractValue(call.getChildren().get(1),
+					Types.STRING).orElseThrow(() -> new TableException(
+					"Unexpected name"));
+
+				Expression aggregate = call.getChildren().get(0);
+				if (isFunctionOfType(aggregate, AGGREGATE_FUNCTION)) {
+					return ((Aggregation) expressionBridge.bridge(aggregate))
+						.toAggCall(aggregateName, false, relBuilder);
+				}
+			}
+			throw new TableException("Expected named aggregate. Got: " + call);
+		}
+
+		@Override
+		protected AggCall defaultMethod(Expression expression) {
+			throw new TableException("Unexpected expression: " + expression);
 		}
 	}
 }

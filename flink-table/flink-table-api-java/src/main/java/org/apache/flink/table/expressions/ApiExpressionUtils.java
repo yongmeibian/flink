@@ -147,4 +147,9 @@ public final class ApiExpressionUtils {
 		}
 		return Optional.empty();
 	}
+
+	public static boolean isFunctionOfType(Expression expr, FunctionDefinition.Type type) {
+		return expr instanceof CallExpression &&
+			((CallExpression) expr).getFunctionDefinition().getType() == type;
+	}
 }
