@@ -32,5 +32,9 @@ public interface TableOperationVisitor<T> {
 
 	T visitAlgebraicOperation(AlgebraicTableOperation algebraicOperation);
 
+	T visitFilter(FilterTableOperation filter);
+
+	T visitDistinct(DistinctTableOperation distinct);
+
 	T visitOther(TableOperation other);
 }
