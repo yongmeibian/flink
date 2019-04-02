@@ -30,7 +30,6 @@ import org.apache.flink.table.expressions.catalog.FunctionDefinitionCatalog
 import org.apache.flink.table.expressions.lookups.TableReferenceLookup
 import org.apache.flink.table.operations.AlgebraicTableOperation.AlgebraicTableOperationType.{INTERSECT, MINUS, UNION}
 import org.apache.flink.table.operations.AliasOperationUtils.createAliasList
-import org.apache.flink.table.plan.logical._
 import org.apache.flink.table.util.JavaScalaConversionUtil
 import org.apache.flink.table.util.JavaScalaConversionUtil.toScala
 import org.apache.flink.util.Preconditions
@@ -47,7 +46,7 @@ class OperationTreeBuilder(private val tableEnv: TableEnvironment) {
 
   private val isStreaming = tableEnv.isInstanceOf[StreamTableEnvironment]
   private val projectionOperationFactory = new ProjectionOperationFactory(expressionBridge)
-  private val sortOperationFactory = new SortOperationFactory(expressionBridge, isStreaming)
+  private val sortOperationFactory = new SortOperationFactory(isStreaming)
   private val calculatedTableFactory = new CalculatedTableFactory(expressionBridge)
   private val algebraicOperationFactory = new AlgebraicOperationFactory(isStreaming)
   private val aggregationOperationFactory = new AggregateOperationFactory(expressionBridge,
@@ -237,27 +236,11 @@ class OperationTreeBuilder(private val tableEnv: TableEnvironment) {
   }
 
   def limitWithOffset(offset: Int, child: TableOperation): TableOperation = {
-      limit(offset, -1, child)
+    sortOperationFactory.createLimitWithOffset(offset, child)
   }
 
   def limitWithFetch(fetch: Int, child: TableOperation): TableOperation = {
-      applyFetch(fetch, child)
-  }
-
-  private def applyFetch(fetch: Int, child: TableOperation): TableOperation = {
-    child match {
-      case Limit(o, -1, c) =>
-        // replace LIMIT without FETCH by LIMIT with FETCH
-        limit(o, fetch, c)
-      case Limit(_, _, _) =>
-        throw new ValidationException("FETCH is already defined.")
-      case _ =>
-        limit(0, fetch, child)
-    }
-  }
-
-  def limit(offset: Int, fetch: Int, child: TableOperation): TableOperation = {
-    sortOperationFactory.createLimit(offset, fetch, child)
+    sortOperationFactory.createLimitWithFetch(fetch, child)
   }
 
   def alias(

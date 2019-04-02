@@ -139,6 +139,13 @@ public class TableOperationToRelNodeConverter extends TableOperationDefaultVisit
 		}
 
 		@Override
+		public RelNode visitSort(SortTableOperation sort) {
+			List<RexNode> rexNodes = convertToRexNodes(sort.getOrder());
+			return relBuilder.sortLimit(sort.getOffset(), sort.getFetch(), rexNodes)
+				.build();
+		}
+
+		@Override
 		public RelNode visitOther(TableOperation other) {
 			if (other instanceof LogicalNode) {
 				return ((LogicalNode) other).toRelNode(relBuilder);
