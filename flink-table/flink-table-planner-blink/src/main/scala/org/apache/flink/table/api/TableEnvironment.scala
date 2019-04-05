@@ -41,10 +41,9 @@ import org.apache.flink.table.plan.optimize.Optimizer
 import org.apache.flink.table.plan.schema.RelTable
 import org.apache.flink.table.plan.stats.FlinkStatistic
 import org.apache.flink.table.sinks.TableSink
-import org.apache.flink.table.sinks.CollectTableSink
 import org.apache.flink.table.sources.TableSource
 import org.apache.flink.table.typeutils.BaseRowTypeInfo
-import org.apache.flink.table.validate.FunctionCatalog
+import org.apache.flink.table.validate.BlinkFunctionCatalog
 import org.apache.flink.types.Row
 
 import org.apache.calcite.config.Lex
@@ -78,7 +77,7 @@ abstract class TableEnvironment(val config: TableConfig) {
   // we disable caching here to prevent side effects
   private val internalSchema: CalciteSchema = CalciteSchema.createRootSchema(false, false)
   private val rootSchema: SchemaPlus = internalSchema.plus()
-  private val functionCatalog = new FunctionCatalog
+  private val functionCatalog = new BlinkFunctionCatalog
 
   // the configuration to create a Calcite planner
   protected lazy val frameworkConfig: FrameworkConfig = Frameworks

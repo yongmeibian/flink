@@ -36,7 +36,7 @@ import scala.collection.mutable.ListBuffer
   * of both Table API and SQL API.
   * TODO Table API.
   */
-class FunctionCatalog() {
+class BlinkFunctionCatalog() {
 
   val sqlFunctions: ListBuffer[SqlFunction] = mutable.ListBuffer[SqlFunction]()
 

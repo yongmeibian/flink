@@ -20,91 +20,23 @@ package org.apache.flink.table.validate
 
 import org.apache.calcite.rel.`type`.RelDataType
 import org.apache.calcite.sql._
-import org.apache.calcite.sql.`type`._
+import org.apache.calcite.sql.`type`.{OperandTypes, ReturnTypes, SqlReturnTypeInference, SqlTypeTransforms}
 import org.apache.calcite.sql.fun.SqlStdOperatorTable
 import org.apache.calcite.sql.util.{ChainedSqlOperatorTable, ListSqlOperatorTable, ReflectiveSqlOperatorTable}
-import org.apache.flink.api.common.typeinfo.TypeInformation
-import org.apache.flink.table.api._
+import org.apache.flink.table.api.FunctionCatalog
+import org.apache.flink.table.api.FunctionCatalog.FunctionCatalogObservator
 import org.apache.flink.table.calcite.FlinkTypeFactory
-import org.apache.flink.table.expressions._
-import org.apache.flink.table.expressions.catalog.FunctionDefinitionCatalog
+import org.apache.flink.table.expressions.{AggregateFunctionDefinition, ScalarFunctionDefinition, TableFunctionDefinition}
 import org.apache.flink.table.functions.sql.ScalarSqlFunctions
 import org.apache.flink.table.functions.utils.UserDefinedFunctionUtils.{createAggregateSqlFunction, createScalarSqlFunction, createTableSqlFunction}
-import org.apache.flink.table.functions.{AggregateFunction, ScalarFunction, TableFunction}
 
 import _root_.scala.collection.JavaConversions._
-import _root_.scala.collection.mutable
+import scala.collection.mutable
 
-/**
-  * A catalog for looking up (user-defined) functions, used during validation phases
-  * of both Table API and SQL API.
-  */
-class FunctionCatalog extends FunctionDefinitionCatalog {
-
-  private val tableApiFunctions = mutable.HashMap.empty[String, FunctionDefinition]
-  BuiltInFunctionDefinitions.getDefinitions.foreach { functionDefinition =>
-    tableApiFunctions.put(normalizeName(functionDefinition.getName), functionDefinition)
-  }
+class CalciteFunctionCatalog private (typeFactory: FlinkTypeFactory)
+  extends FunctionCatalogObservator {
 
   private val sqlFunctions = mutable.ListBuffer[SqlFunction]()
-
-  def registerScalarFunction(
-      name: String,
-      function: ScalarFunction,
-      typeFactory: FlinkTypeFactory)
-    : Unit = {
-    registerFunction(
-      name,
-      new ScalarFunctionDefinition(name, function),
-      createScalarSqlFunction(name, name, function, typeFactory)
-    )
-  }
-
-  def registerTableFunction(
-      name: String,
-      function: TableFunction[_],
-      resultType: TypeInformation[_],
-      typeFactory: FlinkTypeFactory)
-    : Unit = {
-    registerFunction(
-      name,
-      new TableFunctionDefinition(name, function, resultType),
-      createTableSqlFunction(name, name, function, resultType, typeFactory)
-    )
-  }
-
-  def registerAggregateFunction(
-      name: String,
-      function: AggregateFunction[_, _],
-      resultType: TypeInformation[_],
-      accType: TypeInformation[_],
-      typeFactory: FlinkTypeFactory)
-    : Unit = {
-    registerFunction(
-      name,
-      new AggregateFunctionDefinition(name, function, resultType, accType),
-      createAggregateSqlFunction(
-        name,
-        name,
-        function,
-        resultType,
-        accType,
-        typeFactory)
-    )
-  }
-
-  private def registerFunction(
-      name: String,
-      functionDefinition: FunctionDefinition,
-      sqlFunction: SqlFunction): Unit = {
-    tableApiFunctions.put(normalizeName(name), functionDefinition)
-    sqlFunctions --= sqlFunctions.filter(_.getName == sqlFunction.getName)
-    sqlFunctions += sqlFunction
-  }
-
-  def getUserDefinedFunctions: Seq[String] = {
-    sqlFunctions.map(_.getName)
-  }
 
   def getSqlOperatorTable: SqlOperatorTable =
     ChainedSqlOperatorTable.of(
@@ -112,17 +44,49 @@ class FunctionCatalog extends FunctionDefinitionCatalog {
       new ListSqlOperatorTable(sqlFunctions)
     )
 
-  /**
-    * Lookup a function by name and operands and return the [[FunctionDefinition]].
-    */
-  override def lookupFunction(name: String): FunctionDefinition = {
-    tableApiFunctions.getOrElse(
-      normalizeName(name),
-      throw new ValidationException(s"Undefined function: $name"))
-  }
+  override def onScalarFunctionRegistration(function: ScalarFunctionDefinition): Unit =
+    registerFunction(function.getName,
+      createScalarSqlFunction(
+        function.getName,
+        function.getName,
+        function.getScalarFunction,
+        typeFactory)
+    )
 
-  private def normalizeName(name: String): String = {
-    name.toUpperCase
+  override def onAggregateFunctionRegistration(function: AggregateFunctionDefinition): Unit =
+    registerFunction(
+      function.getName,
+      createAggregateSqlFunction(
+        function.getName,
+        function.getName,
+        function.getAggregateFunction,
+        function.getResultTypeInfo,
+        function.getAccumulatorTypeInfo,
+        typeFactory)
+    )
+
+  override def onTableFunctionRegistration(function: TableFunctionDefinition): Unit =
+    registerFunction(
+      function.getName,
+      createTableSqlFunction(
+        function.getName,
+        function.getName,
+        function.getTableFunction,
+        function.getResultType,
+        typeFactory)
+    )
+
+  private def registerFunction(name: String, sqlFunction: SqlFunction): Unit = {
+    sqlFunctions --= sqlFunctions.filter(_.getName == sqlFunction.getName)
+    sqlFunctions += sqlFunction
+  }
+}
+
+object CalciteFunctionCatalog {
+  def apply(typeFactory: FlinkTypeFactory, apiCatalog: FunctionCatalog): CalciteFunctionCatalog = {
+    val catalog = new CalciteFunctionCatalog(typeFactory)
+    apiCatalog.registerObservator(catalog)
+    catalog
   }
 }
 
@@ -450,3 +414,4 @@ object BasicOperatorTable {
     }
 
 }
+
