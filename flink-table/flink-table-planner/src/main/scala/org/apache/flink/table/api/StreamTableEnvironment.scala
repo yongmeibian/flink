@@ -37,6 +37,8 @@ import org.apache.flink.streaming.api.TimeCharacteristic
 import org.apache.flink.streaming.api.datastream.DataStream
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment
 import org.apache.flink.table.calcite.{FlinkTypeFactory, RelTimeIndicatorConverter}
+import org.apache.flink.table.codegen.RowConverterGenerator
+import org.apache.flink.table.codegen.RowConverterGenerator.generateRowConverterFunction
 import org.apache.flink.table.descriptors.{ConnectorDescriptor, StreamTableDescriptor}
 import org.apache.flink.table.explain.PlanJsonParser
 import org.apache.flink.table.expressions._
@@ -51,6 +53,8 @@ import org.apache.flink.table.runtime.{CRowMapRunner, OutputRowtimeProcessFuncti
 import org.apache.flink.table.sinks._
 import org.apache.flink.table.sources.{StreamTableSource, TableSource, TableSourceUtil}
 import org.apache.flink.table.typeutils.{TimeIndicatorTypeInfo, TypeCheckUtils}
+import org.apache.flink.table.util.TypeUtils
+import org.apache.flink.table.util.TypeUtils.{getFieldInfo, isReferenceByPosition}
 
 import _root_.scala.collection.JavaConverters._
 
@@ -421,7 +425,8 @@ abstract class StreamTableEnvironment(
       inputTypeInfo.asInstanceOf[CRowTypeInfo].rowType,
       schema,
       requestedTypeInfo,
-      functionName
+      functionName,
+      config
     )
 
     converterFunction match {
@@ -461,7 +466,8 @@ abstract class StreamTableEnvironment(
         physicalTypeInfo.asInstanceOf[CRowTypeInfo].rowType,
         schema,
         reqType,
-        functionName
+        functionName,
+        config
       )
 
       converterFunction match {
@@ -488,7 +494,8 @@ abstract class StreamTableEnvironment(
         physicalTypeInfo.asInstanceOf[CRowTypeInfo].rowType,
         schema,
         reqType,
-        functionName
+        functionName,
+        config
       )
 
       converterFunction match {
