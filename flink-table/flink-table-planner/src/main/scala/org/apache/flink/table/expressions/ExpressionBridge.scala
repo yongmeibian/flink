@@ -18,7 +18,7 @@
 
 package org.apache.flink.table.expressions
 
-import org.apache.flink.table.validate.FunctionCatalog
+import org.apache.flink.table.api.FunctionCatalog
 
 /**
   * Bridges between API [[Expression]]s (for both Java and Scala) and final expression stack.

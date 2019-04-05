@@ -35,12 +35,9 @@ import org.apache.calcite.sql.parser.SqlParser
 import org.apache.calcite.sql.util.ChainedSqlOperatorTable
 import org.apache.calcite.sql2rel.SqlToRelConverter
 import org.apache.calcite.tools._
-import org.apache.flink.api.common.functions.MapFunction
 import org.apache.flink.api.common.typeinfo.TypeInformation
 import org.apache.flink.api.common.typeutils.CompositeType
-import org.apache.flink.api.java.typeutils.{RowTypeInfo, _}
 import org.apache.flink.api.java.{ExecutionEnvironment => JavaBatchExecEnv}
-import org.apache.flink.api.scala.typeutils.CaseClassTypeInfo
 import org.apache.flink.api.scala.{ExecutionEnvironment => ScalaBatchExecEnv}
 import org.apache.flink.streaming.api.environment.{StreamExecutionEnvironment => JavaStreamExecEnv}
 import org.apache.flink.streaming.api.scala.{StreamExecutionEnvironment => ScalaStreamExecEnv}
@@ -48,7 +45,7 @@ import org.apache.flink.table.api.java.{BatchTableEnvironment => JavaBatchTableE
 import org.apache.flink.table.api.scala.{BatchTableEnvironment => ScalaBatchTableEnv, StreamTableEnvironment => ScalaStreamTableEnv}
 import org.apache.flink.table.calcite._
 import org.apache.flink.table.catalog.{ExternalCatalog, ExternalCatalogSchema}
-import org.apache.flink.table.codegen.{ExpressionReducer, FunctionCodeGenerator, GeneratedFunction}
+import org.apache.flink.table.codegen.ExpressionReducer
 import org.apache.flink.table.descriptors.{ConnectorDescriptor, TableDescriptor}
 import org.apache.flink.table.expressions._
 import org.apache.flink.table.functions.utils.UserDefinedFunctionUtils._
@@ -58,12 +55,10 @@ import org.apache.flink.table.plan.cost.DataSetCostFactory
 import org.apache.flink.table.plan.logical.{CatalogNode, LogicalRelNode}
 import org.apache.flink.table.plan.nodes.FlinkConventions
 import org.apache.flink.table.plan.rules.FlinkRuleSets
-import org.apache.flink.table.plan.schema.{RelTable, RowSchema, TableSourceSinkTable}
+import org.apache.flink.table.plan.schema.{RelTable, TableSourceSinkTable}
 import org.apache.flink.table.sinks.TableSink
 import org.apache.flink.table.sources.TableSource
-import org.apache.flink.table.typeutils.TimeIndicatorTypeInfo
-import org.apache.flink.table.validate.FunctionCatalog
-import org.apache.flink.types.Row
+import org.apache.flink.table.validate.CalciteFunctionCatalog
 
 import _root_.scala.annotation.varargs
 import _root_.scala.collection.JavaConverters._
@@ -81,8 +76,12 @@ abstract class TableEnvironment(val config: TableConfig) {
   private val internalSchema: CalciteSchema = CalciteSchema.createRootSchema(false, false)
   private val rootSchema: SchemaPlus = internalSchema.plus()
 
+  private val typeSystem = new FlinkTypeSystem
+  private val typeFactory: FlinkTypeFactory = new FlinkTypeFactory(typeSystem)
+
   // Table API/SQL function catalog
   private[flink] val functionCatalog: FunctionCatalog = new FunctionCatalog()
+  private val calciteFunctionCatalog = CalciteFunctionCatalog(typeFactory, functionCatalog)
 
   // the configuration to create a Calcite planner
   private lazy val frameworkConfig: FrameworkConfig = Frameworks
@@ -90,7 +89,7 @@ abstract class TableEnvironment(val config: TableConfig) {
     .defaultSchema(rootSchema)
     .parserConfig(getSqlParserConfig)
     .costFactory(new DataSetCostFactory)
-    .typeSystem(new FlinkTypeSystem)
+    .typeSystem(typeSystem)
     .operatorTable(getSqlOperatorTable)
     .sqlToRelConverterConfig(getSqlToRelConverterConfig)
     // set the executor to evaluate constant expressions
@@ -102,8 +101,6 @@ abstract class TableEnvironment(val config: TableConfig) {
 
   // the planner instance used to optimize queries of this TableEnvironment
   private lazy val planner: RelOptPlanner = relBuilder.getPlanner
-
-  private lazy val typeFactory: FlinkTypeFactory = relBuilder.getTypeFactory
 
   // a counter for unique attribute names
   private[flink] val attrNameCntr: AtomicInteger = new AtomicInteger(0)
@@ -154,13 +151,13 @@ abstract class TableEnvironment(val config: TableConfig) {
     calciteConfig.getSqlOperatorTable match {
 
       case None =>
-        functionCatalog.getSqlOperatorTable
+        calciteFunctionCatalog.getSqlOperatorTable
 
       case Some(table) =>
         if (calciteConfig.replacesSqlOperatorTable) {
           table
         } else {
-          ChainedSqlOperatorTable.of(functionCatalog.getSqlOperatorTable, table)
+          ChainedSqlOperatorTable.of(calciteFunctionCatalog.getSqlOperatorTable, table)
         }
     }
   }
@@ -448,10 +445,7 @@ abstract class TableEnvironment(val config: TableConfig) {
     // check if class could be instantiated
     checkForInstantiation(function.getClass)
 
-    functionCatalog.registerScalarFunction(
-      name,
-      function,
-      typeFactory)
+    functionCatalog.registerScalarFunction(name, function)
   }
 
   /**
@@ -471,11 +465,7 @@ abstract class TableEnvironment(val config: TableConfig) {
       implicitly[TypeInformation[T]]
     }
 
-    functionCatalog.registerTableFunction(
-      name,
-      function,
-      typeInfo,
-      typeFactory)
+    functionCatalog.registerTableFunction(name, function, typeInfo)
   }
 
   /**
@@ -497,12 +487,7 @@ abstract class TableEnvironment(val config: TableConfig) {
       function,
       implicitly[TypeInformation[ACC]])
 
-    functionCatalog.registerAggregateFunction(
-      name,
-      function,
-      resultTypeInfo,
-      accTypeInfo,
-      typeFactory)
+    functionCatalog.registerAggregateFunction(name, function, resultTypeInfo, accTypeInfo)
   }
 
   /**
@@ -689,7 +674,7 @@ abstract class TableEnvironment(val config: TableConfig) {
     * Gets the names of all functions registered in this environment.
     */
   def listUserDefinedFunctions(): Array[String] = {
-    functionCatalog.getUserDefinedFunctions.toArray
+    functionCatalog.getUserDefinedFunctions.asScala.toArray
   }
 
   /**

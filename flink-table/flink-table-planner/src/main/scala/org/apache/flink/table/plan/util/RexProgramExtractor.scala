@@ -26,11 +26,10 @@ import org.apache.calcite.sql.fun.SqlStdOperatorTable
 import org.apache.calcite.sql.{SqlFunction, SqlPostfixOperator}
 import org.apache.calcite.util.{DateString, TimeString, TimestampString}
 import org.apache.flink.api.common.typeinfo.{BasicTypeInfo, SqlTimeTypeInfo}
-import org.apache.flink.table.api.TableException
+import org.apache.flink.table.api.{FunctionCatalog, TableException}
 import org.apache.flink.table.calcite.FlinkTypeFactory
 import org.apache.flink.table.expressions.ApiExpressionUtils.call
 import org.apache.flink.table.expressions._
-import org.apache.flink.table.validate.FunctionCatalog
 import org.apache.flink.util.Preconditions
 import org.slf4j.{Logger, LoggerFactory}
 
