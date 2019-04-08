@@ -17,15 +17,17 @@
  */
 package org.apache.flink.table.api.java
 
+import _root_.java.lang.{Boolean => JBool}
+
 import org.apache.flink.api.common.typeinfo.TypeInformation
-import org.apache.flink.api.java.typeutils.{TupleTypeInfo, TypeExtractor}
 import org.apache.flink.api.java.tuple.{Tuple2 => JTuple2}
-import org.apache.flink.table.api._
-import org.apache.flink.table.functions.{AggregateFunction, TableFunction}
-import org.apache.flink.table.expressions.ExpressionParser
+import org.apache.flink.api.java.typeutils.TypeExtractor
 import org.apache.flink.streaming.api.datastream.DataStream
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment
-import _root_.java.lang.{Boolean => JBool}
+import org.apache.flink.table.api._
+import org.apache.flink.table.expressions.ExpressionParser
+import org.apache.flink.table.functions.{AggregateFunction, TableFunction}
+
 import _root_.scala.collection.JavaConverters._
 
 /**
@@ -154,7 +156,7 @@ class StreamTableEnvironment @Deprecated() (
     * @return The converted [[DataStream]].
     */
   def toAppendStream[T](table: Table, clazz: Class[T]): DataStream[T] = {
-    toAppendStream(table, clazz, queryConfig)
+    toAppendStream(table, clazz, defaultQueryConfig)
   }
 
   /**
@@ -174,7 +176,7 @@ class StreamTableEnvironment @Deprecated() (
     * @return The converted [[DataStream]].
     */
   def toAppendStream[T](table: Table, typeInfo: TypeInformation[T]): DataStream[T] = {
-    toAppendStream(table, typeInfo, queryConfig)
+    toAppendStream(table, typeInfo, defaultQueryConfig)
   }
 
   /**
@@ -199,8 +201,7 @@ class StreamTableEnvironment @Deprecated() (
       clazz: Class[T],
       queryConfig: StreamQueryConfig): DataStream[T] = {
     val typeInfo = TypeExtractor.createTypeInfo(clazz)
-    TableEnvironment.validateType(typeInfo)
-    translate[T](table, queryConfig, updatesAsRetraction = false, withChangeFlag = false)(typeInfo)
+    toAppendStream(table, typeInfo, queryConfig)
   }
 
   /**
@@ -225,7 +226,9 @@ class StreamTableEnvironment @Deprecated() (
       typeInfo: TypeInformation[T],
       queryConfig: StreamQueryConfig): DataStream[T] = {
     TableEnvironment.validateType(typeInfo)
-    translate[T](table, queryConfig, updatesAsRetraction = false, withChangeFlag = false)(typeInfo)
+    val sink = new DataStreamAppendSink[T](typeInfo)
+    planner.writeToSink(table.asInstanceOf[TableImpl].operationTree, sink, queryConfig)
+    sink.getUnderlyingStream
   }
 
   /**
@@ -249,7 +252,7 @@ class StreamTableEnvironment @Deprecated() (
       table: Table,
       clazz: Class[T]): DataStream[JTuple2[JBool, T]] = {
 
-    toRetractStream(table, clazz, queryConfig)
+    toRetractStream(table, clazz, defaultQueryConfig)
   }
 
   /**
@@ -273,7 +276,7 @@ class StreamTableEnvironment @Deprecated() (
       table: Table,
       typeInfo: TypeInformation[T]): DataStream[JTuple2[JBool, T]] = {
 
-    toRetractStream(table, typeInfo, queryConfig)
+    toRetractStream(table, typeInfo, defaultQueryConfig)
   }
 
   /**
@@ -300,13 +303,7 @@ class StreamTableEnvironment @Deprecated() (
       queryConfig: StreamQueryConfig): DataStream[JTuple2[JBool, T]] = {
 
     val typeInfo = TypeExtractor.createTypeInfo(clazz)
-    TableEnvironment.validateType(typeInfo)
-    val resultType = new TupleTypeInfo[JTuple2[JBool, T]](Types.BOOLEAN, typeInfo)
-    translate[JTuple2[JBool, T]](
-      table,
-      queryConfig,
-      updatesAsRetraction = true,
-      withChangeFlag = true)(resultType)
+    toRetractStream(table, typeInfo, queryConfig)
   }
 
   /**
@@ -333,15 +330,9 @@ class StreamTableEnvironment @Deprecated() (
       queryConfig: StreamQueryConfig): DataStream[JTuple2[JBool, T]] = {
 
     TableEnvironment.validateType(typeInfo)
-    val resultTypeInfo = new TupleTypeInfo[JTuple2[JBool, T]](
-      Types.BOOLEAN,
-      typeInfo
-    )
-    translate[JTuple2[JBool, T]](
-      table,
-      queryConfig,
-      updatesAsRetraction = true,
-      withChangeFlag = true)(resultTypeInfo)
+    val dataSink = new DataStreamRetractSink[T](typeInfo)
+    planner.writeToSink(table.asInstanceOf[TableImpl].operationTree, dataSink, queryConfig)
+    dataSink.getUnderlyingStream
   }
 
   /**

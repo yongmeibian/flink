@@ -148,7 +148,7 @@ class BatchTableEnvironment @Deprecated() (
     */
   def toDataSet[T](table: Table, clazz: Class[T]): DataSet[T] = {
     // Use the default query config.
-    translate[T](table, queryConfig)(TypeExtractor.createTypeInfo(clazz))
+    toDataSet(table, clazz, defaultQueryConfig)
   }
 
   /**
@@ -165,8 +165,7 @@ class BatchTableEnvironment @Deprecated() (
     * @return The converted [[DataSet]].
     */
   def toDataSet[T](table: Table, typeInfo: TypeInformation[T]): DataSet[T] = {
-    // Use the default batch query config.
-    translate[T](table, queryConfig)(typeInfo)
+    toDataSet(table, typeInfo, defaultQueryConfig)
   }
 
   /**
@@ -187,7 +186,7 @@ class BatchTableEnvironment @Deprecated() (
       table: Table,
       clazz: Class[T],
       queryConfig: BatchQueryConfig): DataSet[T] = {
-    translate[T](table, queryConfig)(TypeExtractor.createTypeInfo(clazz))
+    toDataSet(table, TypeExtractor.createTypeInfo(clazz), queryConfig)
   }
 
   /**
@@ -208,7 +207,9 @@ class BatchTableEnvironment @Deprecated() (
       table: Table,
       typeInfo: TypeInformation[T],
       queryConfig: BatchQueryConfig): DataSet[T] = {
-    translate[T](table, queryConfig)(typeInfo)
+    val dataSink = new DataSetSink[T](typeInfo)
+    planner.writeToSink(table.asInstanceOf[TableImpl].operationTree, dataSink, queryConfig)
+    dataSink.getUnderlyingSet
   }
 
   /**

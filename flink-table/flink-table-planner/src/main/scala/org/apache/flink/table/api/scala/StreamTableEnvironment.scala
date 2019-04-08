@@ -19,7 +19,7 @@ package org.apache.flink.table.api.scala
 
 import org.apache.flink.api.scala._
 import org.apache.flink.api.common.typeinfo.TypeInformation
-import org.apache.flink.table.api.{StreamQueryConfig, Table, TableConfig, TableEnvironment}
+import org.apache.flink.table.api.{DataStreamAppendSink, DataStreamRetractSink, StreamQueryConfig, Table, TableConfig, TableEnvironment, TableImpl}
 import org.apache.flink.table.expressions.Expression
 import org.apache.flink.table.functions.{AggregateFunction, TableFunction}
 import org.apache.flink.streaming.api.scala.{DataStream, StreamExecutionEnvironment}
@@ -146,7 +146,7 @@ class StreamTableEnvironment @deprecated(
     * @return The converted [[DataStream]].
     */
   def toAppendStream[T: TypeInformation](table: Table): DataStream[T] = {
-    toAppendStream(table, queryConfig)
+    toAppendStream(table, defaultQueryConfig)
   }
 
   /**
@@ -166,11 +166,13 @@ class StreamTableEnvironment @deprecated(
     * @return The converted [[DataStream]].
     */
   def toAppendStream[T: TypeInformation](
-    table: Table,
-    queryConfig: StreamQueryConfig): DataStream[T] = {
+      table: Table,
+      queryConfig: StreamQueryConfig)
+    : DataStream[T] = {
     val returnType = createTypeInformation[T]
-    asScalaStream(translate(
-      table, queryConfig, updatesAsRetraction = false, withChangeFlag = false)(returnType))
+    val sink = new DataStreamAppendSink[T](returnType)
+    planner.writeToSink(table.asInstanceOf[TableImpl].operationTree, sink, queryConfig)
+    asScalaStream(sink.getUnderlyingStream)
   }
 
 /**
@@ -185,7 +187,7 @@ class StreamTableEnvironment @deprecated(
   * @return The converted [[DataStream]].
   */
   def toRetractStream[T: TypeInformation](table: Table): DataStream[(Boolean, T)] = {
-    toRetractStream(table, queryConfig)
+    toRetractStream(table, defaultQueryConfig)
   }
 
   /**
@@ -202,10 +204,16 @@ class StreamTableEnvironment @deprecated(
     */
   def toRetractStream[T: TypeInformation](
       table: Table,
-      queryConfig: StreamQueryConfig): DataStream[(Boolean, T)] = {
-    val returnType = createTypeInformation[(Boolean, T)]
-    asScalaStream(
-      translate(table, queryConfig, updatesAsRetraction = true, withChangeFlag = true)(returnType))
+      queryConfig: StreamQueryConfig)
+    : DataStream[(Boolean, T)] = {
+    val returnType = createTypeInformation[T]
+    val sink = new DataStreamRetractSink[T](returnType)
+    planner.writeToSink(table.asInstanceOf[TableImpl].operationTree, sink, queryConfig)
+    val originalParallelism = sink.getUnderlyingStream.getParallelism
+    val result: DataStream[(Boolean, T)] = asScalaStream(sink.getUnderlyingStream)
+      .map(jTuple => (jTuple.f0, jTuple.f1))
+    result.setParallelism(originalParallelism)
+    result
   }
 
   /**

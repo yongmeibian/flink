@@ -51,6 +51,7 @@ import org.apache.flink.table.plan.nodes.CommonMatchRecognize
 import org.apache.flink.table.plan.rules.datastream.DataStreamRetractionRules
 import org.apache.flink.table.plan.schema.RowSchema
 import org.apache.flink.table.plan.util.RexDefaultVisitor
+import org.apache.flink.table.planner.StreamingPlanner
 import org.apache.flink.table.runtime.`match`._
 import org.apache.flink.table.runtime.aggregate.SortUtil
 import org.apache.flink.table.runtime.conversion.CRowToRowMapFunction
@@ -123,7 +124,7 @@ class DataStreamMatch(
   }
 
   override def translateToPlan(
-      tableEnv: StreamTableEnvironment,
+      tableEnv: StreamingPlanner,
       queryConfig: StreamQueryConfig)
     : DataStream[CRow] = {
 
@@ -192,7 +193,7 @@ class DataStreamMatch(
   }
 
   private def translateOrder(
-      tableEnv: StreamTableEnvironment,
+      tableEnv: StreamingPlanner,
       crowInput: DataStream[CRow],
       orderKeys: RelCollation)
     : (DataStream[CRow], Option[RowComparator]) = {

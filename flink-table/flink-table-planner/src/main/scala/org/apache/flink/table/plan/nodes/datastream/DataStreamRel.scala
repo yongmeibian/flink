@@ -21,6 +21,7 @@ package org.apache.flink.table.plan.nodes.datastream
 import org.apache.flink.streaming.api.datastream.DataStream
 import org.apache.flink.table.api.{StreamQueryConfig, StreamTableEnvironment}
 import org.apache.flink.table.plan.nodes.FlinkRelNode
+import org.apache.flink.table.planner.StreamingPlanner
 import org.apache.flink.table.runtime.types.CRow
 
 trait DataStreamRel extends FlinkRelNode {
@@ -33,7 +34,7 @@ trait DataStreamRel extends FlinkRelNode {
     * @return DataStream of type [[CRow]]
     */
   def translateToPlan(
-    tableEnv: StreamTableEnvironment,
+    tableEnv: StreamingPlanner,
     queryConfig: StreamQueryConfig): DataStream[CRow]
 
   /**

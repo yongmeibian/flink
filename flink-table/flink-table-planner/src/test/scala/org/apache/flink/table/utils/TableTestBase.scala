@@ -33,6 +33,7 @@ import org.apache.flink.table.api.scala._
 import org.apache.flink.table.api.{Table, TableImpl, TableSchema}
 import org.apache.flink.table.expressions.Expression
 import org.apache.flink.table.functions.{AggregateFunction, ScalarFunction, TableFunction}
+import org.apache.flink.table.planner.{BatchPlanner, StreamingPlanner}
 import org.junit.Assert.assertEquals
 import org.junit.{ComparisonFailure, Rule}
 import org.junit.rules.ExpectedException
@@ -193,6 +194,8 @@ case class BatchTableTestUtil() extends TableTestUtil {
   val javaTableEnv = JavaBatchTableEnv.create(javaEnv)
   val env = new ExecutionEnvironment(javaEnv)
   val tableEnv = ScalaBatchTableEnv.create(env)
+  val planner = tableEnv.planner.asInstanceOf[BatchPlanner]
+  val javaPlanner = javaTableEnv.planner.asInstanceOf[BatchPlanner]
 
   def addTable[T: TypeInformation](
       name: String,
@@ -243,7 +246,7 @@ case class BatchTableTestUtil() extends TableTestUtil {
 
   def verifyTable(resultTable: Table, expected: String): Unit = {
     val relNode = resultTable.asInstanceOf[TableImpl].getRelNode
-    val optimized = tableEnv.optimize(relNode)
+    val optimized = planner.optimize(relNode)
     verifyString(expected, optimized)
   }
 
@@ -253,13 +256,13 @@ case class BatchTableTestUtil() extends TableTestUtil {
 
   def verifyJavaTable(resultTable: Table, expected: String): Unit = {
     val relNode = resultTable.asInstanceOf[TableImpl].getRelNode
-    val optimized = javaTableEnv.optimize(relNode)
+    val optimized = javaPlanner.optimize(relNode)
     verifyString(expected, optimized)
   }
 
   def printTable(resultTable: Table): Unit = {
     val relNode = resultTable.asInstanceOf[TableImpl].getRelNode
-    val optimized = tableEnv.optimize(relNode)
+    val optimized = planner.optimize(relNode)
     println(RelOptUtil.toString(optimized))
   }
 
@@ -279,6 +282,8 @@ case class StreamTableTestUtil() extends TableTestUtil {
   val javaTableEnv = JavaStreamTableEnv.create(javaEnv)
   val env = new StreamExecutionEnvironment(javaEnv)
   val tableEnv = ScalaStreamTableEnv.create(env)
+  val planner = tableEnv.planner.asInstanceOf[StreamingPlanner]
+  val javaPlanner = javaTableEnv.planner.asInstanceOf[StreamingPlanner]
 
   def addTable[T: TypeInformation](
       name: String,
@@ -326,15 +331,15 @@ case class StreamTableTestUtil() extends TableTestUtil {
 
   def verifyTable(resultTable: Table, expected: String): Unit = {
     val relNode = resultTable.asInstanceOf[TableImpl].getRelNode
-    val optimized = tableEnv.optimize(relNode, updatesAsRetraction = false)
+    val optimized = planner.optimize(relNode, updatesAsRetraction = false)
     verifyString(expected, optimized)
   }
 
   def verify2Tables(resultTable1: Table, resultTable2: Table): Unit = {
     val relNode1 = resultTable1.asInstanceOf[TableImpl].getRelNode
-    val optimized1 = tableEnv.optimize(relNode1, updatesAsRetraction = false)
+    val optimized1 = planner.optimize(relNode1, updatesAsRetraction = false)
     val relNode2 = resultTable2.asInstanceOf[TableImpl].getRelNode
-    val optimized2 = tableEnv.optimize(relNode2, updatesAsRetraction = false)
+    val optimized2 = planner.optimize(relNode2, updatesAsRetraction = false)
     assertEquals(RelOptUtil.toString(optimized1), RelOptUtil.toString(optimized2))
   }
 
@@ -344,14 +349,14 @@ case class StreamTableTestUtil() extends TableTestUtil {
 
   def verifyJavaTable(resultTable: Table, expected: String): Unit = {
     val relNode = resultTable.asInstanceOf[TableImpl].getRelNode
-    val optimized = javaTableEnv.optimize(relNode, updatesAsRetraction = false)
+    val optimized = javaPlanner.optimize(relNode, updatesAsRetraction = false)
     verifyString(expected, optimized)
   }
 
   // the print methods are for debugging purposes only
   def printTable(resultTable: Table): Unit = {
     val relNode = resultTable.asInstanceOf[TableImpl].getRelNode
-    val optimized = tableEnv.optimize(relNode, updatesAsRetraction = false)
+    val optimized = planner.optimize(relNode, updatesAsRetraction = false)
     println(RelOptUtil.toString(optimized))
   }
 

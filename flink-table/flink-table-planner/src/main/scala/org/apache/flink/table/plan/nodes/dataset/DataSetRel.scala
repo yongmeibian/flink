@@ -21,6 +21,7 @@ package org.apache.flink.table.plan.nodes.dataset
 import org.apache.flink.api.java.DataSet
 import org.apache.flink.table.api.{BatchQueryConfig, BatchTableEnvironment}
 import org.apache.flink.table.plan.nodes.FlinkRelNode
+import org.apache.flink.table.planner.BatchPlanner
 import org.apache.flink.types.Row
 
 trait DataSetRel extends FlinkRelNode {
@@ -32,6 +33,6 @@ trait DataSetRel extends FlinkRelNode {
     * @param queryConfig The configuration for the query to generate.
     * @return DataSet of type [[Row]]
     */
-  def translateToPlan(tableEnv: BatchTableEnvironment, queryConfig: BatchQueryConfig): DataSet[Row]
+  def translateToPlan(tableEnv: BatchPlanner, queryConfig: BatchQueryConfig): DataSet[Row]
 
 }

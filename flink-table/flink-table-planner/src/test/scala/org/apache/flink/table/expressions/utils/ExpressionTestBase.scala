@@ -45,6 +45,7 @@ import org.apache.flink.table.expressions.{Expression, ExpressionParser}
 import org.apache.flink.table.functions.ScalarFunction
 import org.apache.flink.table.plan.nodes.dataset.{DataSetCalc, DataSetScan}
 import org.apache.flink.table.plan.rules.FlinkRuleSets
+import org.apache.flink.table.planner.{BatchPlanner, PlannerBase}
 import org.apache.flink.types.Row
 import org.junit.Assert._
 import org.junit.{After, Before}
@@ -80,7 +81,7 @@ abstract class ExpressionTestBase {
   }
 
   private def prepareContext(typeInfo: TypeInformation[Any])
-    : (RelBuilder, TableEnvironment, ExecutionEnvironment) = {
+    : (RelBuilder, BatchPlanner, ExecutionEnvironment, BatchTableEnvironment) = {
     // create DataSetTable
     val dataSetMock = mock(classOf[DataSet[Any]])
     val jDataSetMock = mock(classOf[JDataSet[Any]])
@@ -96,7 +97,7 @@ abstract class ExpressionTestBase {
     val relBuilder = tEnv.getRelBuilder
     relBuilder.scan(tableName)
 
-    (relBuilder, tEnv, env)
+    (relBuilder, tEnv.planner.asInstanceOf[BatchPlanner], env, tEnv)
   }
 
   def testData: Any
@@ -184,7 +185,7 @@ abstract class ExpressionTestBase {
     val validated = planner.validate(parsed)
     val converted = planner.rel(validated).rel
 
-    val env = context._2.asInstanceOf[BatchTableEnvironment]
+    val env = context._2
     val optimized = env.optimize(converted)
 
     // throw exception if plan contains more than a calc
@@ -197,8 +198,8 @@ abstract class ExpressionTestBase {
 
   private def addTableApiTestExpr(tableApiExpr: Expression, expected: String): Unit = {
     // create RelNode from Table API expression
-    val env = context._2.asInstanceOf[BatchTableEnvironment]
-    val converted = env
+    val env = context._2
+    val converted = context._4
       .scan(tableName)
       .select(tableApiExpr)
       .asInstanceOf[TableImpl]

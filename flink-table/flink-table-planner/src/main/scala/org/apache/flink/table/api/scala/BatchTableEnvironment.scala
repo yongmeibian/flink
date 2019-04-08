@@ -140,7 +140,7 @@ class BatchTableEnvironment @deprecated(
     */
   def toDataSet[T: TypeInformation](table: Table): DataSet[T] = {
     // Use the default batch query config.
-    wrap[T](translate(table, queryConfig))(ClassTag.AnyRef.asInstanceOf[ClassTag[T]])
+    toDataSet(table, defaultQueryConfig)
   }
 
   /**
@@ -157,7 +157,10 @@ class BatchTableEnvironment @deprecated(
     * @return The converted [[DataSet]].
     */
   def toDataSet[T: TypeInformation](table: Table, queryConfig: BatchQueryConfig): DataSet[T] = {
-    wrap[T](translate(table, queryConfig))(ClassTag.AnyRef.asInstanceOf[ClassTag[T]])
+    val typeInfo = createTypeInformation[T]
+    val dataSink = new DataSetSink[T](typeInfo)
+    planner.writeToSink(table.asInstanceOf[TableImpl].operationTree, dataSink, queryConfig)
+    wrap[T](dataSink.getUnderlyingSet)(ClassTag.AnyRef.asInstanceOf[ClassTag[T]])
   }
 
   /**

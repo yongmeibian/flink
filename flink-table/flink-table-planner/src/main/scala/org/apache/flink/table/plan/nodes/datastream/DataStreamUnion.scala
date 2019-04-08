@@ -26,6 +26,7 @@ import org.apache.calcite.rel.{RelNode, RelWriter}
 import org.apache.flink.streaming.api.datastream.DataStream
 import org.apache.flink.table.api.{StreamQueryConfig, StreamTableEnvironment, TableException}
 import org.apache.flink.table.plan.schema.RowSchema
+import org.apache.flink.table.planner.StreamingPlanner
 import org.apache.flink.table.runtime.types.CRow
 
 import scala.collection.JavaConverters._
@@ -66,7 +67,7 @@ class DataStreamUnion(
   }
 
   override def translateToPlan(
-      tableEnv: StreamTableEnvironment,
+      tableEnv: StreamingPlanner,
       queryConfig: StreamQueryConfig): DataStream[CRow] = {
 
     getInputs

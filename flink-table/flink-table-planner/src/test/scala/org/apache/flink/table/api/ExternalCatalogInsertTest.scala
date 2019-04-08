@@ -19,8 +19,7 @@
 package org.apache.flink.table.api
 
 import org.apache.flink.api.scala.ExecutionEnvironment
-import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment
-import org.apache.flink.table.api.java.StreamTableEnvironment
+import org.apache.flink.streaming.api.scala.StreamExecutionEnvironment
 import org.apache.flink.table.api.scala._
 import org.apache.flink.table.runtime.utils.CommonTestData
 import org.apache.flink.table.utils.TableTestBase
@@ -30,9 +29,9 @@ import org.junit.Test
   * Test for inserting into tables from external catalog.
   */
 class ExternalCatalogInsertTest extends TableTestBase {
-  private val tableBatchEnv = BatchTableEnvironment.create(
+  private val tableBatchEnv = scala.BatchTableEnvironment.create(
     ExecutionEnvironment.getExecutionEnvironment)
-  private val tableStreamEnv = StreamTableEnvironment.create(
+  private val tableStreamEnv = scala.StreamTableEnvironment.create(
     StreamExecutionEnvironment.getExecutionEnvironment)
 
   @Test

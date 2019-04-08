@@ -35,6 +35,7 @@ import org.apache.flink.table.plan.schema.RowSchema
 import org.apache.flink.table.plan.nodes.CommonSort
 import org.apache.calcite.rel.core.Sort
 import org.apache.flink.streaming.api.functions.KeyedProcessFunction
+import org.apache.flink.table.planner.StreamingPlanner
 
 /**
  * Flink RelNode which matches along with Sort Rule.
@@ -89,7 +90,7 @@ class DataStreamSort(
   }
 
   override def translateToPlan(
-      tableEnv: StreamTableEnvironment,
+      tableEnv: StreamingPlanner,
       queryConfig: StreamQueryConfig): DataStream[CRow] = {
     
     val inputDS = input.asInstanceOf[DataStreamRel].translateToPlan(tableEnv, queryConfig)

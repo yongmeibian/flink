@@ -21,21 +21,9 @@ package org.apache.flink.table.api
 import _root_.java.lang.reflect.Modifier
 import _root_.java.util.concurrent.atomic.AtomicInteger
 
-import com.google.common.collect.ImmutableList
-import org.apache.calcite.config.Lex
-import org.apache.calcite.jdbc.CalciteSchema
-import org.apache.calcite.plan.RelOptPlanner.CannotPlanException
-import org.apache.calcite.plan._
-import org.apache.calcite.plan.hep.{HepMatchOrder, HepPlanner, HepProgram, HepProgramBuilder}
-import org.apache.calcite.rel.RelNode
 import org.apache.calcite.schema
 import org.apache.calcite.schema.SchemaPlus
 import org.apache.calcite.schema.impl.AbstractTable
-import org.apache.calcite.sql._
-import org.apache.calcite.sql.parser.SqlParser
-import org.apache.calcite.sql.util.ChainedSqlOperatorTable
-import org.apache.calcite.sql2rel.SqlToRelConverter
-import org.apache.calcite.tools._
 import org.apache.flink.api.common.typeinfo.TypeInformation
 import org.apache.flink.api.common.typeutils.CompositeType
 import org.apache.flink.api.java.{ExecutionEnvironment => JavaBatchExecEnv}
@@ -44,22 +32,17 @@ import org.apache.flink.streaming.api.environment.{StreamExecutionEnvironment =>
 import org.apache.flink.streaming.api.scala.{StreamExecutionEnvironment => ScalaStreamExecEnv}
 import org.apache.flink.table.api.java.{BatchTableEnvironment => JavaBatchTableEnv, StreamTableEnvironment => JavaStreamTableEnv}
 import org.apache.flink.table.api.scala.{BatchTableEnvironment => ScalaBatchTableEnv, StreamTableEnvironment => ScalaStreamTableEnv}
-import org.apache.flink.table.calcite._
+import org.apache.flink.table.calcite.FlinkTypeFactory
 import org.apache.flink.table.catalog.{ExternalCatalog, ExternalCatalogSchema}
-import org.apache.flink.table.codegen.ExpressionReducer
 import org.apache.flink.table.descriptors.{ConnectorDescriptor, TableDescriptor}
-import org.apache.flink.table.expressions._
+import org.apache.flink.table.expressions.{ExpressionBridge, PlannerExpression, PlannerExpressionConverter}
 import org.apache.flink.table.functions.utils.UserDefinedFunctionUtils._
 import org.apache.flink.table.functions.{AggregateFunction, ScalarFunction, TableFunction}
-import org.apache.flink.table.operations.{CatalogTableOperation, OperationTreeBuilder, PlannerTableOperation}
-import org.apache.flink.table.plan.TableOperationConverter
-import org.apache.flink.table.plan.cost.DataSetCostFactory
-import org.apache.flink.table.plan.nodes.FlinkConventions
-import org.apache.flink.table.plan.rules.FlinkRuleSets
-import org.apache.flink.table.plan.schema.{RelTable, TableSourceSinkTable}
+import org.apache.flink.table.operations.{CatalogTableOperation, OperationTreeBuilder, TableOperation}
+import org.apache.flink.table.plan.schema.RelTable
+import org.apache.flink.table.planner.{Planner, PlannerBase}
 import org.apache.flink.table.sinks.TableSink
 import org.apache.flink.table.sources.TableSource
-import org.apache.flink.table.validate.CalciteFunctionCatalog
 
 import _root_.scala.annotation.varargs
 import _root_.scala.collection.JavaConverters._
@@ -70,48 +53,10 @@ import _root_.scala.collection.mutable
   *
   * @param config The configuration of the TableEnvironment
   */
-abstract class TableEnvironment(val config: TableConfig) {
-
-  // the catalog to hold all registered and translated tables
-  // we disable caching here to prevent side effects
-  private val internalSchema: CalciteSchema = CalciteSchema.createRootSchema(false, false)
-  private val rootSchema: SchemaPlus = internalSchema.plus()
-
-  private val typeSystem = new FlinkTypeSystem
-  private val typeFactory: FlinkTypeFactory = new FlinkTypeFactory(typeSystem)
-
-  // Table API/SQL function catalog
-  private[flink] val functionCatalog: FunctionCatalog = new FunctionCatalog()
-  private val calciteFunctionCatalog = CalciteFunctionCatalog(typeFactory, functionCatalog)
-
-  // the configuration to create a Calcite planner
-  private lazy val frameworkConfig: FrameworkConfig = Frameworks
-    .newConfigBuilder
-    .defaultSchema(rootSchema)
-    .parserConfig(getSqlParserConfig)
-    .costFactory(new DataSetCostFactory)
-    .typeSystem(typeSystem)
-    .operatorTable(getSqlOperatorTable)
-    .sqlToRelConverterConfig(getSqlToRelConverterConfig)
-    // the converter is needed when calling temporal table functions from SQL, because
-    // they reference a history table represented with a tree of table operations
-    .context(Contexts.of(
-      new TableOperationConverter.ToRelConverterSupplier(expressionBridge)
-    ))
-    // set the executor to evaluate constant expressions
-    .executor(new ExpressionReducer(config))
-    .build
-
-  // temporary bridge between API and planner
-  private[flink] val expressionBridge: ExpressionBridge[PlannerExpression] =
-    new ExpressionBridge[PlannerExpression](functionCatalog, PlannerExpressionConverter.INSTANCE)
-
-  // the builder for Calcite RelNodes, Calcite's representation of a relational expression tree.
-  protected lazy val relBuilder: FlinkRelBuilder = FlinkRelBuilder
-    .create(frameworkConfig, expressionBridge)
-
-  // the planner instance used to optimize queries of this TableEnvironment
-  private lazy val planner: RelOptPlanner = relBuilder.getPlanner
+abstract class TableEnvironment(
+    val config: TableConfig,
+    private[flink] val functionCatalog: FunctionCatalog,
+    private[flink] val planner: Planner) {
 
   // a counter for unique attribute names
   private[flink] val attrNameCntr: AtomicInteger = new AtomicInteger(0)
@@ -119,288 +64,38 @@ abstract class TableEnvironment(val config: TableConfig) {
   // registered external catalog names -> catalog
   private val externalCatalogs = new mutable.HashMap[String, ExternalCatalog]
 
+  private[flink] val expressionBridge = new ExpressionBridge[PlannerExpression](functionCatalog,
+    PlannerExpressionConverter.INSTANCE)
+
   private[flink] val operationTreeBuilder = new OperationTreeBuilder(this)
 
-  protected def calciteConfig: CalciteConfig = config.getPlannerConfig
-    .unwrap(classOf[CalciteConfig])
-    .orElse(CalciteConfig.DEFAULT)
+  /*
+    HACKS! WORKAROUNDS!
+   */
+  private val rootSchema = planner.asInstanceOf[PlannerBase].rootSchema
+
+  private[flink] def getRelBuilder = planner.asInstanceOf[PlannerBase].getRelBuilder
+
+  private[flink] def insertInto(
+      table: TableOperation,
+      sinkTableName: String,
+      conf: QueryConfig): Unit = {
+    planner.asInstanceOf[PlannerBase].insertInto(table, sinkTableName, conf)
+  }
+
+  private[flink] def insertInto(
+    table: TableOperation,
+    sinkTableName: String): Unit = {
+    planner.asInstanceOf[PlannerBase].insertInto(table, sinkTableName, defaultQueryConfig)
+  }
+  /*
+    HACKS! WORKAROUNDS!
+   */
 
   /** Returns the table config to define the runtime behavior of the Table API. */
   def getConfig: TableConfig = config
 
-  /** Returns the [[QueryConfig]] depends on the concrete type of this TableEnvironment. */
-  private[flink] def queryConfig: QueryConfig = this match {
-    case _: BatchTableEnvironment => new BatchQueryConfig
-    case _: StreamTableEnvironment => new StreamQueryConfig
-    case _ => null
-  }
-
-  /**
-    * Returns the SqlToRelConverter config.
-    */
-  protected def getSqlToRelConverterConfig: SqlToRelConverter.Config = {
-    calciteConfig.sqlToRelConverterConfig match {
-
-      case None =>
-        SqlToRelConverter.configBuilder()
-          .withTrimUnusedFields(false)
-          .withConvertTableAccess(false)
-          .withInSubQueryThreshold(Integer.MAX_VALUE)
-          .withRelBuilderFactory(new FlinkRelBuilderFactory(expressionBridge))
-          .build()
-
-      case Some(c) => c
-    }
-  }
-
-  /**
-    * Returns the operator table for this environment including a custom Calcite configuration.
-    */
-  protected def getSqlOperatorTable: SqlOperatorTable = {
-    calciteConfig.sqlOperatorTable match {
-
-      case None =>
-        calciteFunctionCatalog.getSqlOperatorTable
-
-      case Some(table) =>
-        if (calciteConfig.replacesSqlOperatorTable) {
-          table
-        } else {
-          ChainedSqlOperatorTable.of(calciteFunctionCatalog.getSqlOperatorTable, table)
-        }
-    }
-  }
-
-  /**
-    * Returns the normalization rule set for this environment
-    * including a custom RuleSet configuration.
-    */
-  protected def getNormRuleSet: RuleSet = {
-    calciteConfig.normRuleSet match {
-
-      case None =>
-        getBuiltInNormRuleSet
-
-      case Some(ruleSet) =>
-        if (calciteConfig.replacesNormRuleSet) {
-          ruleSet
-        } else {
-          RuleSets.ofList((getBuiltInNormRuleSet.asScala ++ ruleSet.asScala).asJava)
-        }
-    }
-  }
-
-  /**
-    * Returns the logical optimization rule set for this environment
-    * including a custom RuleSet configuration.
-    */
-  protected def getLogicalOptRuleSet: RuleSet = {
-    calciteConfig.logicalOptRuleSet match {
-
-      case None =>
-        getBuiltInLogicalOptRuleSet
-
-      case Some(ruleSet) =>
-        if (calciteConfig.replacesLogicalOptRuleSet) {
-          ruleSet
-        } else {
-          RuleSets.ofList((getBuiltInLogicalOptRuleSet.asScala ++ ruleSet.asScala).asJava)
-        }
-    }
-  }
-
-  /**
-    * Returns the physical optimization rule set for this environment
-    * including a custom RuleSet configuration.
-    */
-  protected def getPhysicalOptRuleSet: RuleSet = {
-    calciteConfig.physicalOptRuleSet match {
-
-      case None =>
-        getBuiltInPhysicalOptRuleSet
-
-      case Some(ruleSet) =>
-        if (calciteConfig.replacesPhysicalOptRuleSet) {
-          ruleSet
-        } else {
-          RuleSets.ofList((getBuiltInPhysicalOptRuleSet.asScala ++ ruleSet.asScala).asJava)
-        }
-    }
-  }
-
-  /**
-    * Returns the SQL parser config for this environment including a custom Calcite configuration.
-    */
-  protected def getSqlParserConfig: SqlParser.Config = {
-    calciteConfig.sqlParserConfig match {
-
-      case None =>
-        // we use Java lex because back ticks are easier than double quotes in programming
-        // and cases are preserved
-        SqlParser
-          .configBuilder()
-          .setLex(Lex.JAVA)
-          .build()
-
-      case Some(sqlParserConfig) =>
-        sqlParserConfig
-    }
-  }
-
-  /**
-    * Returns the built-in normalization rules that are defined by the environment.
-    */
-  protected def getBuiltInNormRuleSet: RuleSet
-
-  /**
-    * Returns the built-in logical optimization rules that are defined by the environment.
-    */
-  protected def getBuiltInLogicalOptRuleSet: RuleSet = {
-    FlinkRuleSets.LOGICAL_OPT_RULES
-  }
-
-  /**
-    * Returns the built-in physical optimization rules that are defined by the environment.
-    */
-  protected def getBuiltInPhysicalOptRuleSet: RuleSet
-
-  protected def optimizeConvertSubQueries(relNode: RelNode): RelNode = {
-    runHepPlannerSequentially(
-      HepMatchOrder.BOTTOM_UP,
-      FlinkRuleSets.TABLE_SUBQUERY_RULES,
-      relNode,
-      relNode.getTraitSet)
-  }
-
-  protected def optimizeExpandPlan(relNode: RelNode): RelNode = {
-    val result = runHepPlannerSimultaneously(
-      HepMatchOrder.TOP_DOWN,
-      FlinkRuleSets.EXPAND_PLAN_RULES,
-      relNode,
-      relNode.getTraitSet)
-
-    runHepPlannerSequentially(
-      HepMatchOrder.TOP_DOWN,
-      FlinkRuleSets.POST_EXPAND_CLEAN_UP_RULES,
-      result,
-      result.getTraitSet)
-  }
-
-  protected def optimizeNormalizeLogicalPlan(relNode: RelNode): RelNode = {
-    val normRuleSet = getNormRuleSet
-    if (normRuleSet.iterator().hasNext) {
-      runHepPlannerSequentially(HepMatchOrder.BOTTOM_UP, normRuleSet, relNode, relNode.getTraitSet)
-    } else {
-      relNode
-    }
-  }
-
-  protected def optimizeLogicalPlan(relNode: RelNode): RelNode = {
-    val logicalOptRuleSet = getLogicalOptRuleSet
-    val logicalOutputProps = relNode.getTraitSet.replace(FlinkConventions.LOGICAL).simplify()
-    if (logicalOptRuleSet.iterator().hasNext) {
-      runVolcanoPlanner(logicalOptRuleSet, relNode, logicalOutputProps)
-    } else {
-      relNode
-    }
-  }
-
-  protected def optimizePhysicalPlan(relNode: RelNode, convention: Convention): RelNode = {
-    val physicalOptRuleSet = getPhysicalOptRuleSet
-    val physicalOutputProps = relNode.getTraitSet.replace(convention).simplify()
-    if (physicalOptRuleSet.iterator().hasNext) {
-      runVolcanoPlanner(physicalOptRuleSet, relNode, physicalOutputProps)
-    } else {
-      relNode
-    }
-  }
-
-  /**
-    * run HEP planner with rules applied one by one. First apply one rule to all of the nodes
-    * and only then apply the next rule. If a rule creates a new node preceding rules will not
-    * be applied to the newly created node.
-    */
-  protected def runHepPlannerSequentially(
-    hepMatchOrder: HepMatchOrder,
-    ruleSet: RuleSet,
-    input: RelNode,
-    targetTraits: RelTraitSet): RelNode = {
-
-    val builder = new HepProgramBuilder
-    builder.addMatchOrder(hepMatchOrder)
-
-    val it = ruleSet.iterator()
-    while (it.hasNext) {
-      builder.addRuleInstance(it.next())
-    }
-    runHepPlanner(builder.build(), input, targetTraits)
-  }
-
-  /**
-    * run HEP planner with rules applied simultaneously. Apply all of the rules to the given
-    * node before going to the next one. If a rule creates a new node all of the rules will
-    * be applied to this new node.
-    */
-  protected def runHepPlannerSimultaneously(
-    hepMatchOrder: HepMatchOrder,
-    ruleSet: RuleSet,
-    input: RelNode,
-    targetTraits: RelTraitSet): RelNode = {
-
-    val builder = new HepProgramBuilder
-    builder.addMatchOrder(hepMatchOrder)
-
-    builder.addRuleCollection(ruleSet.asScala.toList.asJava)
-    runHepPlanner(builder.build(), input, targetTraits)
-  }
-
-  /**
-    * run HEP planner
-    */
-  protected def runHepPlanner(
-    hepProgram: HepProgram,
-    input: RelNode,
-    targetTraits: RelTraitSet): RelNode = {
-
-    val planner = new HepPlanner(hepProgram, frameworkConfig.getContext)
-    planner.setRoot(input)
-    if (input.getTraitSet != targetTraits) {
-      planner.changeTraits(input, targetTraits.simplify)
-    }
-    planner.findBestExp
-  }
-
-  /**
-    * run VOLCANO planner
-    */
-  protected def runVolcanoPlanner(
-    ruleSet: RuleSet,
-    input: RelNode,
-    targetTraits: RelTraitSet): RelNode = {
-    val optProgram = Programs.ofRules(ruleSet)
-
-    val output = try {
-      optProgram.run(getPlanner, input, targetTraits,
-        ImmutableList.of(), ImmutableList.of())
-    } catch {
-      case e: CannotPlanException =>
-        throw new TableException(
-          s"Cannot generate a valid execution plan for the given query: \n\n" +
-            s"${RelOptUtil.toString(input)}\n" +
-            s"This exception indicates that the query uses an unsupported SQL feature.\n" +
-            s"Please check the documentation for the set of currently supported SQL features.")
-      case t: TableException =>
-        throw new TableException(
-          s"Cannot generate a valid execution plan for the given query: \n\n" +
-            s"${RelOptUtil.toString(input)}\n" +
-            s"${t.getMessage}\n" +
-            s"Please check the documentation for the set of currently supported SQL features.")
-      case a: AssertionError =>
-        // keep original exception stack for caller
-        throw a
-    }
-    output
-  }
+  def defaultQueryConfig: QueryConfig
 
   /**
     * Creates a table from a table source.
@@ -657,7 +352,7 @@ abstract class TableEnvironment(val config: TableConfig) {
   }
 
   private def extractTableSchema(table: schema.Table): TableSchema = {
-    val relDataType = table.getRowType(typeFactory)
+    val relDataType = table.getRowType(getRelBuilder.getTypeFactory)
     val fieldNames = relDataType.getFieldNames
     val fieldTypes = relDataType.getFieldList.asScala
       .map(field => FlinkTypeFactory.toTypeInfo(field.getType))
@@ -697,7 +392,9 @@ abstract class TableEnvironment(val config: TableConfig) {
     *
     * @param table The table for which the AST and execution plan will be returned.
     */
-  def explain(table: Table): String
+  def explain(table: Table): String = {
+    planner.explain(table.asInstanceOf[TableImpl].operationTree, defaultQueryConfig)
+  }
 
   /**
     * Returns completion hints for the given statement at the given cursor position.
@@ -708,10 +405,6 @@ abstract class TableEnvironment(val config: TableConfig) {
     * @return completion hints that fit at the current cursor position
     */
   def getCompletionHints(statement: String, position: Int): Array[String] = {
-    val planner = new FlinkPlannerImpl(
-      getFrameworkConfig,
-      getPlanner,
-      getTypeFactory)
     planner.getCompletionHints(statement, position)
   }
 
@@ -733,20 +426,7 @@ abstract class TableEnvironment(val config: TableConfig) {
     * @return The result of the query as Table
     */
   def sqlQuery(query: String): Table = {
-    val planner = new FlinkPlannerImpl(getFrameworkConfig, getPlanner, getTypeFactory)
-    // parse the sql query
-    val parsed = planner.parse(query)
-    if (null != parsed && parsed.getKind.belongsTo(SqlKind.QUERY)) {
-      // validate the sql query
-      val validated = planner.validate(parsed)
-      // transform to a relational tree
-      val relational = planner.rel(validated)
-      new TableImpl(this, new PlannerTableOperation(relational.rel))
-    } else {
-      throw new TableException(
-        "Unsupported SQL query! sqlQuery() only accepts SQL queries of type " +
-          "SELECT, UNION, INTERSECT, EXCEPT, VALUES, and ORDER_BY.")
-    }
+    new TableImpl(this, planner.sqlQuery(query))
   }
 
   /**
@@ -769,7 +449,7 @@ abstract class TableEnvironment(val config: TableConfig) {
     * @param stmt The SQL statement to evaluate.
     */
   def sqlUpdate(stmt: String): Unit = {
-    sqlUpdate(stmt, this.queryConfig)
+    sqlUpdate(stmt, defaultQueryConfig)
   }
 
   /**
@@ -793,91 +473,7 @@ abstract class TableEnvironment(val config: TableConfig) {
     * @param config The [[QueryConfig]] to use.
     */
   def sqlUpdate(stmt: String, config: QueryConfig): Unit = {
-    val planner = new FlinkPlannerImpl(getFrameworkConfig, getPlanner, getTypeFactory)
-    // parse the sql query
-    val parsed = planner.parse(stmt)
-    parsed match {
-      case insert: SqlInsert =>
-        // validate the SQL query
-        val query = insert.getSource
-        val validatedQuery = planner.validate(query)
-
-        // get query result as Table
-        val queryResult = new TableImpl(this,
-          new PlannerTableOperation(planner.rel(validatedQuery).rel))
-
-        // get name of sink table
-        val targetTableName = insert.getTargetTable.asInstanceOf[SqlIdentifier].names.get(0)
-
-        // insert query result into sink table
-        insertInto(queryResult, targetTableName, config)
-      case _ =>
-        throw new TableException(
-          "Unsupported SQL query! sqlUpdate() only accepts SQL statements of type INSERT.")
-    }
-  }
-
-  /**
-    * Writes a [[Table]] to a [[TableSink]].
-    *
-    * @param table The [[Table]] to write.
-    * @param sink The [[TableSink]] to write the [[Table]] to.
-    * @param conf The [[QueryConfig]] to use.
-    * @tparam T The data type that the [[TableSink]] expects.
-    */
-  private[flink] def writeToSink[T](table: Table, sink: TableSink[T], conf: QueryConfig): Unit
-
-  /**
-    * Writes the [[Table]] to a [[TableSink]] that was registered under the specified name.
-    *
-    * @param table The table to write to the TableSink.
-    * @param sinkTableName The name of the registered TableSink.
-    * @param conf The query configuration to use.
-    */
-  private[flink] def insertInto(table: Table, sinkTableName: String, conf: QueryConfig): Unit = {
-
-    // check that sink table exists
-    if (null == sinkTableName) throw new TableException("Name of TableSink must not be null.")
-    if (sinkTableName.isEmpty) throw new TableException("Name of TableSink must not be empty.")
-
-    getTable(sinkTableName) match {
-
-      case None =>
-        throw new TableException(s"No table was registered under the name $sinkTableName.")
-
-      case Some(s: TableSourceSinkTable[_, _]) if s.tableSinkTable.isDefined =>
-        val tableSink = s.tableSinkTable.get.tableSink
-        // validate schema of source table and table sink
-        val srcFieldTypes = table.getSchema.getFieldTypes
-        val sinkFieldTypes = tableSink.getFieldTypes
-
-        if (srcFieldTypes.length != sinkFieldTypes.length ||
-          srcFieldTypes.zip(sinkFieldTypes).exists { case (srcF, snkF) => srcF != snkF }) {
-
-          val srcFieldNames = table.getSchema.getFieldNames
-          val sinkFieldNames = tableSink.getFieldNames
-
-          // format table and table sink schema strings
-          val srcSchema = srcFieldNames.zip(srcFieldTypes)
-            .map { case (n, t) => s"$n: ${t.getTypeClass.getSimpleName}" }
-            .mkString("[", ", ", "]")
-          val sinkSchema = sinkFieldNames.zip(sinkFieldTypes)
-            .map { case (n, t) => s"$n: ${t.getTypeClass.getSimpleName}" }
-            .mkString("[", ", ", "]")
-
-          throw new ValidationException(
-            s"Field types of query result and registered TableSink " +
-              s"$sinkTableName do not match.\n" +
-              s"Query result schema: $srcSchema\n" +
-              s"TableSink schema:    $sinkSchema")
-        }
-        // emit the table to the configured table sink
-        writeToSink(table, tableSink, conf)
-
-      case Some(_) =>
-        throw new TableException(s"The table registered as $sinkTableName is not a TableSink. " +
-          s"You can only emit query results to a registered TableSink.")
-    }
+    planner.sqlUpdate(stmt, config)
   }
 
   /**
@@ -889,7 +485,6 @@ abstract class TableEnvironment(val config: TableConfig) {
     */
   @throws[TableException]
   protected def registerTableInternal(name: String, table: AbstractTable): Unit = {
-
     if (isRegistered(name)) {
       throw new TableException(s"Table \'$name\' already exists. " +
         s"Please, choose a different name.")
@@ -925,32 +520,7 @@ abstract class TableEnvironment(val config: TableConfig) {
     * @return The table registered either internally or externally, None otherwise.
     */
   protected def getTable(name: String): Option[org.apache.calcite.schema.Table] = {
-
-    // recursively fetches a table from a schema.
-    def getTableFromSchema(
-        schema: SchemaPlus,
-        path: List[String]): Option[org.apache.calcite.schema.Table] = {
-
-      path match {
-        case tableName :: Nil =>
-          // look up table
-          Option(schema.getTable(tableName))
-        case subschemaName :: remain =>
-          // look up subschema
-          val subschema = Option(schema.getSubSchema(subschemaName))
-          subschema match {
-            case Some(s) =>
-              // search for table in subschema
-              getTableFromSchema(s, remain)
-            case None =>
-              // subschema does not exist
-              None
-          }
-      }
-    }
-
-    val pathNames = name.split('.').toList
-    getTableFromSchema(rootSchema, pathNames)
+    planner.asInstanceOf[PlannerBase].getTable(name)
   }
 
   /** Returns a unique temporary attribute name. */
@@ -958,28 +528,8 @@ abstract class TableEnvironment(val config: TableConfig) {
     "TMP_" + attrNameCntr.getAndIncrement()
   }
 
-  /** Returns the [[FlinkRelBuilder]] of this TableEnvironment. */
-  private[flink] def getRelBuilder: FlinkRelBuilder = {
-    relBuilder
-  }
-
-  /** Returns the Calcite [[org.apache.calcite.plan.RelOptPlanner]] of this TableEnvironment. */
-  private[flink] def getPlanner: RelOptPlanner = {
-    planner
-  }
-
-  /** Returns the [[FlinkTypeFactory]] of this TableEnvironment. */
-  private[flink] def getTypeFactory: FlinkTypeFactory = {
-    typeFactory
-  }
-
   private[flink] def getFunctionCatalog: FunctionCatalog = {
     functionCatalog
-  }
-
-  /** Returns the Calcite [[FrameworkConfig]] of this TableEnvironment. */
-  private[flink] def getFrameworkConfig: FrameworkConfig = {
-    frameworkConfig
   }
 }
 

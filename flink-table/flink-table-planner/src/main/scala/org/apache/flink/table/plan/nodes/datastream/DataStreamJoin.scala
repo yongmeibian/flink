@@ -27,6 +27,7 @@ import org.apache.flink.streaming.api.datastream.DataStream
 import org.apache.flink.table.api.{StreamQueryConfig, StreamTableEnvironment, TableException}
 import org.apache.flink.table.plan.nodes.CommonJoin
 import org.apache.flink.table.plan.schema.RowSchema
+import org.apache.flink.table.planner.StreamingPlanner
 import org.apache.flink.table.runtime.types.{CRow, CRowTypeInfo}
 
 import scala.collection.JavaConversions._
@@ -94,7 +95,7 @@ class DataStreamJoin(
   }
 
   override def translateToPlan(
-      tableEnv: StreamTableEnvironment,
+      tableEnv: StreamingPlanner,
       queryConfig: StreamQueryConfig): DataStream[CRow] = {
 
     validateKeyTypes()
@@ -146,7 +147,7 @@ class DataStreamJoin(
   }
 
   protected def createTranslator(
-      tableEnv: StreamTableEnvironment): DataStreamJoinToCoProcessTranslator = {
+      tableEnv: StreamingPlanner): DataStreamJoinToCoProcessTranslator = {
     new DataStreamJoinToCoProcessTranslator(
       tableEnv.getConfig,
       schema.typeInfo,

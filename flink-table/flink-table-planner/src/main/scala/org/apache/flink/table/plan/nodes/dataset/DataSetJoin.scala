@@ -18,8 +18,7 @@
 
 package org.apache.flink.table.plan.nodes.dataset
 
-import java.lang.Iterable
-import java.lang.{Boolean => JBool}
+import java.lang.{Iterable, Boolean => JBool}
 
 import org.apache.calcite.plan._
 import org.apache.calcite.rel.`type`.RelDataType
@@ -34,10 +33,11 @@ import org.apache.flink.api.common.operators.base.JoinOperatorBase.JoinHint
 import org.apache.flink.api.common.typeinfo.TypeInformation
 import org.apache.flink.api.java.DataSet
 import org.apache.flink.api.java.typeutils.RowTypeInfo
-import org.apache.flink.table.api.{BatchQueryConfig, BatchTableEnvironment, TableConfig, TableException, Types}
+import org.apache.flink.table.api.{BatchQueryConfig, TableConfig, TableException, Types}
 import org.apache.flink.table.calcite.FlinkTypeFactory
 import org.apache.flink.table.codegen.{FunctionCodeGenerator, GeneratedFunction}
 import org.apache.flink.table.plan.nodes.CommonJoin
+import org.apache.flink.table.planner.BatchPlanner
 import org.apache.flink.table.runtime._
 import org.apache.flink.types.Row
 import org.apache.flink.util.Collector
@@ -116,7 +116,7 @@ class DataSetJoin(
   }
 
   override def translateToPlan(
-      tableEnv: BatchTableEnvironment,
+      tableEnv: BatchPlanner,
       queryConfig: BatchQueryConfig): DataSet[Row] = {
 
     val config = tableEnv.getConfig

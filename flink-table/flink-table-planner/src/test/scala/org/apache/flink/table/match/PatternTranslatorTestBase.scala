@@ -28,6 +28,7 @@ import org.apache.flink.table.api.scala._
 import org.apache.flink.table.api.TableConfig
 import org.apache.flink.table.calcite.FlinkPlannerImpl
 import org.apache.flink.table.plan.nodes.datastream.{DataStreamMatch, DataStreamScan}
+import org.apache.flink.table.planner.StreamingPlanner
 import org.apache.flink.types.Row
 import org.apache.flink.util.TestLogger
 import org.junit.Assert._
@@ -52,7 +53,7 @@ abstract class PatternTranslatorTestBase extends TestLogger{
     context._2.getTypeFactory)
 
   private def prepareContext(typeInfo: TypeInformation[Row])
-  : (RelBuilder, StreamTableEnvironment, StreamExecutionEnvironment) = {
+  : (RelBuilder, StreamingPlanner, StreamExecutionEnvironment) = {
     // create DataStreamTable
     val dataStreamMock = mock(classOf[DataStream[Row]])
     val jDataStreamMock = mock(classOf[JDataStream[Row]])
@@ -67,7 +68,7 @@ abstract class PatternTranslatorTestBase extends TestLogger{
     val relBuilder = tEnv.getRelBuilder
     relBuilder.scan(tableName)
 
-    (relBuilder, tEnv, env)
+    (relBuilder, tEnv.planner.asInstanceOf[StreamingPlanner], env)
   }
 
   def verifyPattern(matchRecognize: String, expected: Pattern[Row, _ <: Row]): Unit = {
