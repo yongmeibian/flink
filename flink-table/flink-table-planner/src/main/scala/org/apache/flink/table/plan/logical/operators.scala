@@ -330,7 +330,7 @@ case class Join(
 
   def resolveCondition(): Option[PlannerExpression] = {
     val partialFunction: PartialFunction[PlannerExpression, PlannerExpression] = {
-      case field: ResolvedFieldReference => JoinFieldReference(
+      case field: PlannerResolvedFieldReference => JoinFieldReference(
         field.name,
         field.resultType,
         left,
@@ -435,7 +435,7 @@ case class CatalogNode(
     rowType: RelDataType) extends LeafNode {
 
   val output: Seq[Attribute] = rowType.getFieldList.asScala.map { field =>
-    ResolvedFieldReference(field.getName, FlinkTypeFactory.toTypeInfo(field.getType))
+    PlannerResolvedFieldReference(field.getName, FlinkTypeFactory.toTypeInfo(field.getType))
   }
 
   override protected[logical] def construct(relBuilder: RelBuilder): RelBuilder = {
@@ -452,7 +452,7 @@ case class LogicalRelNode(
     relNode: RelNode) extends LeafNode {
 
   val output: Seq[Attribute] = relNode.getRowType.getFieldList.asScala.map { field =>
-    ResolvedFieldReference(field.getName, FlinkTypeFactory.toTypeInfo(field.getType))
+    PlannerResolvedFieldReference(field.getName, FlinkTypeFactory.toTypeInfo(field.getType))
   }
 
   override protected[logical] def construct(relBuilder: RelBuilder): RelBuilder = {
@@ -581,11 +581,11 @@ case class CalculatedTable(
   override def output: Seq[Attribute] = {
     if (fieldNames.isEmpty) {
       generatedNames.zip(fieldTypes).map {
-        case (n, t) => ResolvedFieldReference(n, t)
+        case (n, t) => PlannerResolvedFieldReference(n, t)
       }
     } else {
       fieldNames.zip(fieldTypes).map {
-        case (n, t) => ResolvedFieldReference(n, t)
+        case (n, t) => PlannerResolvedFieldReference(n, t)
       }
     }
   }

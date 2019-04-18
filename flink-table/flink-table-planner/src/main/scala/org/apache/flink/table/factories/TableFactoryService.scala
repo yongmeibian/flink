@@ -341,7 +341,7 @@ object TableFactoryService extends Logging {
       // ignore non-format (or schema) keys
       keys.filter { k =>
         if (includeSchema) {
-          k.startsWith(SchemaValidator.SCHEMA + ".") ||
+          k.startsWith(Schema.SCHEMA + ".") ||
             k.startsWith(FormatDescriptorValidator.FORMAT + ".")
         } else {
           k.startsWith(FormatDescriptorValidator.FORMAT + ".")
