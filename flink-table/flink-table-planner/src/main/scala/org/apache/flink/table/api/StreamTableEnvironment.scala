@@ -25,6 +25,7 @@ import org.apache.flink.api.common.typeutils.CompositeType
 import org.apache.flink.streaming.api.TimeCharacteristic
 import org.apache.flink.streaming.api.datastream.DataStream
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment
+import org.apache.flink.table.catalog.{CatalogManager, FlinkCatalogManager}
 import org.apache.flink.table.descriptors.{ConnectorDescriptor, StreamTableDescriptor}
 import org.apache.flink.table.expressions._
 import org.apache.flink.table.plan.schema._
@@ -52,10 +53,12 @@ import org.apache.flink.table.util.TypeUtils.{getFieldInfo, isReferenceByPositio
 abstract class StreamTableEnvironment(
     private[flink] val execEnv: StreamExecutionEnvironment,
     config: TableConfig,
-    functionCatalog: FunctionCatalog = new FunctionCatalog)
+    functionCatalog: FunctionCatalog = new FunctionCatalog,
+    catalogManager: CatalogManager = new FlinkCatalogManager)
   extends TableEnvironment(
     config,
     functionCatalog,
+    catalogManager,
     new StreamingPlanner(execEnv, config, functionCatalog)) {
 
   // a counter for unique table names

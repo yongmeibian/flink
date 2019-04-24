@@ -33,7 +33,7 @@ import org.apache.flink.streaming.api.scala.{StreamExecutionEnvironment => Scala
 import org.apache.flink.table.api.java.{BatchTableEnvironment => JavaBatchTableEnv, StreamTableEnvironment => JavaStreamTableEnv}
 import org.apache.flink.table.api.scala.{BatchTableEnvironment => ScalaBatchTableEnv, StreamTableEnvironment => ScalaStreamTableEnv}
 import org.apache.flink.table.calcite.FlinkTypeFactory
-import org.apache.flink.table.catalog.{ExternalCatalog, ExternalCatalogSchema}
+import org.apache.flink.table.catalog.{CatalogManager, ExternalCatalog, ExternalCatalogSchema}
 import org.apache.flink.table.descriptors.{ConnectorDescriptor, TableDescriptor}
 import org.apache.flink.table.expressions.{ExpressionBridge, PlannerExpression, PlannerExpressionConverter}
 import org.apache.flink.table.functions.utils.UserDefinedFunctionUtils._
@@ -56,6 +56,7 @@ import _root_.scala.collection.mutable
 abstract class TableEnvironment(
     val config: TableConfig,
     private[flink] val functionCatalog: FunctionCatalog,
+    private[flink] val catalogManager: CatalogManager,
     private[flink] val planner: Planner) {
 
   // a counter for unique attribute names
@@ -68,6 +69,7 @@ abstract class TableEnvironment(
     PlannerExpressionConverter.INSTANCE)
 
   private[flink] val operationTreeBuilder = new OperationTreeBuilder(this)
+
 
   /*
     HACKS! WORKAROUNDS!

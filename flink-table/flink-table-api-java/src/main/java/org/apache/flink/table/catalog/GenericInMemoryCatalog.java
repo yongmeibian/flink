@@ -95,7 +95,7 @@ public class GenericInMemoryCatalog implements ReadableWritableCatalog {
 				throw new DatabaseAlreadyExistException(catalogName, databaseName);
 			}
 		} else {
-			databases.put(databaseName, db.copy());
+			databases.put(databaseName, db);
 		}
 	}
 
@@ -131,7 +131,7 @@ public class GenericInMemoryCatalog implements ReadableWritableCatalog {
 		checkArgument(newDatabase != null);
 
 		if (databaseExists(databaseName)) {
-			databases.put(databaseName, newDatabase.copy());
+			databases.put(databaseName, newDatabase);
 		} else if (!ignoreIfNotExists) {
 			throw new DatabaseNotExistException(catalogName, databaseName);
 		}
@@ -149,7 +149,7 @@ public class GenericInMemoryCatalog implements ReadableWritableCatalog {
 		if (!databaseExists(databaseName)) {
 			throw new DatabaseNotExistException(catalogName, databaseName);
 		} else {
-			return databases.get(databaseName).copy();
+			return databases.get(databaseName);
 		}
 	}
 
@@ -177,7 +177,7 @@ public class GenericInMemoryCatalog implements ReadableWritableCatalog {
 				throw new TableAlreadyExistException(catalogName, tablePath);
 			}
 		} else {
-			tables.put(tablePath, table.copy());
+			tables.put(tablePath, table);
 		}
 	}
 
@@ -188,7 +188,7 @@ public class GenericInMemoryCatalog implements ReadableWritableCatalog {
 		checkArgument(newTable != null);
 
 		if (tableExists(tablePath)) {
-			tables.put(tablePath, newTable.copy());
+			tables.put(tablePath, newTable);
 		} else if (!ignoreIfNotExists) {
 			throw new TableNotExistException(catalogName, tablePath);
 		}
@@ -235,7 +235,7 @@ public class GenericInMemoryCatalog implements ReadableWritableCatalog {
 		}
 
 		return tables.keySet().stream()
-			.filter(k -> k.getDatabaseName().equals(databaseName)).map(k -> k.getObjectName())
+			.filter(k -> k.getDatabaseName().equals(databaseName)).map(ObjectPath::getObjectName)
 			.collect(Collectors.toList());
 	}
 
@@ -249,7 +249,7 @@ public class GenericInMemoryCatalog implements ReadableWritableCatalog {
 
 		return tables.keySet().stream()
 			.filter(k -> k.getDatabaseName().equals(databaseName))
-			.filter(k -> (tables.get(k) instanceof CatalogView)).map(k -> k.getObjectName())
+			.filter(k -> (tables.get(k) instanceof CatalogView)).map(ObjectPath::getObjectName)
 			.collect(Collectors.toList());
 	}
 
@@ -260,7 +260,7 @@ public class GenericInMemoryCatalog implements ReadableWritableCatalog {
 		if (!tableExists(tablePath)) {
 			throw new TableNotExistException(catalogName, tablePath);
 		} else {
-			return tables.get(tablePath).copy();
+			return tables.get(tablePath);
 		}
 	}
 
