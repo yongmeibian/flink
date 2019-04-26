@@ -37,10 +37,12 @@ import org.apache.flink.streaming.api.TimeCharacteristic
 import org.apache.flink.streaming.api.datastream.DataStream
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment
 import org.apache.flink.table.calcite.{FlinkTypeFactory, RelTimeIndicatorConverter}
+import org.apache.flink.table.catalog.TableOperationCatalogView
 import org.apache.flink.table.codegen.RowConverterGenerator.generateRowConverterFunction
 import org.apache.flink.table.descriptors.{ConnectorDescriptor, StreamTableDescriptor}
 import org.apache.flink.table.explain.PlanJsonParser
 import org.apache.flink.table.expressions._
+import org.apache.flink.table.operations.DataStreamTableOperation
 import org.apache.flink.table.plan.nodes.FlinkConventions
 import org.apache.flink.table.plan.nodes.datastream.{DataStreamRel, UpdateAsRetractionTrait}
 import org.apache.flink.table.plan.rules.FlinkRuleSets
@@ -51,7 +53,7 @@ import org.apache.flink.table.runtime.types.{CRow, CRowTypeInfo}
 import org.apache.flink.table.runtime.{CRowMapRunner, OutputRowtimeProcessFunction}
 import org.apache.flink.table.sinks._
 import org.apache.flink.table.sources.{StreamTableSource, TableSource, TableSourceUtil}
-import org.apache.flink.table.typeutils.{TimeIndicatorTypeInfo, TypeCheckUtils}
+import org.apache.flink.table.typeutils.{FieldInfoUtils, TimeIndicatorTypeInfo, TypeCheckUtils}
 import org.apache.flink.table.typeutils.FieldInfoUtils.{getFieldInfo, isReferenceByPosition}
 
 import _root_.scala.collection.JavaConverters._
@@ -143,7 +145,7 @@ abstract class StreamTableEnvImpl(
             val newTable = new TableSourceSinkTable(
               Some(new StreamTableSourceTable(streamTableSource)),
               None)
-            registerTableInternal(name, newTable)
+//            registerTableInternal(name, newTable)
         }
 
       // not a stream table source
@@ -222,7 +224,7 @@ abstract class StreamTableEnvImpl(
             val newTable = new TableSourceSinkTable(
               None,
               Some(new TableSinkTable(configuredSink)))
-            registerTableInternal(name, newTable)
+//            registerTableInternal(name, newTable)
         }
 
       // not a stream table sink
@@ -447,10 +449,15 @@ abstract class StreamTableEnvImpl(
     dataStream: DataStream[T]): Unit = {
 
     val fieldInfo = getFieldInfo[T](dataStream.getType)
-    val dataStreamTable = new DataStreamTable[T](
-      dataStream,
+
+    val tableSchema = FieldInfoUtils.calculateTableSchema(
+      dataStream.getType,
       fieldInfo.getIndices,
-      fieldInfo.getFieldNames
+      fieldInfo.getNames
+    )
+
+    val dataStreamTable = new TableOperationCatalogView(
+      new DataStreamTableOperation[T](dataStream, tableSchema)
     )
     registerTableInternal(name, dataStreamTable)
   }
@@ -487,12 +494,13 @@ abstract class StreamTableEnvImpl(
 
     // adjust field indexes and field names
     val indexesWithIndicatorFields = adjustFieldIndexes(fieldsInfo.getIndices, rowtime, proctime)
-    val namesWithIndicatorFields = adjustFieldNames(fieldsInfo.getFieldNames, rowtime, proctime)
+    val namesWithIndicatorFields = adjustFieldNames(fieldsInfo.getNames, rowtime, proctime)
 
-    val dataStreamTable = new DataStreamTable[T](
-      dataStream,
-      indexesWithIndicatorFields,
-      namesWithIndicatorFields
+    val tableSchema = FieldInfoUtils
+      .calculateTableSchema(streamType, indexesWithIndicatorFields, namesWithIndicatorFields)
+
+    val dataStreamTable = new TableOperationCatalogView(
+      new DataStreamTableOperation[T](dataStream, tableSchema)
     )
     registerTableInternal(name, dataStreamTable)
   }

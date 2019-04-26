@@ -186,6 +186,20 @@ class FlinkTypeFactory(typeSystem: RelDataTypeSystem) extends JavaTypeFactoryImp
     * @return a struct type with the input fieldNames, input fieldTypes, and system fields
     */
   def buildLogicalRowType(
+      fieldNames: Array[String],
+      fieldTypes: Array[TypeInformation[_]])
+    : RelDataType = {
+    buildLogicalRowType(fieldNames.toSeq, fieldTypes.toSeq)
+  }
+
+  /**
+    * Creates a struct type with the input fieldNames and input fieldTypes using FlinkTypeFactory
+    *
+    * @param fieldNames field names
+    * @param fieldTypes field types, every element is Flink's [[TypeInformation]]
+    * @return a struct type with the input fieldNames, input fieldTypes, and system fields
+    */
+  def buildLogicalRowType(
       fieldNames: Seq[String],
       fieldTypes: Seq[TypeInformation[_]])
     : RelDataType = {

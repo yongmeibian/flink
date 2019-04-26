@@ -71,6 +71,7 @@ import org.apache.calcite.tools.RelBuilder.GroupKey;
 import java.util.Collections;
 import java.util.List;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.stream.IntStream;
 
 import scala.Some;
@@ -100,12 +101,13 @@ public class TableOperationConverter extends TableOperationDefaultVisitor<RelNod
 			this.expressionBridge = expressionBridge;
 		}
 
-		public TableOperationConverter get(RelBuilder relBuilder) {
+		public TableOperationConverter get(Function<ExpressionBridge<PlannerExpression>, FlinkRelBuilder> relBuilderSupplier) {
+			FlinkRelBuilder relBuilder = relBuilderSupplier.apply(expressionBridge);
 			return new TableOperationConverter(relBuilder, expressionBridge);
 		}
 	}
 
-	private final RelBuilder relBuilder;
+	private final FlinkRelBuilder relBuilder;
 	private final SingleRelVisitor singleRelVisitor = new SingleRelVisitor();
 	private final ExpressionBridge<PlannerExpression> expressionBridge;
 	private final AggregateVisitor aggregateVisitor = new AggregateVisitor();
@@ -113,7 +115,7 @@ public class TableOperationConverter extends TableOperationDefaultVisitor<RelNod
 	private final JoinExpressionVisitor joinExpressionVisitor = new JoinExpressionVisitor();
 
 	public TableOperationConverter(
-			RelBuilder relBuilder,
+			FlinkRelBuilder relBuilder,
 			ExpressionBridge<PlannerExpression> expressionBridge) {
 		this.relBuilder = relBuilder;
 		this.expressionBridge = expressionBridge;
@@ -161,7 +163,6 @@ public class TableOperationConverter extends TableOperationDefaultVisitor<RelNod
 
 		@Override
 		public RelNode visitWindowAggregate(WindowAggregateTableOperation windowAggregate) {
-			FlinkRelBuilder flinkRelBuilder = (FlinkRelBuilder) relBuilder;
 			List<AggCall> aggregations = windowAggregate.getAggregateExpressions()
 				.stream()
 				.map(expr -> expr.accept(aggregateVisitor))
@@ -174,7 +175,7 @@ public class TableOperationConverter extends TableOperationDefaultVisitor<RelNod
 				.collect(toList());
 			GroupKey groupKey = relBuilder.groupKey(groupings);
 			LogicalWindow logicalWindow = toLogicalWindow(windowAggregate.getGroupWindow());
-			return flinkRelBuilder.aggregate(logicalWindow, groupKey, windowProperties, aggregations).build();
+			return relBuilder.aggregate(logicalWindow, groupKey, windowProperties, aggregations).build();
 		}
 
 		@Override
@@ -239,7 +240,7 @@ public class TableOperationConverter extends TableOperationDefaultVisitor<RelNod
 				fieldNames);
 			TableFunction<?> tableFunction = calculatedTable.getTableFunction();
 
-			FlinkTypeFactory typeFactory = (FlinkTypeFactory) relBuilder.getTypeFactory();
+			FlinkTypeFactory typeFactory = relBuilder.getTypeFactory();
 			TableSqlFunction sqlFunction = new TableSqlFunction(
 				tableFunction.functionIdentifier(),
 				tableFunction.toString(),

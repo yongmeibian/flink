@@ -25,6 +25,7 @@ import org.apache.calcite.rel.core.TableFunctionScan
 import org.apache.calcite.rel.logical.LogicalCorrelate
 import org.apache.calcite.rex._
 import org.apache.flink.table.api.{Types, ValidationException}
+import org.apache.flink.table.calcite.FlinkRelBuilder
 import org.apache.flink.table.calcite.FlinkTypeFactory.{isProctimeIndicatorType, isTimeIndicatorType}
 import org.apache.flink.table.expressions.{FieldReferenceExpression, _}
 import org.apache.flink.table.functions.utils.TableSqlFunction
@@ -34,6 +35,7 @@ import org.apache.flink.table.plan.TableOperationConverter
 import org.apache.flink.table.plan.logical.rel.LogicalTemporalTableJoin
 import org.apache.flink.table.plan.util.RexDefaultVisitor
 import org.apache.flink.util.Preconditions.checkState
+import java.util.function.{Function => JFunction}
 
 class LogicalCorrelateToTemporalTableJoinRule
   extends RelOptRule(
@@ -82,13 +84,22 @@ class LogicalCorrelateToTemporalTableJoinRule
         // If TemporalTableFunction was found, rewrite LogicalCorrelate to TemporalJoin
         val underlyingHistoryTable: TableOperation = rightTemporalTableFunction
           .getUnderlyingHistoryTable
-        val relBuilder = this.relBuilderFactory.create(
-          cluster,
-          leftNode.getTable.getRelOptSchema)
+
         val rexBuilder = cluster.getRexBuilder
 
+        val relBuilderSupplier =
+          new JFunction[ExpressionBridge[PlannerExpression], FlinkRelBuilder] {
+            override def apply(t: ExpressionBridge[PlannerExpression]): FlinkRelBuilder =
+              new FlinkRelBuilder(call.getPlanner.getContext,
+                cluster,
+                leftNode.getTable.getRelOptSchema,
+                t)
+          }
+
         val converter = call.getPlanner.getContext
-          .unwrap(classOf[TableOperationConverter.ToRelConverterSupplier]).get(relBuilder)
+          .unwrap(classOf[TableOperationConverter.ToRelConverterSupplier])
+          .get(relBuilderSupplier)
+
         val rightNode: RelNode = underlyingHistoryTable.accept(converter)
 
         val rightTimeIndicatorExpression = createRightExpression(
@@ -103,6 +114,9 @@ class LogicalCorrelateToTemporalTableJoinRule
           rightNode,
           extractNameFromPrimaryKeyAttribute(rightTemporalTableFunction.getPrimaryKey))
 
+        val relBuilder = this.relBuilderFactory.create(
+          cluster,
+          leftNode.getTable.getRelOptSchema)
         relBuilder.push(
           if (isProctimeIndicatorType(rightTemporalTableFunction.getTimeAttribute
             .asInstanceOf[FieldReferenceExpression].getResultType)) {

@@ -304,7 +304,7 @@ public class GenericInMemoryCatalog implements Catalog {
 		}
 
 		return tables.keySet().stream()
-			.filter(k -> k.getDatabaseName().equals(databaseName)).map(k -> k.getObjectName())
+			.filter(k -> k.getDatabaseName().equals(databaseName)).map(ObjectPath::getObjectName)
 			.collect(Collectors.toList());
 	}
 
@@ -318,7 +318,7 @@ public class GenericInMemoryCatalog implements Catalog {
 
 		return tables.keySet().stream()
 			.filter(k -> k.getDatabaseName().equals(databaseName))
-			.filter(k -> (tables.get(k) instanceof CatalogView)).map(k -> k.getObjectName())
+			.filter(k -> (tables.get(k) instanceof CatalogView)).map(ObjectPath::getObjectName)
 			.collect(Collectors.toList());
 	}
 

@@ -27,34 +27,28 @@ import org.apache.calcite.plan.RelOptPlanner.CannotPlanException
 import org.apache.calcite.plan._
 import org.apache.calcite.plan.hep.{HepMatchOrder, HepPlanner, HepProgram, HepProgramBuilder}
 import org.apache.calcite.rel.RelNode
-import org.apache.calcite.schema
 import org.apache.calcite.schema.SchemaPlus
 import org.apache.calcite.schema.impl.AbstractTable
 import org.apache.calcite.sql._
 import org.apache.calcite.tools._
-import org.apache.flink.api.common.functions.MapFunction
 import org.apache.flink.api.common.typeinfo.TypeInformation
-import org.apache.flink.api.java.typeutils.{GenericTypeInfo, PojoTypeInfo, TupleTypeInfoBase}
 import org.apache.flink.table.calcite._
 import org.apache.flink.table.catalog._
-import org.apache.flink.table.codegen.{FunctionCodeGenerator, GeneratedFunction}
 import org.apache.flink.table.expressions._
 import org.apache.flink.table.functions.utils.UserDefinedFunctionUtils._
 import org.apache.flink.table.functions.{AggregateFunction, ScalarFunction, TableFunction, UserDefinedAggregateFunction}
 import org.apache.flink.table.operations.{CatalogTableOperation, OperationTreeBuilder, PlannerTableOperation}
 import org.apache.flink.table.plan.nodes.FlinkConventions
 import org.apache.flink.table.plan.rules.FlinkRuleSets
-import org.apache.flink.table.plan.schema.{RelTable, RowSchema, TableSourceSinkTable}
+import org.apache.flink.table.plan.schema.TableSourceSinkTable
 import org.apache.flink.table.planner.PlanningConfigurationBuilder
 import org.apache.flink.table.sinks.TableSink
 import org.apache.flink.table.sources.TableSource
-import org.apache.flink.table.typeutils.TimeIndicatorTypeInfo
 import org.apache.flink.table.util.JavaScalaConversionUtil
+import org.apache.flink.table.util.JavaScalaConversionUtil.toScala
 import org.apache.flink.table.validate.FunctionCatalog
-import org.apache.flink.types.Row
 
 import _root_.scala.collection.JavaConverters._
-import _root_.scala.collection.mutable
 
 /**
   * The abstract base class for the implementation of batch and stream TableEnvironments.
@@ -78,9 +72,6 @@ abstract class TableEnvImpl(val config: TableConfig) extends TableEnvironment {
 
   // a counter for unique attribute names
   private[flink] val attrNameCntr: AtomicInteger = new AtomicInteger(0)
-
-  // registered external catalog names -> catalog
-  private val externalCatalogs = new mutable.HashMap[String, ExternalCatalog]
 
   private[flink] val operationTreeBuilder = new OperationTreeBuilder(this)
 
@@ -331,7 +322,7 @@ abstract class TableEnvImpl(val config: TableConfig) extends TableEnvironment {
   }
 
   override def getRegisteredExternalCatalog(name: String): ExternalCatalog = {
-    this.externalCatalogs.get(name) match {
+    toScala(catalogManager.getExternalCatalog(name)) match {
       case Some(catalog) => catalog
       case None => throw new ExternalCatalogNotExistException(name)
     }
@@ -407,8 +398,8 @@ abstract class TableEnvImpl(val config: TableConfig) extends TableEnvironment {
     }
 
     checkValidTableName(name)
-    val tableTable = new RelTable(table.asInstanceOf[TableImpl].getRelNode)
-    registerTableInternal(name, tableTable)
+    val path = new ObjectPath(defaultCatalog.getCurrentDatabase, name)
+    defaultCatalog.createTable(path, new TableOperationCatalogView(table.getTableOperation), false)
   }
 
   override def registerTableSource(name: String, tableSource: TableSource[_]): Unit = {
@@ -643,10 +634,10 @@ abstract class TableEnvImpl(val config: TableConfig) extends TableEnvironment {
     * @throws TableException if another table is registered under the provided name.
     */
   @throws[TableException]
-  protected def registerTableInternal(name: String, table: AbstractTable): Unit = {
+  protected def registerTableInternal(name: String, table: CatalogBaseTable): Unit = {
     val defaultCatalog = catalogManager.getCatalog(BUILTIN_CATALOG_NAME)
     val path = new ObjectPath(defaultCatalog.getCurrentDatabase, name)
-    defaultCatalog.createTable(path, new CalciteCatalogTable(table, getTypeFactory), false)
+    defaultCatalog.createTable(path, table, false)
   }
 
   /** Returns a unique table name according to the internal naming pattern. */

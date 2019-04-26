@@ -25,6 +25,7 @@ import org.apache.flink.api.java.typeutils.GenericTypeInfo;
 import org.apache.flink.api.java.typeutils.PojoTypeInfo;
 import org.apache.flink.api.java.typeutils.TupleTypeInfoBase;
 import org.apache.flink.table.api.TableException;
+import org.apache.flink.table.api.TableSchema;
 import org.apache.flink.table.expressions.ApiExpressionDefaultVisitor;
 import org.apache.flink.table.expressions.BuiltInFunctionDefinitions;
 import org.apache.flink.table.expressions.CallExpression;
@@ -36,6 +37,7 @@ import org.apache.flink.types.Row;
 import java.lang.reflect.Modifier;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Optional;
@@ -63,7 +65,7 @@ public class FieldInfoUtils {
 			this.indices = indices;
 		}
 
-		public String[] getFieldNames() {
+		public String[] getNames() {
 			return fieldNames;
 		}
 
@@ -146,7 +148,7 @@ public class FieldInfoUtils {
 		} else if (inputType instanceof PojoTypeInfo) {
 			fieldInfos = extractFieldInfosByNameReference((CompositeType) inputType, exprs);
 		} else {
-			fieldInfos = extractFieldInfoFromAtomicType(exprs);
+			fieldInfos = extractFieldInfoFromAtomicType(inputType, exprs);
 		}
 
 		if (fieldInfos.stream().anyMatch(info -> info.getFieldName().equals("*"))) {
@@ -155,6 +157,9 @@ public class FieldInfoUtils {
 
 		String[] fieldNames = fieldInfos.stream().map(FieldInfo::getFieldName).toArray(String[]::new);
 		int[] fieldIndices = fieldInfos.stream().mapToInt(FieldInfo::getIndex).toArray();
+		TypeInformation[] types = fieldInfos.stream()
+			.map(FieldInfo::getType)
+			.toArray(TypeInformation[]::new);
 		return new FieldsInfo(fieldNames, fieldIndices);
 	}
 
@@ -230,9 +235,83 @@ public class FieldInfoUtils {
 		return fieldTypes;
 	}
 
+	public static <T> TableSchema calculateTableSchema(
+			TypeInformation<T> typeInfo,
+			int[] fieldIndexes,
+			String[] fieldNames) {
+
+		if (fieldIndexes.length != fieldNames.length) {
+			throw new TableException(String.format(
+				"Number of field names and field indexes must be equal.\n" +
+				"Number of names is %s, number of indexes is %s.\n" +
+				"List of column names: %s.\n" +
+				"List of column indexes: %s.",
+				fieldNames.length,
+				fieldIndexes.length,
+				String.join(", ", fieldNames),
+				Arrays.stream(fieldIndexes).mapToObj(Integer::toString).collect(Collectors.joining(", "))));
+		}
+
+		// check uniqueness of field names
+		Set<String> duplicatedNames = findDuplicates(fieldNames);
+		if (duplicatedNames.size() != 0) {
+
+			throw new TableException(String.format(
+				"Field names must be unique.\n" +
+				"List of duplicate fields: %s.\n" +
+				"List of all fields: %s.",
+				String.join(", ", duplicatedNames),
+				String.join(", ", fieldNames)));
+		}
+
+		final TypeInformation[] types;
+		long fieldIndicesCount = Arrays.stream(fieldIndexes).filter(i -> i >= 0).count();
+		if (typeInfo instanceof CompositeType) {
+			CompositeType ct = (CompositeType) typeInfo;
+			// it is ok to leave out fields
+			if (fieldIndicesCount > ct.getArity()) {
+				throw new TableException(String.format(
+					"Arity of type (%s) must not be greater than number of field names %s.",
+					Arrays.toString(ct.getFieldNames()),
+					Arrays.toString(fieldNames)));
+			}
+
+			types = Arrays.stream(fieldIndexes)
+				.mapToObj(idx -> extractTimeMarkerType(idx).orElseGet(() -> ct.getTypeAt(idx)))
+				.toArray(TypeInformation[]::new);
+		} else {
+			if (fieldIndicesCount > 1) {
+				throw new TableException(
+					"Non-composite input type may have only a single field and its index must be 0.");
+			}
+
+			types = Arrays.stream(fieldIndexes)
+				.mapToObj(idx -> extractTimeMarkerType(idx).orElse(typeInfo))
+				.toArray(TypeInformation[]::new);
+		}
+
+		return new TableSchema(fieldNames, types);
+	}
+
+	private static Optional<TypeInformation<?>> extractTimeMarkerType(int idx) {
+		switch (idx) {
+			case TimeIndicatorTypeInfo.ROWTIME_STREAM_MARKER:
+				return Optional.of(TimeIndicatorTypeInfo.ROWTIME_INDICATOR);
+			case TimeIndicatorTypeInfo.PROCTIME_STREAM_MARKER:
+				return Optional.of(TimeIndicatorTypeInfo.PROCTIME_INDICATOR);
+			case TimeIndicatorTypeInfo.ROWTIME_BATCH_MARKER:
+			case TimeIndicatorTypeInfo.PROCTIME_BATCH_MARKER:
+				return Optional.of(Types.SQL_TIMESTAMP);
+			default:
+				return Optional.empty();
+		}
+	}
+
 	/* Utility methods */
 
-	private static Set<FieldInfo> extractFieldInfoFromAtomicType(Expression[] exprs) {
+	private static Set<FieldInfo> extractFieldInfoFromAtomicType(
+		TypeInformation<?> type,
+		Expression[] exprs) {
 		boolean referenced = false;
 		FieldInfo fieldInfo = null;
 		for (Expression expr : exprs) {
@@ -241,7 +320,7 @@ public class FieldInfoUtils {
 					throw new TableException("Only the first field can reference an atomic type.");
 				} else {
 					referenced = true;
-					fieldInfo = new FieldInfo(((UnresolvedReferenceExpression) expr).getName(), 0);
+					fieldInfo = new FieldInfo(((UnresolvedReferenceExpression) expr).getName(), 0, type);
 				}
 			} else if (!isTimeAttribute(expr)) { // IGNORE Time attributes
 				throw new TableException("Field reference expression expected.");
@@ -269,7 +348,7 @@ public class FieldInfoUtils {
 
 		if (isRefByPos) {
 			return IntStream.range(0, exprs.length)
-				.mapToObj(idx -> exprs[idx].accept(new IndexedExprToFieldInfo(idx)))
+				.mapToObj(idx -> exprs[idx].accept(new IndexedExprToFieldInfo(idx, inputType)))
 				.filter(Optional::isPresent)
 				.map(Optional::get)
 				.collect(Collectors.toCollection(LinkedHashSet::new));
@@ -281,10 +360,12 @@ public class FieldInfoUtils {
 	private static class FieldInfo {
 		private final String fieldName;
 		private final int index;
+		private final TypeInformation<?> type;
 
-		FieldInfo(String fieldName, int index) {
+		FieldInfo(String fieldName, int index, TypeInformation<?> type) {
 			this.fieldName = fieldName;
 			this.index = index;
+			this.type = type;
 		}
 
 		public String getFieldName() {
@@ -294,20 +375,26 @@ public class FieldInfoUtils {
 		public int getIndex() {
 			return index;
 		}
+
+		public TypeInformation<?> getType() {
+			return type;
+		}
 	}
 
 	private static class IndexedExprToFieldInfo extends ApiExpressionDefaultVisitor<Optional<FieldInfo>> {
 
 		private final int index;
+		private final CompositeType type;
 
-		private IndexedExprToFieldInfo(int index) {
+		private IndexedExprToFieldInfo(int index, CompositeType type) {
 			this.index = index;
+			this.type = type;
 		}
 
 		@Override
 		public Optional<FieldInfo> visitUnresolvedReference(UnresolvedReferenceExpression unresolvedReference) {
 			String fieldName = unresolvedReference.getName();
-			return Optional.of(new FieldInfo(fieldName, index));
+			return Optional.of(new FieldInfo(fieldName, index, type.getTypeAt(index)));
 		}
 
 		@Override
@@ -349,7 +436,7 @@ public class FieldInfoUtils {
 		@Override
 		public Optional<FieldInfo> visitUnresolvedReference(UnresolvedReferenceExpression unresolvedReference) {
 			String fieldName = unresolvedReference.getName();
-			return referenceByName(fieldName, ct).map(idx -> new FieldInfo(fieldName, idx));
+			return referenceByName(fieldName, ct).map(idx -> new FieldInfo(fieldName, idx, ct.getTypeAt(idx)));
 		}
 
 		@Override
@@ -363,7 +450,7 @@ public class FieldInfoUtils {
 
 				if (origExpr instanceof UnresolvedReferenceExpression) {
 					return referenceByName(((UnresolvedReferenceExpression) origExpr).getName(), ct)
-						.map(idx -> new FieldInfo(newName, idx));
+						.map(idx -> new FieldInfo(newName, idx, ct.getTypeAt(idx)));
 				} else if (isTimeAttribute(origExpr)) {
 					return Optional.empty();
 				}
@@ -396,6 +483,21 @@ public class FieldInfoUtils {
 		} else {
 			return Optional.of(inputIdx);
 		}
+	}
+
+	private static <T> Set<T> findDuplicates(T[] array) {
+		Set<T> duplicates = new HashSet<>();
+		Set<T> seenElements = new HashSet<>();
+
+		for (T t : array) {
+			if (seenElements.contains(t)) {
+				duplicates.add(t);
+			} else {
+				seenElements.add(t);
+			}
+		}
+
+		return duplicates;
 	}
 
 	private FieldInfoUtils() {
