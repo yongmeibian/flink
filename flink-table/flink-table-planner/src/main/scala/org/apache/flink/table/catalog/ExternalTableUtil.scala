@@ -41,20 +41,19 @@ object ExternalTableUtil extends Logging {
     * @return converted [[TableSourceTable]] instance from the input catalog table
     */
   def fromExternalCatalogTable[T1, T2](
-      tableEnv: TableEnvironment,
       externalTable: ExternalCatalogTable)
     : TableSourceSinkTable[T1, T2] = {
 
     val statistics = new FlinkStatistic(toScala(externalTable.getTableStats))
 
     val source: Option[TableSourceTable[T1]] = if (externalTable.isTableSource) {
-      Some(createTableSource(tableEnv, externalTable, statistics))
+      Some(createTableSource(externalTable, statistics))
     } else {
       None
     }
 
     val sink: Option[TableSinkTable[T2]] = if (externalTable.isTableSink) {
-      Some(createTableSink(tableEnv, externalTable, statistics))
+      Some(createTableSink(externalTable, statistics))
     } else {
       None
     }
@@ -62,41 +61,50 @@ object ExternalTableUtil extends Logging {
     new TableSourceSinkTable[T1, T2](source, sink)
   }
 
+  def getTableSchema(externalTable: ExternalCatalogTable): TableSchema = {
+    if (externalTable.isTableSource) {
+      TableFactoryUtil.findAndCreateTableSource[Any](externalTable).getTableSchema
+    } else {
+      val tableSink = TableFactoryUtil.findAndCreateTableSink(externalTable)
+      new TableSchema(tableSink.getFieldNames, tableSink.getFieldTypes)
+    }
+  }
+
   private def createTableSource[T](
-      tableEnv: TableEnvironment,
       externalTable: ExternalCatalogTable,
       statistics: FlinkStatistic)
-    : TableSourceTable[T] = tableEnv match {
+    : TableSourceTable[T] = {
 
-    case _: BatchTableEnvImpl if externalTable.isBatchTable =>
-      val source = TableFactoryUtil.findAndCreateTableSource(externalTable)
-      new BatchTableSourceTable[T](source.asInstanceOf[BatchTableSource[T]], statistics)
+    TableFactoryUtil.findAndCreateTableSource(externalTable) match {
+      case source: BatchTableSource[T] =>
+        new BatchTableSourceTable[T](source, statistics)
 
-    case _: StreamTableEnvImpl if externalTable.isStreamTable =>
-      val source = TableFactoryUtil.findAndCreateTableSource(externalTable)
-      new StreamTableSourceTable[T](source.asInstanceOf[StreamTableSource[T]], statistics)
+      case source: StreamTableSource[T] =>
+        new StreamTableSourceTable[T](source, statistics)
 
-    case _ =>
-      throw new ValidationException(
-        "External catalog table does not support the current environment for a table source.")
+      case _ =>
+        throw new ValidationException(
+          "External catalog table does not support the current environment for a table source.")
+    }
+
   }
 
   private def createTableSink[T](
-      tableEnv: TableEnvironment,
       externalTable: ExternalCatalogTable,
       statistics: FlinkStatistic)
-    : TableSinkTable[T] = tableEnv match {
+    : TableSinkTable[T] = {
 
-    case _: BatchTableEnvImpl if externalTable.isBatchTable =>
-      val sink = TableFactoryUtil.findAndCreateTableSink(externalTable)
-      new TableSinkTable[T](sink.asInstanceOf[BatchTableSink[T]], statistics)
+    TableFactoryUtil.findAndCreateTableSink(externalTable) match {
 
-    case _: StreamTableEnvImpl if externalTable.isStreamTable =>
-      val sink = TableFactoryUtil.findAndCreateTableSink(externalTable)
-      new TableSinkTable[T](sink.asInstanceOf[StreamTableSink[T]], statistics)
+      case sink: BatchTableSink[T] =>
+        new TableSinkTable[T](sink, statistics)
 
-    case _ =>
-      throw new ValidationException(
-        "External catalog table does not support the current environment for a table sink.")
+      case sink: StreamTableSink[T] =>
+        new TableSinkTable[T](sink, statistics)
+
+      case _ =>
+        throw new ValidationException(
+          "External catalog table does not support the current environment for a table sink.")
+    }
   }
 }

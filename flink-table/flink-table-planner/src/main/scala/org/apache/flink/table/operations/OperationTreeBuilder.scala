@@ -38,7 +38,7 @@ import org.apache.flink.util.Preconditions
 
 import _root_.scala.collection.JavaConversions._
 import _root_.scala.collection.JavaConverters._
-import _root_.scala.collection.mutable.ListBuffer
+import _root_.scala.util.Try
 
 /**
   * Builder for [[[Operation]] tree.
@@ -62,9 +62,8 @@ class OperationTreeBuilder(private val tableEnv: TableEnvImpl) {
 
   private val tableCatalog = new TableReferenceLookup {
     override def lookupTable(name: String): Optional[TableReferenceExpression] =
-      JavaScalaConversionUtil
-      .toJava(tableEnv.scanInternal(Array(name))
-        .map(op => new TableReferenceExpression(name, op.getTableOperation)))
+      JavaScalaConversionUtil.toJava(Try(tableEnv.scan(name)).toOption
+        .map(t => new TableReferenceExpression(name, t.getTableOperation)))
   }
 
   def project(

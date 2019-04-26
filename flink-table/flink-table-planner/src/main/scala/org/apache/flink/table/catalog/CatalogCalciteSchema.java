@@ -19,9 +19,11 @@
 package org.apache.flink.table.catalog;
 
 import org.apache.flink.annotation.Internal;
+import org.apache.flink.table.api.CatalogNotExistException;
+import org.apache.flink.table.api.TableException;
 import org.apache.flink.table.catalog.exceptions.CatalogException;
 import org.apache.flink.table.catalog.exceptions.DatabaseNotExistException;
-import org.apache.flink.table.catalog.exceptions.TableNotExistException;
+import org.apache.flink.table.plan.schema.TableOperationCalciteTable;
 
 import org.apache.calcite.linq4j.tree.Expression;
 import org.apache.calcite.rel.type.RelProtoDataType;
@@ -35,8 +37,12 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.Set;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /**
  * A mapping between Flink's catalog and Calcite's schema. This enables to look up and access tables
@@ -47,6 +53,7 @@ import java.util.Set;
 @Internal
 public class CatalogCalciteSchema implements Schema {
 	private static final Logger LOGGER = LoggerFactory.getLogger(CatalogCalciteSchema.class);
+	public static final String ROOT_SCHEMA = "ROOT_CATALOG";
 
 	private final String catalogName;
 	private final ReadableCatalog catalog;
@@ -54,6 +61,18 @@ public class CatalogCalciteSchema implements Schema {
 	public CatalogCalciteSchema(String catalogName, ReadableCatalog catalog) {
 		this.catalogName = catalogName;
 		this.catalog = catalog;
+	}
+
+	/**
+	 * Register a ReadableCatalog to Calcite schema with given name.
+	 *
+	 * @param parentSchema the parent schema
+	 * @param catalogManager the catalog manager to use for looking up tables
+	 */
+	public static void registerCatalogManager(
+			SchemaPlus parentSchema,
+			FlinkCatalogManager catalogManager) {
+		parentSchema.add(ROOT_SCHEMA, new CatalogManagerSchema(catalogManager));
 	}
 
 	/**
@@ -69,8 +88,7 @@ public class CatalogCalciteSchema implements Schema {
 			return new DatabaseCalciteSchema(schemaName, catalog);
 		} else {
 			LOGGER.error(String.format("Schema %s does not exist in catalog %s", schemaName, catalogName));
-			throw new CatalogException(
-				new DatabaseNotExistException(catalogName, schemaName));
+			throw new CatalogException(new DatabaseNotExistException(catalogName, schemaName));
 		}
 	}
 
@@ -124,21 +142,77 @@ public class CatalogCalciteSchema implements Schema {
 		return this;
 	}
 
-	/**
-	 * Register a ReadableCatalog to Calcite schema with given name.
-	 *
-	 * @param parentSchema the parent schema
-	 * @param catalogName name of the catalog to register
-	 * @param catalog the catalog to register
-	 */
-	public static void registerCatalog(
-			SchemaPlus parentSchema,
-			String catalogName,
-			ReadableCatalog catalog) {
-		CatalogCalciteSchema newCatalog = new CatalogCalciteSchema(catalogName, catalog);
-		parentSchema.add(catalogName, newCatalog);
+	private static class CatalogManagerSchema implements Schema {
 
-		LOGGER.info("Registered catalog '{}' to Calcite", catalogName);
+		private final FlinkCatalogManager catalogManager;
+
+		private CatalogManagerSchema(FlinkCatalogManager catalogManager) {
+			this.catalogManager = catalogManager;
+		}
+
+		@Override
+		public Table getTable(String name) {
+			return null;
+		}
+
+		@Override
+		public Set<String> getTableNames() {
+			return Collections.emptySet();
+		}
+
+		@Override
+		public RelProtoDataType getType(String name) {
+			return null;
+		}
+
+		@Override
+		public Set<String> getTypeNames() {
+			return Collections.emptySet();
+		}
+
+		@Override
+		public Collection<Function> getFunctions(String name) {
+			return Collections.emptyList();
+		}
+
+		@Override
+		public Set<String> getFunctionNames() {
+			return Collections.emptySet();
+		}
+
+		@Override
+		public Schema getSubSchema(String name) {
+			try {
+				return catalogManager.getExternalCatalog(name)
+					.map(externalCatalog -> (Schema) new ExternalCatalogSchema(name, externalCatalog))
+					.orElseGet(() -> new CatalogCalciteSchema(name, catalogManager.getCatalog(name)));
+			} catch (CatalogNotExistException ex) {
+				return null;
+			}
+		}
+
+		@Override
+		public Set<String> getSubSchemaNames() {
+			return Stream.concat(
+					catalogManager.getCatalogNames().stream(),
+					catalogManager.getExternalCatalogNames().stream())
+				.collect(Collectors.toCollection(LinkedHashSet::new));
+		}
+
+		@Override
+		public Expression getExpression(SchemaPlus parentSchema, String name) {
+			return null;
+		}
+
+		@Override
+		public boolean isMutable() {
+			return false;
+		}
+
+		@Override
+		public Schema snapshot(SchemaVersion version) {
+			return this;
+		}
 	}
 
 	/**
@@ -162,15 +236,24 @@ public class CatalogCalciteSchema implements Schema {
 			ObjectPath tablePath = new ObjectPath(dbName, tableName);
 
 			try {
+
+				if (!catalog.tableExists(tablePath)) {
+					return null;
+				}
+
 				CatalogBaseTable table = catalog.getTable(tablePath);
 
 				LOGGER.info("Successfully got table '{}' from catalog '{}'", tableName, catalogName);
 
+				if (table instanceof TableOperationCatalogView) {
+					return new TableOperationCalciteTable(((TableOperationCatalogView) table).getTableOperation());
+				}
+
 				// TODO: [FLINK-12257] Convert CatalogBaseTable to org.apache.calcite.schema.Table
 				//  so that planner can use unified catalog APIs
 				return null;
-			} catch (TableNotExistException e) {
-				throw new CatalogException(e);
+			} catch (Exception e) {
+				throw new TableException("Could not find table: " + tableName, e);
 			}
 		}
 

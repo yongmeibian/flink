@@ -55,7 +55,7 @@ import org.apache.calcite.sql2rel.SqlToRelConverter;
 import org.apache.calcite.tools.FrameworkConfig;
 import org.apache.calcite.tools.Frameworks;
 
-import java.util.Collections;
+import java.util.List;
 
 @Internal
 public class PlanningSession {
@@ -67,32 +67,35 @@ public class PlanningSession {
 	private final Context context;
 	private final TableConfig tableConfig;
 	private final FunctionCatalog functionCatalog;
+	private CalciteSchema rootSchema;
 
 	public PlanningSession(
 			TableConfig tableConfig,
 			FunctionCatalog functionCatalog,
+			CalciteSchema rootSchema,
 			ExpressionBridge<PlannerExpression> expressionBridge) {
 		this.tableConfig = tableConfig;
 		this.functionCatalog = functionCatalog;
 		// create context instances with Flink type factory
-		this.planner = new VolcanoPlanner(COST_FACTORY, Contexts.empty());
+		this.context = Contexts.of(
+			new TableOperationConverter.ToRelConverterSupplier(expressionBridge)
+		);
+
+		this.planner = new VolcanoPlanner(COST_FACTORY, context);
 		planner.setExecutor(new ExpressionReducer(tableConfig));
 		planner.addRelTraitDef(ConventionTraitDef.INSTANCE);
 
 		this.expressionBridge = expressionBridge;
 
-		this.context = Contexts.of(
-			new TableOperationConverter.ToRelConverterSupplier(expressionBridge)
-		);
+		this.rootSchema = rootSchema;
 	}
 
 	/** Creates the [[FlinkRelBuilder]] of this TableEnvironment. */
-	public FlinkRelBuilder createRelBuilder(SchemaPlus defaultSchema) {
+	public FlinkRelBuilder createRelBuilder(List<String> defaultSchema) {
 		RelOptCluster cluster = FlinkRelOptClusterFactory.create(planner, new RexBuilder(TYPE_FACTORY));
-		CalciteSchema calciteSchema = CalciteSchema.from(defaultSchema);
 		RelOptSchema relOptSchema = new CalciteCatalogReader(
-			calciteSchema,
-			Collections.emptyList(),
+			rootSchema,
+			defaultSchema,
 			TYPE_FACTORY,
 			CalciteConfig.connectionConfig(getSqlParserConfig(calciteConfig(tableConfig))));
 

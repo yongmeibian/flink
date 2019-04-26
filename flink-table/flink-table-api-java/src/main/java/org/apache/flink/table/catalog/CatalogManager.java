@@ -21,7 +21,10 @@ package org.apache.flink.table.catalog;
 import org.apache.flink.annotation.PublicEvolving;
 import org.apache.flink.table.api.CatalogAlreadyExistsException;
 import org.apache.flink.table.api.CatalogNotExistException;
+import org.apache.flink.table.catalog.exceptions.DatabaseNotExistException;
+import org.apache.flink.table.operations.CatalogTableOperation;
 
+import java.util.Optional;
 import java.util.Set;
 
 /**
@@ -61,7 +64,7 @@ public interface CatalogManager {
 	 *
 	 * @return the current catalog
 	 */
-	ReadableCatalog getCurrentCatalog();
+	String getCurrentCatalog();
 
 	/**
 	 * Set the current catalog name.
@@ -70,4 +73,18 @@ public interface CatalogManager {
 	 * @throws CatalogNotExistException thrown if the catalog doesn't exist
 	 */
 	void setCurrentCatalog(String catalogName) throws CatalogNotExistException;
+
+	/**
+	 * Gets the current catalog.
+	 *
+	 * @return the current database
+	 */
+	String getCurrentDatabase();
+
+	/**
+	 * Sets the current catalog.
+	 */
+	void setCurrentDatabase(String databaseName) throws DatabaseNotExistException;
+
+	Optional<CatalogTableOperation> lookupTable(String... tablePath);
 }
