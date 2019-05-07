@@ -153,7 +153,7 @@ public class TableOperationConverter extends TableOperationDefaultVisitor<RelNod
 			GroupKey groupKey = relBuilder.groupKey(groupings);
 
 			if (isTableAggregate) {
-				return ((FlinkRelBuilder) relBuilder).tableAggregate(groupKey, aggregations).build();
+				return relBuilder.tableAggregate(groupKey, aggregations).build();
 			} else {
 				return relBuilder.aggregate(groupKey, aggregations).build();
 			}
