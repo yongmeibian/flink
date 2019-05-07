@@ -32,6 +32,7 @@ import org.apache.calcite.sql._
 import org.apache.calcite.tools._
 import org.apache.flink.api.common.typeinfo.TypeInformation
 import org.apache.flink.table.calcite._
+import org.apache.flink.table.catalog.CatalogCalciteSchema.CatalogManagerSchema
 import org.apache.flink.table.catalog._
 import org.apache.flink.table.expressions._
 import org.apache.flink.table.functions.utils.UserDefinedFunctionUtils._
@@ -58,8 +59,6 @@ abstract class TableEnvImpl(val config: TableConfig) extends TableEnvironment {
 
   // the catalog to hold all registered and translated tables
   // we disable caching here to prevent side effects
-  private val internalSchema: CalciteSchema = CalciteSchema.createRootSchema(false, false)
-  private val rootSchema: SchemaPlus = internalSchema.plus()
 
   // Table API/SQL function catalog
   private[flink] val functionCatalog: FunctionCatalog = new FunctionCatalog()
@@ -77,7 +76,9 @@ abstract class TableEnvImpl(val config: TableConfig) extends TableEnvironment {
   private val defaultCatalog = new GenericInMemoryCatalog(defaultCatalogName)
 
   private val catalogManager = new FlinkCatalogManager(defaultCatalogName, defaultCatalog)
-  CatalogCalciteSchema.registerCatalogManager(rootSchema, catalogManager)
+  private val internalSchema: CalciteSchema =
+    new CalciteSchemaImpl(null, new CatalogManagerSchema(catalogManager), "")
+  private val rootSchema = internalSchema.plus()
 
   private val planningSession: PlanningSession = new PlanningSession(
     config,
@@ -430,13 +431,14 @@ abstract class TableEnvImpl(val config: TableConfig) extends TableEnvironment {
     * @param name Name of the table to replace.
     * @param table The table that replaces the previous table.
     */
-  protected def replaceRegisteredTable(name: String, table: AbstractTable): Unit = {
-
-    if (isRegistered(name)) {
-      rootSchema.add(name, table)
-    } else {
-      throw new TableException(s"Table \'$name\' is not registered.")
-    }
+  protected def replaceRegisteredTable(name: String, table: CatalogBaseTable): Unit = {
+    JavaScalaConversionUtil.toScala(catalogManager.lookupTable(name))
+      .foreach(t => {
+        val path = t.getTablePath
+        catalogManager.getCatalog(path.get(0))
+        val objectPath = new ObjectPath(path.get(1), String.join(".", path.subList(2, path.size())))
+        catalogManager.asInstanceOf[ReadableWritableCatalog].alterTable(objectPath, table, false)
+      })
   }
 
   @throws[TableException]
@@ -540,8 +542,8 @@ abstract class TableEnvImpl(val config: TableConfig) extends TableEnvironment {
       case None =>
         throw new TableException(s"No table was registered under the name $sinkTableName.")
 
-      case Some(s: TableSourceSinkTable[_, _]) if s.tableSinkTable.isDefined =>
-        val tableSink = s.tableSinkTable.get.tableSink
+      case Some(s: ConnectorCatalogTable[_, _]) if s.getTableSink.isPresent =>
+        val tableSink = s.getTableSink.get()
         // validate schema of source table and table sink
         val srcFieldTypes = table.getSchema.getFieldTypes
         val sinkFieldTypes = tableSink.getFieldTypes
@@ -590,12 +592,6 @@ abstract class TableEnvImpl(val config: TableConfig) extends TableEnvironment {
     val path = new ObjectPath(currentDatabase, name)
 
     currentCatalog.asInstanceOf[ReadableWritableCatalog].createTable(path, table, false)
-//    if (isRegistered(name)) {
-//      throw new TableException(s"Table \'$name\' already exists. " +
-//        s"Please, choose a different name.")
-//    } else {
-//      rootSchema.add(name, table)
-//    }
   }
 
   /** Returns a unique table name according to the internal naming pattern. */
@@ -624,33 +620,16 @@ abstract class TableEnvImpl(val config: TableConfig) extends TableEnvironment {
     * @param name The name of the table.
     * @return The table registered either internally or externally, None otherwise.
     */
-  protected def getTable(name: String): Option[org.apache.calcite.schema.Table] = {
+  protected def getTable(name: String): Option[CatalogBaseTable] = {
 
-    // recursively fetches a table from a schema.
-    def getTableFromSchema(
-        schema: SchemaPlus,
-        path: List[String]): Option[org.apache.calcite.schema.Table] = {
-
-      path match {
-        case tableName :: Nil =>
-          // look up table
-          Option(schema.getTable(tableName))
-        case subschemaName :: remain =>
-          // look up subschema
-          val subschema = Option(schema.getSubSchema(subschemaName))
-          subschema match {
-            case Some(s) =>
-              // search for table in subschema
-              getTableFromSchema(s, remain)
-            case None =>
-              // subschema does not exist
-              None
-          }
-      }
-    }
-
-    val pathNames = name.split('.').toList
-    getTableFromSchema(rootSchema, pathNames)
+    val pathNames = name.split('.')
+    JavaScalaConversionUtil.toScala(catalogManager.lookupTable(pathNames: _*))
+      .map(_.getTablePath)
+      .map(path => {
+        val catalog = catalogManager.getCatalog(path.get(0))
+        val objectPath = new ObjectPath(path.get(1), String.join(".", path.subList(2, path.size())))
+        catalog.getTable(objectPath)
+      })
   }
 
   /** Returns a unique temporary attribute name. */
@@ -666,7 +645,7 @@ abstract class TableEnvImpl(val config: TableConfig) extends TableEnvironment {
     val currentDatabase = currentCatalog.getCurrentDatabase
 
     planningSession
-      .createRelBuilder(List(CatalogCalciteSchema.ROOT_SCHEMA, currentCatalogName, currentDatabase)
+      .createRelBuilder(List(currentCatalogName, currentDatabase)
         .asJava)
   }
 
@@ -690,8 +669,7 @@ abstract class TableEnvImpl(val config: TableConfig) extends TableEnvironment {
     val currentCatalog = catalogManager.getCatalog(currentCatalogName)
 
     val currentDatabase = currentCatalog.getCurrentDatabase
-    val defaultSchema = rootSchema.getSubSchema(CatalogCalciteSchema.ROOT_SCHEMA)
-      .getSubSchema(currentCatalogName).getSubSchema(currentDatabase)
+    val defaultSchema = rootSchema.getSubSchema(currentCatalogName).getSubSchema(currentDatabase)
 
     planningSession.createFrameworkConfig(defaultSchema)
   }

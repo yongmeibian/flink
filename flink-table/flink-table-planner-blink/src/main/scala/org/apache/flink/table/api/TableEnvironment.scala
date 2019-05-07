@@ -76,7 +76,6 @@ import _root_.scala.collection.JavaConverters._
 abstract class TableEnvironment(val config: TableConfig) {
 
   // Note: The CatalogManager isn't hooked up to planner yet.
-  private val catalogManager: CatalogManager = new FlinkCatalogManager()
 
   // the catalog to hold all registered and translated tables
   // we disable caching here to prevent side effects

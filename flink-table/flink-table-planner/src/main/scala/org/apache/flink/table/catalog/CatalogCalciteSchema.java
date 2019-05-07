@@ -23,7 +23,24 @@ import org.apache.flink.table.api.CatalogNotExistException;
 import org.apache.flink.table.api.TableException;
 import org.apache.flink.table.catalog.exceptions.CatalogException;
 import org.apache.flink.table.catalog.exceptions.DatabaseNotExistException;
+import org.apache.flink.table.operations.DataSetTableOperation;
+import org.apache.flink.table.operations.DataStreamTableOperation;
+import org.apache.flink.table.operations.TableOperation;
+import org.apache.flink.table.plan.schema.BatchTableSourceTable;
+import org.apache.flink.table.plan.schema.DataSetTable;
+import org.apache.flink.table.plan.schema.DataStreamTable;
+import org.apache.flink.table.plan.schema.StreamTableSourceTable;
 import org.apache.flink.table.plan.schema.TableOperationCalciteTable;
+import org.apache.flink.table.plan.schema.TableSinkTable;
+import org.apache.flink.table.plan.schema.TableSourceSinkTable;
+import org.apache.flink.table.plan.schema.TableSourceTable;
+import org.apache.flink.table.plan.stats.FlinkStatistic;
+import org.apache.flink.table.plan.stats.TableStats;
+import org.apache.flink.table.sinks.StreamTableSink;
+import org.apache.flink.table.sinks.TableSink;
+import org.apache.flink.table.sources.BatchTableSource;
+import org.apache.flink.table.sources.StreamTableSource;
+import org.apache.flink.table.util.JavaScalaConversionUtil;
 
 import org.apache.calcite.linq4j.tree.Expression;
 import org.apache.calcite.rel.type.RelProtoDataType;
@@ -40,6 +57,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
+import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -53,7 +71,6 @@ import java.util.stream.Stream;
 @Internal
 public class CatalogCalciteSchema implements Schema {
 	private static final Logger LOGGER = LoggerFactory.getLogger(CatalogCalciteSchema.class);
-	public static final String ROOT_SCHEMA = "ROOT_CATALOG";
 
 	private final String catalogName;
 	private final ReadableCatalog catalog;
@@ -61,18 +78,6 @@ public class CatalogCalciteSchema implements Schema {
 	public CatalogCalciteSchema(String catalogName, ReadableCatalog catalog) {
 		this.catalogName = catalogName;
 		this.catalog = catalog;
-	}
-
-	/**
-	 * Register a ReadableCatalog to Calcite schema with given name.
-	 *
-	 * @param parentSchema the parent schema
-	 * @param catalogManager the catalog manager to use for looking up tables
-	 */
-	public static void registerCatalogManager(
-			SchemaPlus parentSchema,
-			FlinkCatalogManager catalogManager) {
-		parentSchema.add(ROOT_SCHEMA, new CatalogManagerSchema(catalogManager));
 	}
 
 	/**
@@ -142,11 +147,11 @@ public class CatalogCalciteSchema implements Schema {
 		return this;
 	}
 
-	private static class CatalogManagerSchema implements Schema {
+	public static class CatalogManagerSchema implements Schema {
 
 		private final FlinkCatalogManager catalogManager;
 
-		private CatalogManagerSchema(FlinkCatalogManager catalogManager) {
+		public CatalogManagerSchema(FlinkCatalogManager catalogManager) {
 			this.catalogManager = catalogManager;
 		}
 
@@ -230,6 +235,7 @@ public class CatalogCalciteSchema implements Schema {
 		}
 
 		@Override
+		@SuppressWarnings("unchecked")
 		public Table getTable(String tableName) {
 			LOGGER.info("Getting table '{}' from catalog '{}'", tableName, catalogName);
 
@@ -246,7 +252,44 @@ public class CatalogCalciteSchema implements Schema {
 				LOGGER.info("Successfully got table '{}' from catalog '{}'", tableName, catalogName);
 
 				if (table instanceof TableOperationCatalogView) {
-					return new TableOperationCalciteTable(((TableOperationCatalogView) table).getTableOperation());
+					TableOperation tableOperation = ((TableOperationCatalogView) table).getTableOperation();
+
+					if (tableOperation instanceof DataSetTableOperation) {
+						DataSetTableOperation dataSetTableOperation = (DataSetTableOperation) tableOperation;
+						return new DataSetTable<>(
+							dataSetTableOperation.getDataSet(),
+							dataSetTableOperation.getFieldIndices(),
+							dataSetTableOperation.getTableSchema().getFieldNames(),
+							FlinkStatistic.of(new TableStats(1000)));
+					} else if (tableOperation instanceof DataStreamTableOperation) {
+						DataStreamTableOperation dataStreamTableOperation = (DataStreamTableOperation) tableOperation;
+						return new DataStreamTable<>(
+							dataStreamTableOperation.getDataStream(),
+							dataStreamTableOperation.getFieldIndices(),
+							dataStreamTableOperation.getTableSchema().getFieldNames(),
+							FlinkStatistic.UNKNOWN());
+					}
+					return new TableOperationCalciteTable(tableOperation);
+				} else if (table instanceof ConnectorCatalogTable) {
+					ConnectorCatalogTable connectorTable = (ConnectorCatalogTable) table;
+					Optional<TableSourceTable> tableSource = connectorTable.getTableSource().map(s -> {
+						if (s instanceof StreamTableSource) {
+							return new StreamTableSourceTable((StreamTableSource) s, FlinkStatistic.UNKNOWN());
+						} else {
+							return new BatchTableSourceTable(
+								(BatchTableSource) s,
+								FlinkStatistic.of(new TableStats(1000)));
+						}
+					});
+
+					Optional<TableSinkTable> tableSink = connectorTable.getTableSink().map(s ->
+							new TableSinkTable((TableSink) s, FlinkStatistic.UNKNOWN())
+					);
+
+					return new TableSourceSinkTable(
+						JavaScalaConversionUtil.toScala(tableSource),
+						JavaScalaConversionUtil.toScala(tableSink)
+					);
 				}
 
 				// TODO: [FLINK-12257] Convert CatalogBaseTable to org.apache.calcite.schema.Table

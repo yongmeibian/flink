@@ -118,8 +118,12 @@ abstract class TableTestUtil {
         }
         else if (expectedLine == TableTestUtil.ANY_SUBTREE) {
           break
-        }
-        else if (expectedLine != actualLine) {
+        } else if (actualLine.contains("table=[[")) {
+          val strippedCatalog = actualLine.replaceAll("_builtin_, default, ", "")
+          if (expectedLine != strippedCatalog) {
+            throw new ComparisonFailure(null, expectedMessage, actualMessage)
+          }
+        } else if (expectedLine != actualLine) {
           throw new ComparisonFailure(null, expectedMessage, actualMessage)
         }
       }

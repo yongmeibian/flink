@@ -29,15 +29,21 @@ import java.util.List;
 public class DataSetTableOperation<E> implements TableOperation {
 
 	private final DataSet<E> dataSet;
+	private final int[] fieldIndices;
 	private final TableSchema tableSchema;
 
-	public DataSetTableOperation(DataSet<E> dataSet, TableSchema tableSchema) {
+	public DataSetTableOperation(DataSet<E> dataSet, TableSchema tableSchema, int[] fieldIndices) {
 		this.dataSet = dataSet;
 		this.tableSchema = tableSchema;
+		this.fieldIndices = fieldIndices;
 	}
 
 	public DataSet<E> getDataSet() {
 		return dataSet;
+	}
+
+	public int[] getFieldIndices() {
+		return fieldIndices;
 	}
 
 	@Override

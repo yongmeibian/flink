@@ -394,6 +394,10 @@ public class FieldInfoUtils {
 		@Override
 		public Optional<FieldInfo> visitUnresolvedReference(UnresolvedReferenceExpression unresolvedReference) {
 			String fieldName = unresolvedReference.getName();
+			if (index >= type.getArity()) {
+				throw new TableException("Too many aliases");
+			}
+
 			return Optional.of(new FieldInfo(fieldName, index, type.getTypeAt(index)));
 		}
 

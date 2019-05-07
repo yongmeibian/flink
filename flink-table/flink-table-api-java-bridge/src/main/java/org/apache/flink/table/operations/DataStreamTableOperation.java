@@ -29,15 +29,21 @@ import java.util.List;
 public class DataStreamTableOperation<E> implements TableOperation {
 
 	private final DataStream<E> dataStream;
+	private final int[] fieldIndices;
 	private final TableSchema tableSchema;
 
-	public DataStreamTableOperation(DataStream<E> dataStream, TableSchema tableSchema) {
+	public DataStreamTableOperation(DataStream<E> dataStream, TableSchema tableSchema, int[] fieldIndices) {
 		this.dataStream = dataStream;
 		this.tableSchema = tableSchema;
+		this.fieldIndices = fieldIndices;
 	}
 
 	public DataStream<E> getDataStream() {
 		return dataStream;
+	}
+
+	public int[] getFieldIndices() {
+		return fieldIndices;
 	}
 
 	@Override

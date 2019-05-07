@@ -30,7 +30,7 @@ import org.apache.flink.api.common.typeinfo.TypeInformation
 import org.apache.flink.api.java.io.DiscardingOutputFormat
 import org.apache.flink.api.java.typeutils.GenericTypeInfo
 import org.apache.flink.api.java.{DataSet, ExecutionEnvironment}
-import org.apache.flink.table.catalog.TableOperationCatalogView
+import org.apache.flink.table.catalog.{ConnectorCatalogTable, TableOperationCatalogView}
 import org.apache.flink.table.codegen.RowConverterGenerator
 import org.apache.flink.table.descriptors.{BatchTableDescriptor, ConnectorDescriptor}
 import org.apache.flink.table.explain.PlanJsonParser
@@ -106,27 +106,19 @@ abstract class BatchTableEnvImpl(
         getTable(name) match {
 
           // table source and/or sink is registered
-          case Some(table: TableSourceSinkTable[_, _]) => table.tableSourceTable match {
-
-            // wrapper contains source
-            case Some(_: TableSourceTable[_]) =>
+          case Some(table: ConnectorCatalogTable[_, _]) =>
+            if (table.getTableSource.isPresent) {
               throw new TableException(s"Table '$name' already exists. " +
                 s"Please choose a different name.")
-
-            // wrapper contains only sink (not source)
-            case _ =>
-              val enrichedTable = new TableSourceSinkTable(
-                Some(new BatchTableSourceTable(batchTableSource)),
-                table.tableSinkTable)
-              replaceRegisteredTable(name, enrichedTable)
-          }
+            } else {
+              replaceRegisteredTable(name,
+                ConnectorCatalogTable
+                  .sourceAndSink(batchTableSource, table.getTableSink.get()))
+            }
 
           // no table is registered
           case _ =>
-            val newTable = new TableSourceSinkTable(
-              Some(new BatchTableSourceTable(batchTableSource)),
-              None)
-//            registerTableInternal(name, newTable)
+            registerTableInternal(name, ConnectorCatalogTable.source(batchTableSource))
         }
 
       // not a batch table source
@@ -186,27 +178,18 @@ abstract class BatchTableEnvImpl(
         getTable(name) match {
 
           // table source and/or sink is registered
-          case Some(table: TableSourceSinkTable[_, _]) => table.tableSinkTable match {
-
-            // wrapper contains sink
-            case Some(_: TableSinkTable[_]) =>
+          case Some(table: ConnectorCatalogTable[_, _]) =>
+            if (table.getTableSink.isPresent) {
               throw new TableException(s"Table '$name' already exists. " +
                 s"Please choose a different name.")
-
-            // wrapper contains only source (not sink)
-            case _ =>
-              val enrichedTable = new TableSourceSinkTable(
-                table.tableSourceTable,
-                Some(new TableSinkTable(configuredSink)))
-              replaceRegisteredTable(name, enrichedTable)
-          }
+            } else {
+              replaceRegisteredTable(name,
+                ConnectorCatalogTable.sourceAndSink(table.getTableSource.get(), configuredSink))
+            }
 
           // no table is registered
           case _ =>
-            val newTable = new TableSourceSinkTable(
-              None,
-              Some(new TableSinkTable(configuredSink)))
-//            registerTableInternal(name, newTable)
+            registerTableInternal(name, ConnectorCatalogTable.sink(configuredSink))
         }
 
       // not a batch table sink
@@ -333,7 +316,7 @@ abstract class BatchTableEnvImpl(
     )
 
     val dataSetTable = new TableOperationCatalogView(
-      new DataSetTableOperation[T](dataSet, tableSchema)
+      new DataSetTableOperation[T](dataSet, tableSchema, fieldInfo.getIndices)
     )
     registerTableInternal(name, dataSetTable)
   }
@@ -370,7 +353,7 @@ abstract class BatchTableEnvImpl(
     )
 
     val dataSetTable = new TableOperationCatalogView(
-      new DataSetTableOperation[T](dataSet, tableSchema)
+      new DataSetTableOperation[T](dataSet, tableSchema, fieldsInfo.getIndices)
     )
     registerTableInternal(name, dataSetTable)
   }

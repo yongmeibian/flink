@@ -37,7 +37,7 @@ import org.apache.flink.streaming.api.TimeCharacteristic
 import org.apache.flink.streaming.api.datastream.DataStream
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment
 import org.apache.flink.table.calcite.{FlinkTypeFactory, RelTimeIndicatorConverter}
-import org.apache.flink.table.catalog.TableOperationCatalogView
+import org.apache.flink.table.catalog.{ConnectorCatalogTable, TableOperationCatalogView}
 import org.apache.flink.table.codegen.RowConverterGenerator.generateRowConverterFunction
 import org.apache.flink.table.descriptors.{ConnectorDescriptor, StreamTableDescriptor}
 import org.apache.flink.table.explain.PlanJsonParser
@@ -125,27 +125,18 @@ abstract class StreamTableEnvImpl(
         getTable(name) match {
 
           // check if a table (source or sink) is registered
-          case Some(table: TableSourceSinkTable[_, _]) => table.tableSourceTable match {
-
-            // wrapper contains source
-            case Some(_: TableSourceTable[_]) =>
+          case Some(table: ConnectorCatalogTable[_, _]) =>
+            if (table.getTableSource.isPresent) {
               throw new TableException(s"Table '$name' already exists. " +
                 s"Please choose a different name.")
-
-            // wrapper contains only sink (not source)
-            case _ =>
-              val enrichedTable = new TableSourceSinkTable(
-                Some(new StreamTableSourceTable(streamTableSource)),
-                table.tableSinkTable)
-              replaceRegisteredTable(name, enrichedTable)
-          }
+            } else {
+              replaceRegisteredTable(name,
+                ConnectorCatalogTable.sourceAndSink(tableSource, table.getTableSink.get()))
+            }
 
           // no table is registered
           case _ =>
-            val newTable = new TableSourceSinkTable(
-              Some(new StreamTableSourceTable(streamTableSource)),
-              None)
-//            registerTableInternal(name, newTable)
+            registerTableInternal(name, ConnectorCatalogTable.source(streamTableSource))
         }
 
       // not a stream table source
@@ -204,27 +195,18 @@ abstract class StreamTableEnvImpl(
         getTable(name) match {
 
           // table source and/or sink is registered
-          case Some(table: TableSourceSinkTable[_, _]) => table.tableSinkTable match {
-
-            // wrapper contains sink
-            case Some(_: TableSinkTable[_]) =>
+          case Some(table: ConnectorCatalogTable[_, _]) =>
+            if (table.getTableSink.isPresent) {
               throw new TableException(s"Table '$name' already exists. " +
                 s"Please choose a different name.")
-
-            // wrapper contains only source (not sink)
-            case _ =>
-              val enrichedTable = new TableSourceSinkTable(
-                table.tableSourceTable,
-                Some(new TableSinkTable(configuredSink)))
-              replaceRegisteredTable(name, enrichedTable)
-          }
+            } else {
+              replaceRegisteredTable(name,
+                ConnectorCatalogTable.sourceAndSink(table.getTableSource.get(), configuredSink))
+            }
 
           // no table is registered
           case _ =>
-            val newTable = new TableSourceSinkTable(
-              None,
-              Some(new TableSinkTable(configuredSink)))
-//            registerTableInternal(name, newTable)
+            registerTableInternal(name, ConnectorCatalogTable.sink(configuredSink))
         }
 
       // not a stream table sink
@@ -457,7 +439,7 @@ abstract class StreamTableEnvImpl(
     )
 
     val dataStreamTable = new TableOperationCatalogView(
-      new DataStreamTableOperation[T](dataStream, tableSchema)
+      new DataStreamTableOperation[T](dataStream, tableSchema, fieldInfo.getIndices)
     )
     registerTableInternal(name, dataStreamTable)
   }
@@ -500,7 +482,7 @@ abstract class StreamTableEnvImpl(
       .calculateTableSchema(streamType, indexesWithIndicatorFields, namesWithIndicatorFields)
 
     val dataStreamTable = new TableOperationCatalogView(
-      new DataStreamTableOperation[T](dataStream, tableSchema)
+      new DataStreamTableOperation[T](dataStream, tableSchema, indexesWithIndicatorFields)
     )
     registerTableInternal(name, dataStreamTable)
   }
