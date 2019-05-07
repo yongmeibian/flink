@@ -19,25 +19,25 @@
 package org.apache.flink.table.operations;
 
 import org.apache.flink.annotation.Internal;
-import org.apache.flink.api.java.DataSet;
+import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.table.api.TableSchema;
 
 import java.util.Collections;
 import java.util.List;
 
 @Internal
-public class DataSetTableOperation<E> implements TableOperation {
+public class DataStreamTableOperation<E> implements TableOperation {
 
-	private final DataSet<E> dataSet;
+	private final DataStream<E> dataStream;
 	private final TableSchema tableSchema;
 
-	public DataSetTableOperation(DataSet<E> dataSet, TableSchema tableSchema) {
-		this.dataSet = dataSet;
+	public DataStreamTableOperation(DataStream<E> dataStream, TableSchema tableSchema) {
+		this.dataStream = dataStream;
 		this.tableSchema = tableSchema;
 	}
 
-	public DataSet<E> getDataSet() {
-		return dataSet;
+	public DataStream<E> getDataStream() {
+		return dataStream;
 	}
 
 	@Override

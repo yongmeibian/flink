@@ -26,7 +26,6 @@ import org.apache.calcite.plan.RelOptPlanner.CannotPlanException
 import org.apache.calcite.plan._
 import org.apache.calcite.plan.hep.{HepMatchOrder, HepPlanner, HepProgram, HepProgramBuilder}
 import org.apache.calcite.rel.RelNode
-import org.apache.calcite.schema
 import org.apache.calcite.schema.SchemaPlus
 import org.apache.calcite.schema.impl.AbstractTable
 import org.apache.calcite.sql._
@@ -37,7 +36,7 @@ import org.apache.flink.table.catalog._
 import org.apache.flink.table.expressions._
 import org.apache.flink.table.functions.utils.UserDefinedFunctionUtils._
 import org.apache.flink.table.functions.{AggregateFunction, ScalarFunction, TableFunction, UserDefinedAggregateFunction}
-import org.apache.flink.table.operations.{CatalogTableOperation, OperationTreeBuilder, PlannerTableOperation}
+import org.apache.flink.table.operations.{OperationTreeBuilder, PlannerTableOperation}
 import org.apache.flink.table.plan.nodes.FlinkConventions
 import org.apache.flink.table.plan.rules.FlinkRuleSets
 import org.apache.flink.table.plan.schema.TableSourceSinkTable
@@ -49,7 +48,6 @@ import org.apache.flink.table.util.JavaScalaConversionUtil.toScala
 import org.apache.flink.table.validate.FunctionCatalog
 
 import _root_.scala.collection.JavaConverters._
-import _root_.scala.collection.mutable
 
 /**
   * The abstract base class for the implementation of batch and stream TableEnvironments.
@@ -585,14 +583,19 @@ abstract class TableEnvImpl(val config: TableConfig) extends TableEnvironment {
     * @throws TableException if another table is registered under the provided name.
     */
   @throws[TableException]
-  protected def registerTableInternal(name: String, table: AbstractTable): Unit = {
+  protected def registerTableInternal(name: String, table: CatalogBaseTable): Unit = {
 
-    if (isRegistered(name)) {
-      throw new TableException(s"Table \'$name\' already exists. " +
-        s"Please, choose a different name.")
-    } else {
-      rootSchema.add(name, table)
-    }
+    val currentCatalog = catalogManager.getCatalog(catalogManager.getCurrentCatalog)
+    val currentDatabase = catalogManager.getCurrentDatabase
+    val path = new ObjectPath(currentDatabase, name)
+
+    currentCatalog.asInstanceOf[ReadableWritableCatalog].createTable(path, table, false)
+//    if (isRegistered(name)) {
+//      throw new TableException(s"Table \'$name\' already exists. " +
+//        s"Please, choose a different name.")
+//    } else {
+//      rootSchema.add(name, table)
+//    }
   }
 
   /** Returns a unique table name according to the internal naming pattern. */
