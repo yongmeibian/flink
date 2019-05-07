@@ -30,6 +30,7 @@ import org.apache.flink.api.common.typeinfo.TypeInformation
 import org.apache.flink.api.java.io.DiscardingOutputFormat
 import org.apache.flink.api.java.typeutils.GenericTypeInfo
 import org.apache.flink.api.java.{DataSet, ExecutionEnvironment}
+import org.apache.flink.table.codegen.RowConverterGenerator
 import org.apache.flink.table.descriptors.{BatchTableDescriptor, ConnectorDescriptor}
 import org.apache.flink.table.explain.PlanJsonParser
 import org.apache.flink.table.expressions.BuiltInFunctionDefinitions.TIME_ATTRIBUTES
@@ -262,11 +263,12 @@ abstract class BatchTableEnvImpl(
       functionName: String)
     : Option[MapFunction[IN, OUT]] = {
 
-    val converterFunction = generateRowConverterFunction[OUT](
+    val converterFunction = RowConverterGenerator.generateRowConverterFunction[OUT](
       physicalTypeInfo.asInstanceOf[TypeInformation[Row]],
       schema,
       requestedTypeInfo,
-      functionName
+      functionName,
+      config
     )
 
     // add a runner if we need conversion
