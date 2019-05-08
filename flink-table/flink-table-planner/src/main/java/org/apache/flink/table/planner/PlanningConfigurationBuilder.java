@@ -57,8 +57,14 @@ import org.apache.calcite.tools.Frameworks;
 
 import java.util.List;
 
+/**
+ * Utility class to create {@link org.apache.calcite.tools.RelBuilder} or {@link FrameworkConfig} used to create
+ * a corresponding {@link org.apache.calcite.tools.Planner}. It tries to separate static elements in a
+ * {@link org.apache.flink.table.api.TableEnvironment} like: root schema, cost factory, type system etc.
+ * from a dynamic properties like e.g. default path to look for objects in the schema.
+ */
 @Internal
-public class PlanningSession {
+public class PlanningConfigurationBuilder {
 	private static final RelOptCostFactory COST_FACTORY = new DataSetCostFactory();
 	private static final RelDataTypeSystem TYPE_SYSTEM = new FlinkTypeSystem();
 	private static final FlinkTypeFactory TYPE_FACTORY = new FlinkTypeFactory(TYPE_SYSTEM);
@@ -69,13 +75,14 @@ public class PlanningSession {
 	private final FunctionCatalog functionCatalog;
 	private CalciteSchema rootSchema;
 
-	public PlanningSession(
+	public PlanningConfigurationBuilder(
 			TableConfig tableConfig,
 			FunctionCatalog functionCatalog,
 			CalciteSchema rootSchema,
 			ExpressionBridge<PlannerExpression> expressionBridge) {
 		this.tableConfig = tableConfig;
 		this.functionCatalog = functionCatalog;
+
 		// create context instances with Flink type factory
 		this.context = Contexts.of(
 			new TableOperationConverter.ToRelConverterSupplier(expressionBridge)
@@ -90,7 +97,12 @@ public class PlanningSession {
 		this.rootSchema = rootSchema;
 	}
 
-	/** Creates the [[FlinkRelBuilder]] of this TableEnvironment. */
+	/**
+	 * Creates a configured {@link FlinkRelBuilder} for a planning session.
+	 *
+	 * @param defaultSchema the default schema to look for first during planning.
+	 * @return configured rel builder
+	 */
 	public FlinkRelBuilder createRelBuilder(List<String> defaultSchema) {
 		RelOptCluster cluster = FlinkRelOptClusterFactory.create(planner, new RexBuilder(TYPE_FACTORY));
 		RelOptSchema relOptSchema = new CalciteCatalogReader(
@@ -116,7 +128,12 @@ public class PlanningSession {
 		return context;
 	}
 
-	/** Returns the Calcite [[FrameworkConfig]] of this TableEnvironment. */
+	/**
+	 * Creates a configured {@link FrameworkConfig} for a planning session.
+	 *
+	 * @param defaultSchema the default schema to look for first during planning
+	 * @return configured framework config
+	 */
 	public FrameworkConfig createFrameworkConfig(SchemaPlus defaultSchema) {
 		return Frameworks
 			.newConfigBuilder()
