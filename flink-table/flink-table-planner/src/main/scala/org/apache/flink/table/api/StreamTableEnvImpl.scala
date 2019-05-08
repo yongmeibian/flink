@@ -109,6 +109,7 @@ abstract class StreamTableEnvImpl(
       tableSource: TableSource[_])
     : Unit = {
 
+    TableSourceUtil.validateTableSource(tableSource)
     tableSource match {
 
       // check for proper stream table source

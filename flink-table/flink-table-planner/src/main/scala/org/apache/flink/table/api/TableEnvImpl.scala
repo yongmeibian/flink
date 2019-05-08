@@ -435,9 +435,17 @@ abstract class TableEnvImpl(val config: TableConfig) extends TableEnvironment {
     JavaScalaConversionUtil.toScala(catalogManager.lookupTable(name))
       .foreach(t => {
         val path = t.getTablePath
-        catalogManager.getCatalog(path.get(0))
-        val objectPath = new ObjectPath(path.get(1), String.join(".", path.subList(2, path.size())))
-        catalogManager.asInstanceOf[ReadableWritableCatalog].alterTable(objectPath, table, false)
+        try {
+          val catalog = catalogManager.getCatalog(path.get(0))
+          val objectPath = new ObjectPath(path.get(1),
+            String.join(".", path.subList(2, path.size())))
+          catalog.asInstanceOf[ReadableWritableCatalog].alterTable(objectPath, table, false)
+        } catch {
+          case _ => {
+            val externalCatalog = catalogManager.getExternalCatalog(path.get(0))
+
+          }
+        }
       })
   }
 

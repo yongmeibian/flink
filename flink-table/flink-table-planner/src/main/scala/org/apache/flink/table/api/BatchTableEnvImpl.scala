@@ -43,7 +43,7 @@ import org.apache.flink.table.plan.rules.FlinkRuleSets
 import org.apache.flink.table.plan.schema._
 import org.apache.flink.table.runtime.MapRunner
 import org.apache.flink.table.sinks._
-import org.apache.flink.table.sources.{BatchTableSource, TableSource}
+import org.apache.flink.table.sources.{BatchTableSource, TableSource, TableSourceUtil}
 import org.apache.flink.table.typeutils.FieldInfoUtils
 import org.apache.flink.table.typeutils.FieldInfoUtils.{getFieldInfo, validateType}
 import org.apache.flink.types.Row
@@ -98,6 +98,7 @@ abstract class BatchTableEnvImpl(
       tableSource: TableSource[_])
     : Unit = {
 
+    TableSourceUtil.validateTableSource(tableSource)
     tableSource match {
 
       // check for proper batch table source
