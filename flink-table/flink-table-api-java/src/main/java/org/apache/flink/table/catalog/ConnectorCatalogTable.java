@@ -18,35 +18,50 @@
 
 package org.apache.flink.table.catalog;
 
+import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.table.api.TableSchema;
 import org.apache.flink.table.plan.stats.TableStats;
 import org.apache.flink.table.sinks.TableSink;
+import org.apache.flink.table.sources.DefinedProctimeAttribute;
+import org.apache.flink.table.sources.DefinedRowtimeAttributes;
+import org.apache.flink.table.sources.RowtimeAttributeDescriptor;
 import org.apache.flink.table.sources.TableSource;
+import org.apache.flink.table.typeutils.TimeIndicatorTypeInfo;
 
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 public class ConnectorCatalogTable<T1, T2> implements CatalogTable {
 	private final TableSource<T1> tableSource;
 	private final TableSink<T2> tableSink;
+	private final TableSchema tableSchema;
 
 	public static <T1> ConnectorCatalogTable source(TableSource<T1> source) {
-		return new ConnectorCatalogTable<>(source, null);
+		TableSchema tableSchema = calculateSourceSchema(source);
+		return new ConnectorCatalogTable<>(source, null, tableSchema);
 	}
 
 	public static <T2> ConnectorCatalogTable sink(TableSink<T2> sink) {
-		return new ConnectorCatalogTable<>(null, sink);
+		TableSchema tableSchema = new TableSchema(sink.getFieldNames(), sink.getFieldTypes());
+		return new ConnectorCatalogTable<>(null, sink, tableSchema);
 	}
 
 	public static <T1, T2> ConnectorCatalogTable sourceAndSink(TableSource<T1> source, TableSink<T2> sink) {
-		return new ConnectorCatalogTable<>(source, sink);
+		TableSchema tableSchema = calculateSourceSchema(source);
+		return new ConnectorCatalogTable<>(source, sink, tableSchema);
 	}
 
-	private ConnectorCatalogTable(TableSource<T1> tableSource, TableSink<T2> tableSink) {
+	private ConnectorCatalogTable(
+			TableSource<T1> tableSource,
+			TableSink<T2> tableSink,
+			TableSchema tableSchema) {
 		this.tableSource = tableSource;
 		this.tableSink = tableSink;
+		this.tableSchema = tableSchema;
 	}
 
 	public Optional<TableSource<T1>> getTableSource() {
@@ -79,11 +94,7 @@ public class ConnectorCatalogTable<T1, T2> implements CatalogTable {
 
 	@Override
 	public TableSchema getSchema() {
-		if (tableSource != null) {
-			return tableSource.getTableSchema();
-		} else {
-			return new TableSchema(tableSink.getFieldNames(), tableSink.getFieldTypes());
-		}
+		return tableSchema;
 	}
 
 	@Override
@@ -99,5 +110,34 @@ public class ConnectorCatalogTable<T1, T2> implements CatalogTable {
 	@Override
 	public Optional<String> getDetailedDescription() {
 		return Optional.empty();
+	}
+
+	private static <T1> TableSchema calculateSourceSchema(TableSource<T1> source) {
+		TableSchema tableSchema = source.getTableSchema();
+		TypeInformation[] types = Arrays.copyOf(tableSchema.getFieldTypes(), tableSchema.getFieldCount());
+		String[] fieldNames = tableSchema.getFieldNames();
+		if (source instanceof DefinedRowtimeAttributes) {
+			List<String> rowtimeAttributes = ((DefinedRowtimeAttributes) source).getRowtimeAttributeDescriptors()
+				.stream()
+				.map(RowtimeAttributeDescriptor::getAttributeName)
+				.collect(Collectors.toList());
+
+			for (int i = 0; i < fieldNames.length; i++) {
+				if (rowtimeAttributes.contains(fieldNames[i])) {
+					types[i] = TimeIndicatorTypeInfo.ROWTIME_INDICATOR;
+				}
+			}
+		}
+		if (source instanceof DefinedProctimeAttribute) {
+			String proctimeAttribute = ((DefinedProctimeAttribute) source).getProctimeAttribute();
+
+			for (int i = 0; i < fieldNames.length; i++) {
+				if (fieldNames[i].equals(proctimeAttribute)) {
+					types[i] = TimeIndicatorTypeInfo.PROCTIME_INDICATOR;
+					break;
+				}
+			}
+		}
+		return new TableSchema(fieldNames, types);
 	}
 }
