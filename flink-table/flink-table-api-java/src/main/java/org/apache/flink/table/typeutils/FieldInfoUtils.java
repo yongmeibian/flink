@@ -25,6 +25,7 @@ import org.apache.flink.api.java.typeutils.GenericTypeInfo;
 import org.apache.flink.api.java.typeutils.PojoTypeInfo;
 import org.apache.flink.api.java.typeutils.TupleTypeInfoBase;
 import org.apache.flink.table.api.TableException;
+import org.apache.flink.table.api.TableSchema;
 import org.apache.flink.table.expressions.ApiExpressionDefaultVisitor;
 import org.apache.flink.table.expressions.BuiltInFunctionDefinitions;
 import org.apache.flink.table.expressions.CallExpression;
@@ -36,6 +37,7 @@ import org.apache.flink.types.Row;
 import java.lang.reflect.Modifier;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Optional;
@@ -230,6 +232,80 @@ public class FieldInfoUtils {
 		return fieldTypes;
 	}
 
+	public static <T> TableSchema calculateTableSchema(
+		TypeInformation<T> typeInfo,
+		int[] fieldIndexes,
+		String[] fieldNames) {
+
+		if (fieldIndexes.length != fieldNames.length) {
+			throw new TableException(String.format(
+				"Number of field names and field indexes must be equal.\n" +
+					"Number of names is %s, number of indexes is %s.\n" +
+					"List of column names: %s.\n" +
+					"List of column indexes: %s.",
+				fieldNames.length,
+				fieldIndexes.length,
+				String.join(", ", fieldNames),
+				Arrays.stream(fieldIndexes).mapToObj(Integer::toString).collect(Collectors.joining(", "))));
+		}
+
+		// check uniqueness of field names
+		Set<String> duplicatedNames = findDuplicates(fieldNames);
+		if (duplicatedNames.size() != 0) {
+
+			throw new TableException(String.format(
+				"Field names must be unique.\n" +
+					"List of duplicate fields: %s.\n" +
+					"List of all fields: %s.",
+				String.join(", ", duplicatedNames),
+				String.join(", ", fieldNames)));
+		}
+
+		final TypeInformation[] types;
+		long fieldIndicesCount = Arrays.stream(fieldIndexes).filter(i -> i >= 0).count();
+		if (typeInfo instanceof CompositeType) {
+			CompositeType ct = (CompositeType) typeInfo;
+			// it is ok to leave out fields
+			if (fieldIndicesCount > ct.getArity()) {
+				throw new TableException(String.format(
+					"Arity of type (%s) must not be greater than number of field names %s.",
+					Arrays.toString(ct.getFieldNames()),
+					Arrays.toString(fieldNames)));
+			}
+
+			types = Arrays.stream(fieldIndexes)
+				.mapToObj(idx -> extractTimeMarkerType(idx).orElseGet(() -> ct.getTypeAt(idx)))
+				.toArray(TypeInformation[]::new);
+		} else {
+			if (fieldIndicesCount > 1) {
+				throw new TableException(
+					"Non-composite input type may have only a single field and its index must be 0.");
+			}
+
+			types = Arrays.stream(fieldIndexes)
+				.mapToObj(idx -> extractTimeMarkerType(idx).orElse(typeInfo))
+				.toArray(TypeInformation[]::new);
+		}
+
+		return new TableSchema(fieldNames, types);
+	}
+
+	private static Optional<TypeInformation<?>> extractTimeMarkerType(int idx) {
+		switch (idx) {
+			case TimeIndicatorTypeInfo.ROWTIME_STREAM_MARKER:
+				return Optional.of(TimeIndicatorTypeInfo.ROWTIME_INDICATOR);
+			case TimeIndicatorTypeInfo.PROCTIME_STREAM_MARKER:
+				return Optional.of(TimeIndicatorTypeInfo.PROCTIME_INDICATOR);
+			case TimeIndicatorTypeInfo.ROWTIME_BATCH_MARKER:
+			case TimeIndicatorTypeInfo.PROCTIME_BATCH_MARKER:
+				return Optional.of(Types.SQL_TIMESTAMP);
+			default:
+				return Optional.empty();
+		}
+	}
+
+
+
 	/* Utility methods */
 
 	private static Set<FieldInfo> extractFieldInfoFromAtomicType(Expression[] exprs) {
@@ -396,6 +472,21 @@ public class FieldInfoUtils {
 		} else {
 			return Optional.of(inputIdx);
 		}
+	}
+
+	private static <T> Set<T> findDuplicates(T[] array) {
+		Set<T> duplicates = new HashSet<>();
+		Set<T> seenElements = new HashSet<>();
+
+		for (T t : array) {
+			if (seenElements.contains(t)) {
+				duplicates.add(t);
+			} else {
+				seenElements.add(t);
+			}
+		}
+
+		return duplicates;
 	}
 
 	private FieldInfoUtils() {

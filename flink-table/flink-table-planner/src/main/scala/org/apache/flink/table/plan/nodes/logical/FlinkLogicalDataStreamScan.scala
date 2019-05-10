@@ -16,68 +16,43 @@
  * limitations under the License.
  */
 
-package org.apache.flink.table.plan.nodes.datastream
+package org.apache.flink.table.plan.nodes.logical
+
+import java.util
 
 import org.apache.calcite.plan._
 import org.apache.calcite.rel.`type`.RelDataType
+import org.apache.calcite.rel.metadata.RelMetadataQuery
 import org.apache.calcite.rel.{AbstractRelNode, RelNode, RelWriter}
-import org.apache.calcite.rex.RexNode
 import org.apache.flink.streaming.api.datastream.DataStream
-import org.apache.flink.table.api.{StreamQueryConfig, StreamTableEnvImpl}
-import org.apache.flink.table.expressions.Cast
 import org.apache.flink.table.plan.schema.RowSchema
-import org.apache.flink.table.runtime.types.CRow
-import org.apache.flink.table.typeutils.TimeIndicatorTypeInfo
 
 /**
   * Flink RelNode which matches along with DataStreamSource.
   * It ensures that types without deterministic field order (e.g. POJOs) are not part of
   * the plan translation.
   */
-class DataStreamScan(
+class FlinkLogicalDataStreamScan(
     cluster: RelOptCluster,
     traitSet: RelTraitSet,
-    dataStream: DataStream[Any],
-    fieldIdxs: Array[Int],
-    schema: RowSchema)
+    val dataStream: DataStream[Any],
+    val fieldIdxs: Array[Int],
+    val schema: RowSchema)
   extends AbstractRelNode(cluster, traitSet)
-  with StreamScan {
+  with FlinkLogicalRel {
+
 
   override def deriveRowType(): RelDataType = schema.relDataType
 
-  override def copy(traitSet: RelTraitSet, inputs: java.util.List[RelNode]): RelNode = {
-    new DataStreamScan(
-      cluster,
-      traitSet,
-      dataStream,
-      fieldIdxs,
-      schema
-    )
+  override def copy(traitSet: RelTraitSet, inputs: util.List[RelNode]): RelNode = {
+    new FlinkLogicalDataStreamScan(cluster, traitSet, dataStream, fieldIdxs, schema)
   }
 
-  override def translateToPlan(
-      tableEnv: StreamTableEnvImpl,
-      queryConfig: StreamQueryConfig): DataStream[CRow] = {
-
-    val config = tableEnv.getConfig
-
-    // get expression to extract timestamp
-    val rowtimeExpr: Option[RexNode] =
-      if (fieldIdxs.contains(TimeIndicatorTypeInfo.ROWTIME_STREAM_MARKER)) {
-        // extract timestamp from StreamRecord
-        Some(
-          Cast(
-            org.apache.flink.table.expressions.StreamRecordTimestamp(),
-            TimeIndicatorTypeInfo.ROWTIME_INDICATOR)
-            .toRexNode(tableEnv.getRelBuilder))
-      } else {
-        None
-      }
-
-    // convert DataStream
-    convertToInternalRow(schema, dataStream, fieldIdxs, config, rowtimeExpr)
+  override def computeSelfCost(planner: RelOptPlanner, metadata: RelMetadataQuery): RelOptCost = {
+    val rowCnt = metadata.getRowCount(this)
+    planner.getCostFactory.makeCost(rowCnt, rowCnt, rowCnt * estimateRowSize(getRowType))
   }
 
   override def explainTerms(pw: RelWriter): RelWriter = super.explainTerms(pw)
-    .item("dataStream", s"_DataStream_${dataStream.getId}_")
+    .item("datastream", s"_DataStream_${dataStream.getId}")
 }

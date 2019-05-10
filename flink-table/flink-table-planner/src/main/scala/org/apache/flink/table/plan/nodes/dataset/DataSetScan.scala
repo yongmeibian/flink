@@ -19,13 +19,12 @@
 package org.apache.flink.table.plan.nodes.dataset
 
 import org.apache.calcite.plan._
-import org.apache.calcite.rel.RelNode
 import org.apache.calcite.rel.`type`.RelDataType
-import org.apache.calcite.rel.core.TableScan
 import org.apache.calcite.rel.metadata.RelMetadataQuery
+import org.apache.calcite.rel.{AbstractRelNode, RelNode, RelWriter}
 import org.apache.flink.api.java.DataSet
 import org.apache.flink.table.api.{BatchQueryConfig, BatchTableEnvImpl}
-import org.apache.flink.table.plan.schema.{DataSetTable, RowSchema}
+import org.apache.flink.table.plan.schema.RowSchema
 import org.apache.flink.types.Row
 
 /**
@@ -36,12 +35,11 @@ import org.apache.flink.types.Row
 class DataSetScan(
     cluster: RelOptCluster,
     traitSet: RelTraitSet,
-    table: RelOptTable,
+    inputDataSet: DataSet[Any],
+    fieldIdxs: Array[Int],
     rowRelDataType: RelDataType)
-  extends TableScan(cluster, traitSet, table)
+  extends AbstractRelNode(cluster, traitSet)
   with BatchScan {
-
-  val dataSetTable: DataSetTable[Any] = getTable.unwrap(classOf[DataSetTable[Any]])
 
   override def deriveRowType(): RelDataType = rowRelDataType
 
@@ -54,7 +52,8 @@ class DataSetScan(
     new DataSetScan(
       cluster,
       traitSet,
-      getTable,
+      inputDataSet,
+      fieldIdxs,
       getRowType
     )
   }
@@ -63,10 +62,10 @@ class DataSetScan(
       tableEnv: BatchTableEnvImpl,
       queryConfig: BatchQueryConfig): DataSet[Row] = {
     val schema = new RowSchema(rowRelDataType)
-    val inputDataSet: DataSet[Any] = dataSetTable.dataSet
-    val fieldIdxs = dataSetTable.fieldIndexes
     val config = tableEnv.getConfig
     convertToInternalRow(schema, inputDataSet, fieldIdxs, config, None)
   }
 
+  override def explainTerms(pw: RelWriter): RelWriter = super.explainTerms(pw)
+    .item("dataset", inputDataSet)
 }

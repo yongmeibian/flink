@@ -31,6 +31,8 @@ import org.apache.flink.table.api.{TableException, ValidationException}
 import org.apache.flink.table.calcite.FlinkTypeFactory.{isRowtimeIndicatorType, _}
 import org.apache.flink.table.functions.sql.ProctimeSqlFunction
 import org.apache.flink.table.plan.logical.rel.{LogicalTableAggregate, LogicalTemporalTableJoin, LogicalWindowAggregate}
+import org.apache.flink.table.plan.nodes.datastream.DataStreamScan
+import org.apache.flink.table.plan.nodes.logical.FlinkLogicalDataStreamScan
 import org.apache.flink.table.plan.schema.TimeIndicatorRelDataType
 import org.apache.flink.table.validate.BasicOperatorTable
 
@@ -148,6 +150,9 @@ class RelTimeIndicatorConverter(rexBuilder: RexBuilder) extends RelShuttle {
       // visit children and update inputs
       val input = uncollect.getInput.accept(this)
       Uncollect.create(uncollect.getTraitSet, input, uncollect.withOrdinality)
+
+    case scan: FlinkLogicalDataStreamScan =>
+      scan
 
     case scan: LogicalTableFunctionScan =>
       scan

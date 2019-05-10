@@ -649,6 +649,20 @@ abstract class TableEnvImpl(val config: TableConfig) extends TableEnvironment {
     defaultCatalog.createTable(path, new CalciteCatalogTable(table, getTypeFactory), false)
   }
 
+  /**
+    * Registers a Calcite [[AbstractTable]] in the TableEnvironment's catalog.
+    *
+    * @param name The name under which the table will be registered.
+    * @param table The table to register in the catalog
+    * @throws TableException if another table is registered under the provided name.
+    */
+  @throws[TableException]
+  protected def registerTableInternal(name: String, table: CatalogBaseTable): Unit = {
+    val defaultCatalog = catalogManager.getCatalog(BUILTIN_CATALOG_NAME)
+    val path = new ObjectPath(defaultCatalog.getCurrentDatabase, name)
+    defaultCatalog.createTable(path, table, false)
+  }
+
   /** Returns a unique table name according to the internal naming pattern. */
   protected def createUniqueTableName(): String
 

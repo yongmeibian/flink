@@ -37,9 +37,11 @@ import org.apache.flink.streaming.api.TimeCharacteristic
 import org.apache.flink.streaming.api.datastream.DataStream
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment
 import org.apache.flink.table.calcite.{FlinkTypeFactory, RelTimeIndicatorConverter}
+import org.apache.flink.table.catalog.TableOperationCatalogView
 import org.apache.flink.table.descriptors.{ConnectorDescriptor, StreamTableDescriptor}
 import org.apache.flink.table.explain.PlanJsonParser
 import org.apache.flink.table.expressions._
+import org.apache.flink.table.operations.{DataSetTableOperation, DataStreamTableOperation}
 import org.apache.flink.table.plan.nodes.FlinkConventions
 import org.apache.flink.table.plan.nodes.datastream.{DataStreamRel, UpdateAsRetractionTrait}
 import org.apache.flink.table.plan.rules.FlinkRuleSets
@@ -50,8 +52,8 @@ import org.apache.flink.table.runtime.types.{CRow, CRowTypeInfo}
 import org.apache.flink.table.runtime.{CRowMapRunner, OutputRowtimeProcessFunction}
 import org.apache.flink.table.sinks._
 import org.apache.flink.table.sources.{StreamTableSource, TableSource, TableSourceUtil}
-import org.apache.flink.table.typeutils.{TimeIndicatorTypeInfo, TypeCheckUtils}
-import org.apache.flink.table.typeutils.FieldInfoUtils.{getFieldInfo, isReferenceByPosition}
+import org.apache.flink.table.typeutils.{FieldInfoUtils, TimeIndicatorTypeInfo, TypeCheckUtils}
+import org.apache.flink.table.typeutils.FieldInfoUtils.{calculateTableSchema, getFieldInfo, isReferenceByPosition}
 
 import _root_.scala.collection.JavaConverters._
 
@@ -443,12 +445,11 @@ abstract class StreamTableEnvImpl(
     dataStream: DataStream[T]): Unit = {
 
     val fieldInfo = getFieldInfo[T](dataStream.getType)
-    val dataStreamTable = new DataStreamTable[T](
-      dataStream,
+
+    val tableOperation = new DataStreamTableOperation[T](dataStream,
       fieldInfo.getIndices,
-      fieldInfo.getFieldNames
-    )
-    registerTableInternal(name, dataStreamTable)
+      calculateTableSchema(dataStream.getType, fieldInfo.getIndices, fieldInfo.getFieldNames))
+    registerTableInternal(name, new TableOperationCatalogView(tableOperation))
   }
 
   /**
@@ -485,12 +486,12 @@ abstract class StreamTableEnvImpl(
     val indexesWithIndicatorFields = adjustFieldIndexes(fieldsInfo.getIndices, rowtime, proctime)
     val namesWithIndicatorFields = adjustFieldNames(fieldsInfo.getFieldNames, rowtime, proctime)
 
-    val dataStreamTable = new DataStreamTable[T](
+    val dataStreamTable = new DataStreamTableOperation(
       dataStream,
       indexesWithIndicatorFields,
-      namesWithIndicatorFields
-    )
-    registerTableInternal(name, dataStreamTable)
+      calculateTableSchema(streamType, indexesWithIndicatorFields, namesWithIndicatorFields))
+
+    registerTableInternal(name, new TableOperationCatalogView(dataStreamTable))
   }
 
   /**

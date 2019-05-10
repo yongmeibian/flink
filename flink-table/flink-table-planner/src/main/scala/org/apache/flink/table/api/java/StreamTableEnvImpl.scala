@@ -27,7 +27,10 @@ import org.apache.flink.streaming.api.datastream.DataStream
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment
 import _root_.java.lang.{Boolean => JBool}
 
+import org.apache.flink.table.operations.DataStreamTableOperation
+import org.apache.flink.table.plan.schema.DataStreamTable
 import org.apache.flink.table.typeutils.FieldInfoUtils
+import org.apache.flink.table.typeutils.FieldInfoUtils.{calculateTableSchema, getFieldInfo}
 
 import _root_.scala.collection.JavaConverters._
 
@@ -45,10 +48,13 @@ class StreamTableEnvImpl(
     with org.apache.flink.table.api.java.StreamTableEnvironment {
 
   override def fromDataStream[T](dataStream: DataStream[T]): Table = {
+    val fieldInfo = getFieldInfo[T](dataStream.getType)
+    val tableOperation = new DataStreamTableOperation[T](
+      dataStream,
+      fieldInfo.getIndices,
+      calculateTableSchema(dataStream.getType, fieldInfo.getIndices, fieldInfo.getFieldNames))
 
-    val name = createUniqueTableName()
-    registerDataStreamInternal(name, dataStream)
-    scan(name)
+    new TableImpl(this, tableOperation)
   }
 
   override def fromDataStream[T](dataStream: DataStream[T], fields: String): Table = {

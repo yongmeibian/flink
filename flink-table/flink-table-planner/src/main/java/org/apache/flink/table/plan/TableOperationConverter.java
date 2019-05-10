@@ -40,6 +40,8 @@ import org.apache.flink.table.operations.AggregateOperationFactory;
 import org.apache.flink.table.operations.AggregateTableOperation;
 import org.apache.flink.table.operations.CalculatedTableOperation;
 import org.apache.flink.table.operations.CatalogTableOperation;
+import org.apache.flink.table.operations.DataSetTableOperation;
+import org.apache.flink.table.operations.DataStreamTableOperation;
 import org.apache.flink.table.operations.DistinctTableOperation;
 import org.apache.flink.table.operations.FilterTableOperation;
 import org.apache.flink.table.operations.JoinTableOperation;
@@ -57,12 +59,19 @@ import org.apache.flink.table.plan.logical.LogicalWindow;
 import org.apache.flink.table.plan.logical.SessionGroupWindow;
 import org.apache.flink.table.plan.logical.SlidingGroupWindow;
 import org.apache.flink.table.plan.logical.TumblingGroupWindow;
+import org.apache.flink.table.plan.nodes.FlinkConventions;
+import org.apache.flink.table.plan.nodes.dataset.DataSetScan;
+import org.apache.flink.table.plan.nodes.datastream.DataStreamScan;
+import org.apache.flink.table.plan.nodes.logical.FlinkLogicalDataSetScan;
+import org.apache.flink.table.plan.nodes.logical.FlinkLogicalDataStreamScan;
 import org.apache.flink.table.plan.schema.FlinkTableFunctionImpl;
+import org.apache.flink.table.plan.schema.RowSchema;
 
 import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rel.core.CorrelationId;
 import org.apache.calcite.rel.core.JoinRelType;
 import org.apache.calcite.rel.logical.LogicalTableFunctionScan;
+import org.apache.calcite.rel.type.RelDataType;
 import org.apache.calcite.rex.RexNode;
 import org.apache.calcite.tools.RelBuilder;
 import org.apache.calcite.tools.RelBuilder.AggCall;
@@ -71,6 +80,7 @@ import org.apache.calcite.tools.RelBuilder.GroupKey;
 import java.util.Collections;
 import java.util.List;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.stream.IntStream;
 
 import scala.Some;
@@ -100,12 +110,12 @@ public class TableOperationConverter extends TableOperationDefaultVisitor<RelNod
 			this.expressionBridge = expressionBridge;
 		}
 
-		public TableOperationConverter get(RelBuilder relBuilder) {
-			return new TableOperationConverter(relBuilder, expressionBridge);
+		public TableOperationConverter get(Function<ExpressionBridge<PlannerExpression>, FlinkRelBuilder> relBuilderSupplier) {
+			return new TableOperationConverter(relBuilderSupplier.apply(expressionBridge), expressionBridge);
 		}
 	}
 
-	private final RelBuilder relBuilder;
+	private final FlinkRelBuilder relBuilder;
 	private final SingleRelVisitor singleRelVisitor = new SingleRelVisitor();
 	private final ExpressionBridge<PlannerExpression> expressionBridge;
 	private final AggregateVisitor aggregateVisitor = new AggregateVisitor();
@@ -113,7 +123,7 @@ public class TableOperationConverter extends TableOperationDefaultVisitor<RelNod
 	private final JoinExpressionVisitor joinExpressionVisitor = new JoinExpressionVisitor();
 
 	public TableOperationConverter(
-			RelBuilder relBuilder,
+			FlinkRelBuilder relBuilder,
 			ExpressionBridge<PlannerExpression> expressionBridge) {
 		this.relBuilder = relBuilder;
 		this.expressionBridge = expressionBridge;
@@ -153,7 +163,7 @@ public class TableOperationConverter extends TableOperationDefaultVisitor<RelNod
 			GroupKey groupKey = relBuilder.groupKey(groupings);
 
 			if (isTableAggregate) {
-				return ((FlinkRelBuilder) relBuilder).tableAggregate(groupKey, aggregations).build();
+				return relBuilder.tableAggregate(groupKey, aggregations).build();
 			} else {
 				return relBuilder.aggregate(groupKey, aggregations).build();
 			}
@@ -161,7 +171,6 @@ public class TableOperationConverter extends TableOperationDefaultVisitor<RelNod
 
 		@Override
 		public RelNode visitWindowAggregate(WindowAggregateTableOperation windowAggregate) {
-			FlinkRelBuilder flinkRelBuilder = (FlinkRelBuilder) relBuilder;
 			List<AggCall> aggregations = windowAggregate.getAggregateExpressions()
 				.stream()
 				.map(expr -> expr.accept(aggregateVisitor))
@@ -174,7 +183,7 @@ public class TableOperationConverter extends TableOperationDefaultVisitor<RelNod
 				.collect(toList());
 			GroupKey groupKey = relBuilder.groupKey(groupings);
 			LogicalWindow logicalWindow = toLogicalWindow(windowAggregate.getGroupWindow());
-			return flinkRelBuilder.aggregate(logicalWindow, groupKey, windowProperties, aggregations).build();
+			return relBuilder.aggregate(logicalWindow, groupKey, windowProperties, aggregations).build();
 		}
 
 		@Override
@@ -239,7 +248,7 @@ public class TableOperationConverter extends TableOperationDefaultVisitor<RelNod
 				fieldNames);
 			TableFunction<?> tableFunction = calculatedTable.getTableFunction();
 
-			FlinkTypeFactory typeFactory = (FlinkTypeFactory) relBuilder.getTypeFactory();
+			FlinkTypeFactory typeFactory = relBuilder.getTypeFactory();
 			TableSqlFunction sqlFunction = new TableSqlFunction(
 				tableFunction.functionIdentifier(),
 				tableFunction.toString(),
@@ -268,6 +277,26 @@ public class TableOperationConverter extends TableOperationDefaultVisitor<RelNod
 		public RelNode visitOther(TableOperation other) {
 			if (other instanceof PlannerTableOperation) {
 				return ((PlannerTableOperation) other).getCalciteTree();
+			} else if (other instanceof DataStreamTableOperation) {
+				FlinkRelBuilder flinkRelBuilder = relBuilder;
+				DataStreamTableOperation tableOperation = (DataStreamTableOperation) other;
+				RowSchema rowSchema = new RowSchema(flinkRelBuilder.getTypeFactory().buildLogicalRowType(other.getTableSchema()));
+				return new FlinkLogicalDataStreamScan(
+					flinkRelBuilder.getCluster(),
+					flinkRelBuilder.getCluster().traitSet().replace(FlinkConventions.LOGICAL()),
+					tableOperation.getDataStream(),
+					tableOperation.getFieldIndices(),
+					rowSchema);
+			} else if (other instanceof DataSetTableOperation) {
+				FlinkRelBuilder flinkRelBuilder = relBuilder;
+				DataSetTableOperation tableOperation = (DataSetTableOperation) other;
+				RelDataType relDataType = flinkRelBuilder.getTypeFactory().buildLogicalRowType(other.getTableSchema());
+				return new FlinkLogicalDataSetScan(
+					flinkRelBuilder.getCluster(),
+					flinkRelBuilder.getCluster().traitSet().replace(FlinkConventions.LOGICAL()),
+					tableOperation.getDataSet(),
+					tableOperation.getFieldIndices(),
+					relDataType);
 			}
 
 			throw new TableException("Unknown table operation: " + other);

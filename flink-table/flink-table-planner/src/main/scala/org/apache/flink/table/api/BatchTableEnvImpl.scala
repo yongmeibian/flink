@@ -30,10 +30,12 @@ import org.apache.flink.api.common.typeinfo.TypeInformation
 import org.apache.flink.api.java.io.DiscardingOutputFormat
 import org.apache.flink.api.java.typeutils.GenericTypeInfo
 import org.apache.flink.api.java.{DataSet, ExecutionEnvironment}
+import org.apache.flink.table.catalog.TableOperationCatalogView
 import org.apache.flink.table.descriptors.{BatchTableDescriptor, ConnectorDescriptor}
 import org.apache.flink.table.explain.PlanJsonParser
 import org.apache.flink.table.expressions.BuiltInFunctionDefinitions.TIME_ATTRIBUTES
 import org.apache.flink.table.expressions.{CallExpression, Expression}
+import org.apache.flink.table.operations.DataSetTableOperation
 import org.apache.flink.table.plan.nodes.FlinkConventions
 import org.apache.flink.table.plan.nodes.dataset.DataSetRel
 import org.apache.flink.table.plan.rules.FlinkRuleSets
@@ -41,7 +43,8 @@ import org.apache.flink.table.plan.schema._
 import org.apache.flink.table.runtime.MapRunner
 import org.apache.flink.table.sinks._
 import org.apache.flink.table.sources.{BatchTableSource, TableSource}
-import org.apache.flink.table.typeutils.FieldInfoUtils.{getFieldInfo, validateType}
+import org.apache.flink.table.typeutils.FieldInfoUtils
+import org.apache.flink.table.typeutils.FieldInfoUtils.{calculateTableSchema, getFieldInfo, validateType}
 import org.apache.flink.types.Row
 
 /**
@@ -320,12 +323,13 @@ abstract class BatchTableEnvImpl(
   protected def registerDataSetInternal[T](name: String, dataSet: DataSet[T]): Unit = {
 
     val fieldInfo = getFieldInfo[T](dataSet.getType)
-    val dataSetTable = new DataSetTable[T](
+    val tableOperation = new DataSetTableOperation[T](
       dataSet,
       fieldInfo.getIndices,
-      fieldInfo.getFieldNames
+      calculateTableSchema(dataSet.getType, fieldInfo.getIndices, fieldInfo.getFieldNames)
     )
-    registerTableInternal(name, dataSetTable)
+
+    registerTableInternal(name, new TableOperationCatalogView(tableOperation))
   }
 
   /**
@@ -353,8 +357,10 @@ abstract class BatchTableEnvImpl(
         ".rowtime and .proctime time indicators are not allowed in a batch environment.")
     }
 
-    val dataSetTable = new DataSetTable[T](dataSet, fieldsInfo.getIndices, fieldsInfo.getFieldNames)
-    registerTableInternal(name, dataSetTable)
+    val tableOperation = new DataSetTableOperation[T](dataSet,
+      fieldsInfo.getIndices,
+      calculateTableSchema(inputType, fieldsInfo.getIndices, fieldsInfo.getFieldNames))
+    registerTableInternal(name, new TableOperationCatalogView(tableOperation))
   }
 
   /**
