@@ -51,7 +51,7 @@ public class GenericInMemoryCatalog implements Catalog {
 
 	public static final String DEFAULT_DB = "default";
 
-	private String currentDatabase = DEFAULT_DB;
+	private String currentDatabase;
 
 	private final String catalogName;
 	private final Map<String, CatalogDatabase> databases;
@@ -65,11 +65,16 @@ public class GenericInMemoryCatalog implements Catalog {
 	private final Map<ObjectPath, Map<CatalogPartitionSpec, CatalogColumnStatistics>> partitionColumnStats;
 
 	public GenericInMemoryCatalog(String name) {
+		this(name, DEFAULT_DB, new GenericCatalogDatabase(new HashMap<>()));
+	}
+
+	public GenericInMemoryCatalog(String name, String defaultDbName, CatalogDatabase defaultDb) {
 		checkArgument(!StringUtils.isNullOrWhitespaceOnly(name), "name cannot be null or empty");
 
+		this.currentDatabase = defaultDbName;
 		this.catalogName = name;
 		this.databases = new LinkedHashMap<>();
-		this.databases.put(DEFAULT_DB, new GenericCatalogDatabase(new HashMap<>()));
+		this.databases.put(defaultDbName, defaultDb);
 		this.tables = new LinkedHashMap<>();
 		this.functions = new LinkedHashMap<>();
 		this.partitions = new LinkedHashMap<>();
