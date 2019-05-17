@@ -43,17 +43,8 @@ flink-metrics,\
 flink-metrics/flink-metrics-core"
 
 MODULES_LIBRARIES="\
-flink-libraries/flink-cep,\
-flink-libraries/flink-cep-scala,\
-flink-table/flink-table-common,\
-flink-table/flink-table-api-java,\
-flink-table/flink-table-api-scala,\
-flink-table/flink-table-api-java-bridge,\
-flink-table/flink-table-api-scala-bridge,\
-flink-table/flink-table-planner,\
-flink-table/flink-table-planner-blink,\
-flink-table/flink-table-runtime-blink,\
-flink-table/flink-sql-client"
+flink-table/flink-table-planner"
+
 
 MODULES_CONNECTORS="\
 flink-contrib/flink-connector-wikiedits,\
@@ -159,38 +150,40 @@ function get_compile_modules_for_stage() {
 }
 
 function get_test_modules_for_stage() {
-    local stage=$1
-
-    local modules_core=$MODULES_CORE
-    local modules_libraries=$MODULES_LIBRARIES
-    local modules_connectors=$MODULES_CONNECTORS
-    local modules_tests=$MODULES_TESTS
-    local negated_core=\!${MODULES_CORE//,/,\!}
-    local negated_libraries=\!${MODULES_LIBRARIES//,/,\!}
-    local negated_connectors=\!${MODULES_CONNECTORS//,/,\!}
-    local negated_tests=\!${MODULES_TESTS//,/,\!}
-    local modules_misc="$negated_core,$negated_libraries,$negated_connectors,$negated_tests"
+#    local stage=$1
+#
+#    local modules_core=$MODULES_CORE
+#    local modules_libraries=$MODULES_LIBRARIES
+#    local modules_connectors=$MODULES_CONNECTORS
+#    local modules_tests=$MODULES_TESTS
+#    local negated_core=\!${MODULES_CORE//,/,\!}
+#    local negated_libraries=\!${MODULES_LIBRARIES//,/,\!}
+#    local negated_connectors=\!${MODULES_CONNECTORS//,/,\!}
+#    local negated_tests=\!${MODULES_TESTS//,/,\!}
+#    local modules_misc="$negated_core,$negated_libraries,$negated_connectors,$negated_tests"
 
     # various modules fail testing on JDK 9; exclude them
     if [[ ${PROFILE} == *"jdk9"* ]]; then
         modules_connectors="$modules_connectors,$MODULES_CONNECTORS_JDK9_EXCLUSIONS"
     fi
 
-    case ${stage} in
-        (${STAGE_CORE})
-            echo "-pl $modules_core"
-        ;;
-        (${STAGE_LIBRARIES})
-            echo "-pl $modules_libraries"
-        ;;
-        (${STAGE_CONNECTORS})
-            echo "-pl $modules_connectors"
-        ;;
-        (${STAGE_TESTS})
-            echo "-pl $modules_tests"
-        ;;
-        (${STAGE_MISC})
-            echo "-pl $modules_misc"
-        ;;
-    esac
+    echo "-pl flink-table/flink-table-planner"
+#    case ${stage} in
+#        (${STAGE_CORE})
+#            echo "-pl $modules_core"
+#        ;;
+#        (${STAGE_LIBRARIES})
+#            echo "-pl $modules_libraries"
+#        ;;
+#        (${STAGE_CONNECTORS})
+#            echo "-pl $modules_connectors"
+#        ;;
+#        (${STAGE_TESTS})
+#            echo "-pl $modules_tests"
+#        ;;
+#        (${STAGE_MISC})
+#            echo "-pl $modules_misc"
+#        ;;
+#    esac
+#}
 }
