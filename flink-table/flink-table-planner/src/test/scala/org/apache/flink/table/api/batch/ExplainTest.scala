@@ -20,6 +20,7 @@ package org.apache.flink.table.api.batch
 
 import org.apache.flink.api.scala._
 import org.apache.flink.table.api.scala._
+import org.apache.flink.table.utils.TableTestUtil.batchTableNode
 import org.apache.flink.test.util.MultipleProgramsTestBase
 import org.junit.Assert.assertEquals
 import org.junit._
@@ -34,13 +35,14 @@ class ExplainTest
     val env = ExecutionEnvironment.getExecutionEnvironment
     val tEnv = BatchTableEnvironment.create(env)
 
-    val table = env.fromElements((1, "hello"))
-      .toTable(tEnv, 'a, 'b)
-      .filter("a % 2 = 0")
+    val scan = env.fromElements((1, "hello")).toTable(tEnv, 'a, 'b)
+    val table = scan.filter("a % 2 = 0")
 
     val result = tEnv.explain(table).replaceAll("\\r\\n", "\n")
     val source = scala.io.Source.fromFile(testFilePath +
       "../../src/test/scala/resources/testFilter0.out").mkString.replaceAll("\\r\\n", "\n")
+        .replace("%logicalSourceNode%", batchTableNode(scan).replace("DataSetScan", "FlinkLogicalDataSetScan"))
+        .replace("%sourceNode%", batchTableNode(scan))
     assertEquals(source, result)
   }
 
@@ -49,14 +51,15 @@ class ExplainTest
     val env = ExecutionEnvironment.getExecutionEnvironment
     val tEnv = BatchTableEnvironment.create(env)
 
-    val table = env.fromElements((1, "hello"))
-      .toTable(tEnv, 'a, 'b)
-      .filter("a % 2 = 0")
+    val scan = env.fromElements((1, "hello")).toTable(tEnv, 'a, 'b)
+    val table = scan.filter("a % 2 = 0")
 
     val result = tEnv.asInstanceOf[BatchTableEnvImpl]
       .explain(table, extended = true).replaceAll("\\r\\n", "\n")
     val source = scala.io.Source.fromFile(testFilePath +
       "../../src/test/scala/resources/testFilter1.out").mkString.replaceAll("\\r\\n", "\n")
+      .replace("%logicalSourceNode%", batchTableNode(scan).replace("DataSetScan", "FlinkLogicalDataSetScan"))
+      .replace("%sourceNode%", batchTableNode(scan))
     assertEquals(source, result)
   }
 
@@ -72,6 +75,10 @@ class ExplainTest
     val result = tEnv.explain(table).replaceAll("\\r\\n", "\n")
     val source = scala.io.Source.fromFile(testFilePath +
       "../../src/test/scala/resources/testJoin0.out").mkString.replaceAll("\\r\\n", "\n")
+      .replace("%logicalSourceNode0%", batchTableNode(table1).replace("DataSetScan", "FlinkLogicalDataSetScan"))
+      .replace("%sourceNode0%", batchTableNode(table1))
+      .replace("%logicalSourceNode1%", batchTableNode(table2).replace("DataSetScan", "FlinkLogicalDataSetScan"))
+      .replace("%sourceNode1%", batchTableNode(table2))
     assertEquals(source, result)
   }
 
@@ -88,6 +95,10 @@ class ExplainTest
       .explain(table, extended = true).replaceAll("\\r\\n", "\n")
     val source = scala.io.Source.fromFile(testFilePath +
       "../../src/test/scala/resources/testJoin1.out").mkString.replaceAll("\\r\\n", "\n")
+      .replace("%logicalSourceNode0%", batchTableNode(table1).replace("DataSetScan", "FlinkLogicalDataSetScan"))
+      .replace("%sourceNode0%", batchTableNode(table1))
+      .replace("%logicalSourceNode1%", batchTableNode(table2).replace("DataSetScan", "FlinkLogicalDataSetScan"))
+      .replace("%sourceNode1%", batchTableNode(table2))
     assertEquals(source, result)
   }
 
@@ -103,6 +114,10 @@ class ExplainTest
     val result = tEnv.explain(table).replaceAll("\\r\\n", "\n")
     val source = scala.io.Source.fromFile(testFilePath +
       "../../src/test/scala/resources/testUnion0.out").mkString.replaceAll("\\r\\n", "\n")
+      .replace("%logicalSourceNode0%", batchTableNode(table1).replace("DataSetScan", "FlinkLogicalDataSetScan"))
+      .replace("%sourceNode0%", batchTableNode(table1))
+      .replace("%logicalSourceNode1%", batchTableNode(table2).replace("DataSetScan", "FlinkLogicalDataSetScan"))
+      .replace("%sourceNode1%", batchTableNode(table2))
     assertEquals(source, result)
   }
 
@@ -119,6 +134,10 @@ class ExplainTest
       .explain(table, extended = true).replaceAll("\\r\\n", "\n")
     val source = scala.io.Source.fromFile(testFilePath +
       "../../src/test/scala/resources/testUnion1.out").mkString.replaceAll("\\r\\n", "\n")
+      .replace("%logicalSourceNode0%", batchTableNode(table1).replace("DataSetScan", "FlinkLogicalDataSetScan"))
+      .replace("%sourceNode0%", batchTableNode(table1))
+      .replace("%logicalSourceNode1%", batchTableNode(table2).replace("DataSetScan", "FlinkLogicalDataSetScan"))
+      .replace("%sourceNode1%", batchTableNode(table2))
     assertEquals(source, result)
   }
 }

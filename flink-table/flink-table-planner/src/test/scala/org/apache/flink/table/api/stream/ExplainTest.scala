@@ -21,6 +21,7 @@ package org.apache.flink.table.api.stream
 import org.apache.flink.api.scala._
 import org.apache.flink.streaming.api.scala.StreamExecutionEnvironment
 import org.apache.flink.table.api.scala._
+import org.apache.flink.table.utils.TableTestUtil.streamTableNode
 import org.apache.flink.test.util.AbstractTestBase
 import org.junit.Assert.assertEquals
 import org.junit._
@@ -34,14 +35,15 @@ class ExplainTest extends AbstractTestBase {
     val env = StreamExecutionEnvironment.getExecutionEnvironment
     val tEnv = StreamTableEnvironment.create(env)
 
-    val table = env.fromElements((1, "hello"))
-      .toTable(tEnv, 'a, 'b)
-      .filter("a % 2 = 0")
+    val scan = env.fromElements((1, "hello")).toTable(tEnv, 'a, 'b)
+    val table = scan.filter("a % 2 = 0")
 
     val result = replaceString(tEnv.explain(table))
 
     val source = scala.io.Source.fromFile(testFilePath +
       "../../src/test/scala/resources/testFilterStream0.out").mkString
+      .replace("%logicalSourceNode%", streamTableNode(scan).replace("DataStreamScan", "FlinkLogicalDataStreamScan"))
+      .replace("%sourceNode%", streamTableNode(scan))
     val expect = replaceString(source)
     assertEquals(expect, result)
   }
@@ -59,6 +61,10 @@ class ExplainTest extends AbstractTestBase {
 
     val source = scala.io.Source.fromFile(testFilePath +
       "../../src/test/scala/resources/testUnionStream0.out").mkString
+      .replace("%logicalSourceNode0%", streamTableNode(table1).replace("DataStreamScan", "FlinkLogicalDataStreamScan"))
+      .replace("%sourceNode0%", streamTableNode(table1))
+      .replace("%logicalSourceNode1%", streamTableNode(table2).replace("DataStreamScan", "FlinkLogicalDataStreamScan"))
+      .replace("%sourceNode1%", streamTableNode(table2))
     val expect = replaceString(source)
     assertEquals(expect, result)
   }
