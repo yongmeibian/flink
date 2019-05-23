@@ -22,6 +22,7 @@ import org.apache.flink.table.api.TableException;
 import org.apache.flink.table.catalog.exceptions.CatalogException;
 import org.apache.flink.table.catalog.exceptions.DatabaseNotExistException;
 import org.apache.flink.table.catalog.exceptions.TableNotExistException;
+import org.apache.flink.table.plan.schema.TableOperationCalciteTable;
 
 import org.apache.calcite.linq4j.tree.Expression;
 import org.apache.calcite.rel.type.RelProtoDataType;
@@ -67,6 +68,8 @@ class DatabaseCalciteSchema implements Schema {
 
 			if (table instanceof CalciteCatalogTable) {
 				return ((CalciteCatalogTable) table).getTable();
+			} else if (table instanceof TableOperationCatalogView) {
+				return TableOperationCalciteTable.createCalciteTable(((TableOperationCatalogView) table));
 			} else {
 				throw new TableException("Unsupported table type: " + table);
 			}
