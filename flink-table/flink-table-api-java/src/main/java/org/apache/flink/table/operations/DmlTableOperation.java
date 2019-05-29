@@ -18,12 +18,16 @@
 
 package org.apache.flink.table.operations;
 
-import org.apache.flink.annotation.PublicEvolving;
+import org.apache.flink.annotation.Internal;
+import org.apache.flink.table.api.TableSchema;
 
 /**
- * Covers all sort of SQL Operations including all DQL, DML, DDL, and DCL. This is the output of
- * {@link org.apache.flink.table.planner.Planner#parse(String)}.
+ * Subset of {@link TableOperation}s that describes the DML queries such as e.g. INSERT.
  */
-@PublicEvolving
-public interface Operation {
+@Internal
+abstract class DmlTableOperation implements TableOperation {
+	@Override
+	public final TableSchema getTableSchema() {
+		return TableSchema.builder().build();
+	}
 }

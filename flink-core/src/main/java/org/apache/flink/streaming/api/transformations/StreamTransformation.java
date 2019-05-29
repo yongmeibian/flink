@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-package org.apache.flink.api.transformations;
+package org.apache.flink.streaming.api.transformations;
 
 import org.apache.flink.annotation.Internal;
 import org.apache.flink.api.common.ExecutionConfig;

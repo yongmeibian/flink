@@ -83,5 +83,20 @@ public abstract class TableOperationDefaultVisitor<T> implements TableOperationV
 		return defaultMethod(other);
 	}
 
+	@Override
+	public T visitCatalogSink(CatalogSinkTableOperation catalogSink) {
+		return defaultMethod(catalogSink);
+	}
+
+	@Override
+	public <U> T visitInlineSink(InlineSinkTableOperation<U> inlineSink) {
+		return defaultMethod(inlineSink);
+	}
+
+	@Override
+	public <U> T visitOutputConversion(OutputConversionTableOperation<U> outputConversion) {
+		return defaultMethod(outputConversion);
+	}
+
 	public abstract T defaultMethod(TableOperation other);
 }

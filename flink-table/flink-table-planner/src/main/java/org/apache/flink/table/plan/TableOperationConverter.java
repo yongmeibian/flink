@@ -39,11 +39,14 @@ import org.apache.flink.table.functions.utils.TableSqlFunction;
 import org.apache.flink.table.operations.AggregateOperationFactory;
 import org.apache.flink.table.operations.AggregateTableOperation;
 import org.apache.flink.table.operations.CalculatedTableOperation;
+import org.apache.flink.table.operations.CatalogSinkTableOperation;
 import org.apache.flink.table.operations.CatalogTableOperation;
 import org.apache.flink.table.operations.DistinctTableOperation;
 import org.apache.flink.table.operations.FilterTableOperation;
+import org.apache.flink.table.operations.InlineSinkTableOperation;
 import org.apache.flink.table.operations.JoinTableOperation;
 import org.apache.flink.table.operations.JoinTableOperation.JoinType;
+import org.apache.flink.table.operations.OutputConversionTableOperation;
 import org.apache.flink.table.operations.PlannerTableOperation;
 import org.apache.flink.table.operations.ProjectTableOperation;
 import org.apache.flink.table.operations.SetTableOperation;
@@ -260,6 +263,21 @@ public class TableOperationConverter extends TableOperationDefaultVisitor<RelNod
 		@Override
 		public RelNode visitCatalogTable(CatalogTableOperation catalogTable) {
 			return relBuilder.scan(catalogTable.getTablePath()).build();
+		}
+
+		@Override
+		public RelNode visitCatalogSink(CatalogSinkTableOperation catalogSink) {
+			throw new UnsupportedOperationException("In the legacy planner it should never be converted to a RelNode");
+		}
+
+		@Override
+		public <U> RelNode visitInlineSink(InlineSinkTableOperation<U> inlineSink) {
+			throw new UnsupportedOperationException("In the legacy planner it should never be converted to a RelNode");
+		}
+
+		@Override
+		public <U> RelNode visitOutputConversion(OutputConversionTableOperation<U> outputConversion) {
+			throw new UnsupportedOperationException("In the legacy planner it should never be converted to a RelNode");
 		}
 
 		@Override

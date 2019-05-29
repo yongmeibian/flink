@@ -19,6 +19,7 @@
 package org.apache.flink.table.operations;
 
 import org.apache.flink.annotation.Internal;
+import org.apache.flink.table.api.QueryConfig;
 import org.apache.flink.table.api.Table;
 import org.apache.flink.table.api.TableSchema;
 
@@ -26,12 +27,16 @@ import java.util.List;
 
 /**
  * Base class for representing the operation structure behind a user-facing {@link Table} API.
+ *
+ * A tree of {@link TableOperation} represents a runnable query that can be transformed into a graph
+ * of {@link org.apache.flink.streaming.api.transformations.StreamTransformation} via
+ * {@link org.apache.flink.table.planner.Planner#translate(List, QueryConfig)}
  */
 @Internal
 public interface TableOperation {
 
 	/**
-	 * Resolved schema of this operation.
+	 * Resolved schema of this operation. In case of {@link DmlTableOperation} it describes the expected schema.
 	 */
 	TableSchema getTableSchema();
 
