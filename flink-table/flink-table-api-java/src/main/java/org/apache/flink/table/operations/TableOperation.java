@@ -33,7 +33,7 @@ import java.util.List;
  * {@link org.apache.flink.table.planner.Planner#translate(List, QueryConfig)}
  */
 @Internal
-public interface TableOperation {
+public interface TableOperation extends Operation {
 
 	/**
 	 * Resolved schema of this operation. In case of {@link DmlTableOperation} it describes the expected schema.

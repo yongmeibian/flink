@@ -21,6 +21,7 @@ package org.apache.flink.table.planner;
 import org.apache.flink.annotation.Internal;
 import org.apache.flink.streaming.api.transformations.StreamTransformation;
 import org.apache.flink.table.api.QueryConfig;
+import org.apache.flink.table.api.StreamQueryConfig;
 import org.apache.flink.table.operations.Operation;
 import org.apache.flink.table.operations.TableOperation;
 
@@ -67,7 +68,7 @@ public interface Planner {
 	 * @param queryConfig allows configuring runtime behavior of the resulting query
 	 * @return list of corresponding {@link StreamTransformation}s.
 	 */
-	List<StreamTransformation<?>> translate(List<TableOperation> tableOperations, QueryConfig queryConfig);
+	List<StreamTransformation<?>> translate(List<TableOperation> tableOperations, StreamQueryConfig queryConfig);
 
 	/**
 	 * Returns the AST of the specified Table API and SQL queries and the execution plan to compute
@@ -75,7 +76,7 @@ public interface Planner {
 	 *
 	 * @param tableOperations The table for which the AST and execution plan will be returned.
 	 */
-	String explain(List<TableOperation> tableOperations, QueryConfig queryConfig);
+	String explain(List<TableOperation> tableOperations, StreamQueryConfig queryConfig);
 
 	/**
 	 * Returns completion hints for the given statement at the given cursor position.
