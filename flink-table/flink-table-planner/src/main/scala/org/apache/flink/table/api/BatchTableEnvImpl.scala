@@ -265,7 +265,7 @@ abstract class BatchTableEnvImpl(
 
     val converterFunction = ConversionUtils.generateRowConverterFunction[OUT](
       physicalTypeInfo.asInstanceOf[TypeInformation[Row]],
-      schema,
+      new TableSchema(schema.fieldNames.toArray, schema.fieldTypeInfos.toArray),
       requestedTypeInfo,
       functionName,
       config

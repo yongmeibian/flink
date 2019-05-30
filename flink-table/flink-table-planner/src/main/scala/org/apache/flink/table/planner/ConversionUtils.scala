@@ -228,7 +228,7 @@ object ConversionUtils {
       }
   }
 
-  private def generateRowConverterFunction[OUT](
+  def generateRowConverterFunction[OUT](
     inputTypeInfo: TypeInformation[Row],
     schema: TableSchema,
     requestedTypeInfo: TypeInformation[OUT],
