@@ -23,14 +23,10 @@ import _root_.java.lang.{Boolean => JBool}
 import org.apache.calcite.plan.RelOptUtil
 import org.apache.calcite.plan.hep.HepMatchOrder
 import org.apache.calcite.rel.RelNode
-import org.apache.calcite.rel.`type`.{RelDataType, RelDataTypeField, RelDataTypeFieldImpl, RelRecordType}
 import org.apache.calcite.sql2rel.RelDecorrelator
 import org.apache.calcite.tools.{RuleSet, RuleSets}
-import org.apache.flink.api.common.functions.MapFunction
-import org.apache.flink.api.common.typeinfo.{SqlTimeTypeInfo, TypeInformation}
+import org.apache.flink.api.common.typeinfo.TypeInformation
 import org.apache.flink.api.java.tuple.{Tuple2 => JTuple2}
-import org.apache.flink.api.java.typeutils.{RowTypeInfo, TupleTypeInfo}
-import org.apache.flink.api.scala.typeutils.CaseClassTypeInfo
 import org.apache.flink.streaming.api.TimeCharacteristic
 import org.apache.flink.streaming.api.datastream.DataStream
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment
@@ -43,11 +39,9 @@ import org.apache.flink.table.operations.{DataStreamQueryOperation, QueryOperati
 import org.apache.flink.table.plan.nodes.FlinkConventions
 import org.apache.flink.table.plan.nodes.datastream.{DataStreamRel, UpdateAsRetractionTrait}
 import org.apache.flink.table.plan.rules.FlinkRuleSets
-import org.apache.flink.table.plan.schema._
 import org.apache.flink.table.plan.util.UpdatingPlanChecker
-import org.apache.flink.table.runtime.conversion._
-import org.apache.flink.table.runtime.types.{CRow, CRowTypeInfo}
-import org.apache.flink.table.runtime.{CRowMapRunner, OutputRowtimeProcessFunction}
+import org.apache.flink.table.planner.ConversionUtils
+import org.apache.flink.table.runtime.types.CRow
 import org.apache.flink.table.sinks._
 import org.apache.flink.table.sources.{StreamTableSource, TableSource, TableSourceUtil}
 import org.apache.flink.table.types.utils.TypeConversions.fromDataTypeToLegacyInfo
@@ -170,13 +164,15 @@ abstract class StreamTableEnvImpl(
         val outputType = fromDataTypeToLegacyInfo(sink.getConsumedDataType)
           .asInstanceOf[TypeInformation[T]]
         val resultType = getResultType(relNode, optimizedPlan)
+        val cRowStream = translateToCRow(optimizedPlan, streamQueryConfig)
         // translate the Table into a DataStream and provide the type that the TableSink expects.
-        val result: DataStream[T] =
-          translate(
-            optimizedPlan,
-            resultType,
-            streamQueryConfig,
-            withChangeFlag = true)(outputType)
+        val result: DataStream[T] = ConversionUtils.convert(
+          cRowStream,
+          resultType,
+          streamQueryConfig,
+          withChangeFlag = false,
+          outputType,
+          config)
         // Give the DataStream to the TableSink to emit it.
         upsertSink.asInstanceOf[UpsertStreamTableSink[Any]]
           .emitDataStream(result.asInstanceOf[DataStream[JTuple2[JBool, Any]]])
@@ -192,13 +188,15 @@ abstract class StreamTableEnvImpl(
         val outputType = fromDataTypeToLegacyInfo(sink.getConsumedDataType)
           .asInstanceOf[TypeInformation[T]]
         val resultType = getResultType(relNode, optimizedPlan)
+        val cRowStream = translateToCRow(optimizedPlan, streamQueryConfig)
         // translate the Table into a DataStream and provide the type that the TableSink expects.
-        val result: DataStream[T] =
-          translate(
-            optimizedPlan,
+        val result: DataStream[T] = ConversionUtils.convert(
+            cRowStream,
             resultType,
             streamQueryConfig,
-            withChangeFlag = false)(outputType)
+            withChangeFlag = false,
+            outputType,
+            config)
         // Give the DataStream to the TableSink to emit it.
         appendSink.asInstanceOf[AppendStreamTableSink[T]].emitDataStream(result)
 
@@ -206,110 +204,6 @@ abstract class StreamTableEnvImpl(
         throw new TableException("Stream Tables can only be emitted by AppendStreamTableSink, " +
           "RetractStreamTableSink, or UpsertStreamTableSink.")
     }
-  }
-
-  /**
-    * Creates a final converter that maps the internal row type to external type.
-    *
-    * @param inputTypeInfo the input of the sink
-    * @param schema the input schema with correct field names (esp. for POJO field mapping)
-    * @param requestedTypeInfo the output type of the sink
-    * @param functionName name of the map function. Must not be unique but has to be a
-    *                     valid Java class identifier.
-    */
-  protected def getConversionMapper[OUT](
-      inputTypeInfo: TypeInformation[CRow],
-      schema: RowSchema,
-      requestedTypeInfo: TypeInformation[OUT],
-      functionName: String)
-    : MapFunction[CRow, OUT] = {
-
-    val converterFunction = generateRowConverterFunction[OUT](
-      inputTypeInfo.asInstanceOf[CRowTypeInfo].rowType,
-      schema,
-      requestedTypeInfo,
-      functionName
-    )
-
-    converterFunction match {
-
-      case Some(func) =>
-        new CRowMapRunner[OUT](func.name, func.code, func.returnType)
-
-      case _ =>
-        new CRowToRowMapFunction().asInstanceOf[MapFunction[CRow, OUT]]
-    }
-  }
-
-  /**
-    * Creates a converter that maps the internal CRow type to Scala or Java Tuple2 with change flag.
-    *
-    * @param physicalTypeInfo the input of the sink
-    * @param schema the input schema with correct field names (esp. for POJO field mapping)
-    * @param requestedTypeInfo the output type of the sink.
-    * @param functionName name of the map function. Must not be unique but has to be a
-    *                     valid Java class identifier.
-    */
-  private def getConversionMapperWithChanges[OUT](
-      physicalTypeInfo: TypeInformation[CRow],
-      schema: RowSchema,
-      requestedTypeInfo: TypeInformation[OUT],
-      functionName: String)
-    : MapFunction[CRow, OUT] = requestedTypeInfo match {
-
-    // Scala tuple
-    case t: CaseClassTypeInfo[_]
-      if t.getTypeClass == classOf[(_, _)] && t.getTypeAt(0) == Types.BOOLEAN =>
-
-      val reqType = t.getTypeAt[Any](1)
-
-      // convert Row into requested type and wrap result in Tuple2
-      val converterFunction = generateRowConverterFunction(
-        physicalTypeInfo.asInstanceOf[CRowTypeInfo].rowType,
-        schema,
-        reqType,
-        functionName
-      )
-
-      converterFunction match {
-
-        case Some(func) =>
-          new CRowToScalaTupleMapRunner(
-            func.name,
-            func.code,
-            requestedTypeInfo.asInstanceOf[TypeInformation[(Boolean, Any)]]
-          ).asInstanceOf[MapFunction[CRow, OUT]]
-
-        case _ =>
-          new CRowToScalaTupleMapFunction().asInstanceOf[MapFunction[CRow, OUT]]
-      }
-
-    // Java tuple
-    case t: TupleTypeInfo[_]
-      if t.getTypeClass == classOf[JTuple2[_, _]] && t.getTypeAt(0) == Types.BOOLEAN =>
-
-      val reqType = t.getTypeAt[Any](1)
-
-      // convert Row into requested type and wrap result in Tuple2
-      val converterFunction = generateRowConverterFunction(
-        physicalTypeInfo.asInstanceOf[CRowTypeInfo].rowType,
-        schema,
-        reqType,
-        functionName
-      )
-
-      converterFunction match {
-
-        case Some(func) =>
-          new CRowToJavaTupleMapRunner(
-            func.name,
-            func.code,
-            requestedTypeInfo.asInstanceOf[TypeInformation[JTuple2[JBool, Any]]]
-          ).asInstanceOf[MapFunction[CRow, OUT]]
-
-        case _ =>
-          new CRowToJavaTupleMapFunction().asInstanceOf[MapFunction[CRow, OUT]]
-      }
   }
 
   protected def asQueryOperation[T](
@@ -444,94 +338,17 @@ abstract class StreamTableEnvImpl(
 
     val rowType = getResultType(relNode, dataStreamPlan)
 
-    translate(dataStreamPlan, rowType, queryConfig, withChangeFlag)
-  }
-
-  /**
-    * Translates a logical [[RelNode]] into a [[DataStream]].
-    *
-    * @param logicalPlan The root node of the relational expression tree.
-    * @param logicalType The row type of the result. Since the logicalPlan can lose the
-    *                    field naming during optimization we pass the row type separately.
-    * @param queryConfig     The configuration for the query to generate.
-    * @param withChangeFlag Set to true to emit records with change flags.
-    * @param tpe         The [[TypeInformation]] of the resulting [[DataStream]].
-    * @tparam A The type of the resulting [[DataStream]].
-    * @return The [[DataStream]] that corresponds to the translated [[Table]].
-    */
-  protected def translate[A](
-      logicalPlan: RelNode,
-      logicalType: RelDataType,
-      queryConfig: StreamQueryConfig,
-      withChangeFlag: Boolean)
-      (implicit tpe: TypeInformation[A]): DataStream[A] = {
-
     // if no change flags are requested, verify table is an insert-only (append-only) table.
-    if (!withChangeFlag && !UpdatingPlanChecker.isAppendOnly(logicalPlan)) {
+    if (!withChangeFlag && !UpdatingPlanChecker.isAppendOnly(dataStreamPlan)) {
       throw new TableException(
         "Table is not an append-only table. " +
-        "Use the toRetractStream() in order to handle add and retract messages.")
+          "Use the toRetractStream() in order to handle add and retract messages.")
     }
 
     // get CRow plan
-    val plan: DataStream[CRow] = translateToCRow(logicalPlan, queryConfig)
+    val plan: DataStream[CRow] = translateToCRow(dataStreamPlan, queryConfig)
 
-    val rowtimeFields = logicalType
-      .getFieldList.asScala
-      .filter(f => FlinkTypeFactory.isRowtimeIndicatorType(f.getType))
-
-    // convert the input type for the conversion mapper
-    // the input will be changed in the OutputRowtimeProcessFunction later
-    val convType = if (rowtimeFields.size > 1) {
-      throw new TableException(
-        s"Found more than one rowtime field: [${rowtimeFields.map(_.getName).mkString(", ")}] in " +
-          s"the table that should be converted to a DataStream.\n" +
-          s"Please select the rowtime field that should be used as event-time timestamp for the " +
-          s"DataStream by casting all other fields to TIMESTAMP.")
-    } else if (rowtimeFields.size == 1) {
-      val origRowType = plan.getType.asInstanceOf[CRowTypeInfo].rowType
-      val convFieldTypes = origRowType.getFieldTypes.map { t =>
-        if (FlinkTypeFactory.isRowtimeIndicatorType(t)) {
-          SqlTimeTypeInfo.TIMESTAMP
-        } else {
-          t
-        }
-      }
-      CRowTypeInfo(new RowTypeInfo(convFieldTypes, origRowType.getFieldNames))
-    } else {
-      plan.getType
-    }
-
-    // convert CRow to output type
-    val conversion: MapFunction[CRow, A] = if (withChangeFlag) {
-      getConversionMapperWithChanges(
-        convType,
-        new RowSchema(logicalType),
-        tpe,
-        "DataStreamSinkConversion")
-    } else {
-      getConversionMapper(
-        convType,
-        new RowSchema(logicalType),
-        tpe,
-        "DataStreamSinkConversion")
-    }
-
-    val rootParallelism = plan.getParallelism
-
-    val withRowtime = if (rowtimeFields.isEmpty) {
-      // no rowtime field to set
-      plan.map(conversion)
-    } else {
-      // set the only rowtime field as event-time timestamp for DataStream
-      // and convert it to SQL timestamp
-      plan.process(new OutputRowtimeProcessFunction[A](conversion, rowtimeFields.head.getIndex))
-    }
-
-    withRowtime
-      .returns(tpe)
-      .name(s"to: ${tpe.getTypeClass.getSimpleName}")
-      .setParallelism(rootParallelism)
+    ConversionUtils.convert(plan, rowType, queryConfig, withChangeFlag, tpe, config)
   }
 
   /**
@@ -557,20 +374,12 @@ abstract class StreamTableEnvImpl(
   /**
     * Returns the record type of the optimized plan with field names of the logical plan.
     */
-  private def getResultType(originRelNode: RelNode, optimizedPlan: RelNode): RelRecordType = {
-    // zip original field names with optimized field types
-    val fieldTypes = originRelNode.getRowType.getFieldList.asScala
-      .zip(optimizedPlan.getRowType.getFieldList.asScala)
-      // get name of original plan and type of optimized plan
-      .map(x => (x._1.getName, x._2.getType))
-      // add field indexes
-      .zipWithIndex
-      // build new field types
-      .map(x => new RelDataTypeFieldImpl(x._1._1, x._2, x._1._2))
+  private def getResultType(originRelNode: RelNode, optimizedPlan: RelNode): TableSchema = {
+    val fieldNames = originRelNode.getRowType.getFieldNames.asScala.toArray
+    val fieldTypes = optimizedPlan.getRowType.getFieldList.asScala.map(_.getType)
+      .map(FlinkTypeFactory.toTypeInfo).toArray
 
-    // build a record type from list of field types
-    new RelRecordType(
-      fieldTypes.toList.asInstanceOf[List[RelDataTypeField]].asJava)
+    new TableSchema(fieldNames, fieldTypes)
   }
 
   def explain(table: Table): String = {
