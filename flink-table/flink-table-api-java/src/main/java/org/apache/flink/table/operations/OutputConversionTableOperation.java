@@ -35,16 +35,26 @@ public class OutputConversionTableOperation<T> extends DmlTableOperation {
 
 	private final TableOperation child;
 	private final TypeInformation<T> type;
-	private final boolean isUpsert;
+	private final boolean isRetract;
+	private final boolean withChangeFlag;
 
-	public OutputConversionTableOperation(TableOperation child, TypeInformation<T> type, boolean isUpsert) {
+	public OutputConversionTableOperation(
+			TableOperation child,
+			TypeInformation<T> type,
+			boolean isRetract,
+			boolean withChangeFlag) {
 		this.child = child;
 		this.type = type;
-		this.isUpsert = isUpsert;
+		this.isRetract = isRetract;
+		this.withChangeFlag = withChangeFlag;
 	}
 
-	public boolean isUpsert() {
-		return isUpsert;
+	public boolean isRetract() {
+		return isRetract;
+	}
+
+	public boolean isWithChangeFlag() {
+		return withChangeFlag;
 	}
 
 	public TypeInformation<T> getType() {

@@ -42,7 +42,7 @@ import org.apache.flink.table.plan.nodes.datastream.{DataStreamRel, UpdateAsRetr
 import org.apache.flink.table.plan.rules.FlinkRuleSets
 import org.apache.flink.table.plan.schema._
 import org.apache.flink.table.plan.util.UpdatingPlanChecker
-import org.apache.flink.table.planner.ConversionUtils
+import org.apache.flink.table.planner.StreamConversionUtils
 import org.apache.flink.table.runtime.types.CRow
 import org.apache.flink.table.sinks._
 import org.apache.flink.table.sources.{StreamTableSource, TableSource, TableSourceUtil}
@@ -287,7 +287,7 @@ abstract class StreamTableEnvImpl(
         val resultType = getResultType(table.getRelNode, optimizedPlan)
         val cRowStream = translateToCRow(optimizedPlan, streamQueryConfig)
         // translate the Table into a DataStream and provide the type that the TableSink expects.
-        val result: DataStream[T] = ConversionUtils.convert(
+        val result: DataStream[T] = StreamConversionUtils.convert(
           cRowStream,
           resultType,
           streamQueryConfig,
@@ -310,7 +310,7 @@ abstract class StreamTableEnvImpl(
         val resultType = getResultType(table.getRelNode, optimizedPlan)
         val cRowStream = translateToCRow(optimizedPlan, streamQueryConfig)
         // translate the Table into a DataStream and provide the type that the TableSink expects.
-        val result: DataStream[T] = ConversionUtils.convert(
+        val result: DataStream[T] = StreamConversionUtils.convert(
             cRowStream,
             resultType,
             streamQueryConfig,
@@ -695,7 +695,7 @@ abstract class StreamTableEnvImpl(
     // get CRow plan
     val plan: DataStream[CRow] = translateToCRow(dataStreamPlan, queryConfig)
 
-    ConversionUtils.convert(plan, rowType, queryConfig, withChangeFlag, tpe, config)
+    StreamConversionUtils.convert(plan, rowType, queryConfig, withChangeFlag, tpe, config)
   }
 
   /**

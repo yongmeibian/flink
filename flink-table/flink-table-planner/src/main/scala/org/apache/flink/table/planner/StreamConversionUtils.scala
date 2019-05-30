@@ -36,7 +36,7 @@ import org.apache.flink.table.runtime.{CRowMapRunner, OutputRowtimeProcessFuncti
 import org.apache.flink.table.typeutils.TimeIndicatorTypeInfo
 import org.apache.flink.types.Row
 
-object ConversionUtils {
+object StreamConversionUtils {
 
   /**
     * Translates a logical [[RelNode]] into a [[DataStream]].
@@ -87,7 +87,7 @@ object ConversionUtils {
 
     // convert CRow to output type
     val conversion: MapFunction[CRow, A] = if (withChangeFlag) {
-      ConversionUtils.getConversionMapperWithChanges(
+      StreamConversionUtils.getConversionMapperWithChanges(
         convType,
         logicalType,
         tpe,
@@ -136,7 +136,7 @@ object ConversionUtils {
       config: TableConfig)
     : MapFunction[CRow, OUT] = {
 
-    val converterFunction = ConversionUtils.generateRowConverterFunction[OUT](
+    val converterFunction = StreamConversionUtils.generateRowConverterFunction[OUT](
       inputTypeInfo.asInstanceOf[CRowTypeInfo].rowType,
       schema,
       requestedTypeInfo,
@@ -164,12 +164,12 @@ object ConversionUtils {
     *                     valid Java class identifier.
     */
   private def getConversionMapperWithChanges[OUT](
-    physicalTypeInfo: TypeInformation[CRow],
-    schema: TableSchema,
-    requestedTypeInfo: TypeInformation[OUT],
-    functionName: String,
-    config: TableConfig)
-  : MapFunction[CRow, OUT] = requestedTypeInfo match {
+      physicalTypeInfo: TypeInformation[CRow],
+      schema: TableSchema,
+      requestedTypeInfo: TypeInformation[OUT],
+      functionName: String,
+      config: TableConfig)
+    : MapFunction[CRow, OUT] = requestedTypeInfo match {
 
     // Scala tuple
     case t: CaseClassTypeInfo[_]
@@ -229,12 +229,12 @@ object ConversionUtils {
   }
 
   def generateRowConverterFunction[OUT](
-    inputTypeInfo: TypeInformation[Row],
-    schema: TableSchema,
-    requestedTypeInfo: TypeInformation[OUT],
-    functionName: String,
-    config: TableConfig)
-  : Option[GeneratedFunction[MapFunction[Row, OUT], OUT]] = {
+      inputTypeInfo: TypeInformation[Row],
+      schema: TableSchema,
+      requestedTypeInfo: TypeInformation[OUT],
+      functionName: String,
+      config: TableConfig)
+    : Option[GeneratedFunction[MapFunction[Row, OUT], OUT]] = {
 
     // validate that at least the field types of physical and logical type match
     // we do that here to make sure that plan translation was correct

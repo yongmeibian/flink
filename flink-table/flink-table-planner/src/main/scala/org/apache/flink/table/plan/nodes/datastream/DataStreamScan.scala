@@ -24,10 +24,10 @@ import org.apache.calcite.rel.`type`.RelDataType
 import org.apache.calcite.rel.core.TableScan
 import org.apache.calcite.rex.RexNode
 import org.apache.flink.streaming.api.datastream.DataStream
-import org.apache.flink.table.api.{StreamQueryConfig, StreamTableEnvImpl}
+import org.apache.flink.table.api.StreamQueryConfig
 import org.apache.flink.table.expressions.Cast
-import org.apache.flink.table.plan.schema.RowSchema
-import org.apache.flink.table.plan.schema.DataStreamTable
+import org.apache.flink.table.plan.schema.{DataStreamTable, RowSchema}
+import org.apache.flink.table.planner.StreamPlanner
 import org.apache.flink.table.runtime.types.CRow
 import org.apache.flink.table.typeutils.TimeIndicatorTypeInfo
 
@@ -58,10 +58,10 @@ class DataStreamScan(
   }
 
   override def translateToPlan(
-      tableEnv: StreamTableEnvImpl,
+      planner: StreamPlanner,
       queryConfig: StreamQueryConfig): DataStream[CRow] = {
 
-    val config = tableEnv.getConfig
+    val config = planner.getConfig
     val inputDataStream: DataStream[Any] = dataStreamTable.dataStream
     val fieldIdxs = dataStreamTable.fieldIndexes
 
@@ -73,7 +73,7 @@ class DataStreamScan(
           Cast(
             org.apache.flink.table.expressions.StreamRecordTimestamp(),
             TimeIndicatorTypeInfo.ROWTIME_INDICATOR)
-            .toRexNode(tableEnv.getRelBuilder))
+            .toRexNode(planner.getRelBuilder))
       } else {
         None
       }

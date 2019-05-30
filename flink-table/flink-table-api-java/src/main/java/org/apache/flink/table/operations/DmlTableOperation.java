@@ -25,7 +25,7 @@ import org.apache.flink.table.api.TableSchema;
  * Subset of {@link TableOperation}s that describes the DML queries such as e.g. INSERT.
  */
 @Internal
-abstract class DmlTableOperation implements TableOperation {
+public abstract class DmlTableOperation implements TableOperation {
 	@Override
 	public final TableSchema getTableSchema() {
 		return TableSchema.builder().build();

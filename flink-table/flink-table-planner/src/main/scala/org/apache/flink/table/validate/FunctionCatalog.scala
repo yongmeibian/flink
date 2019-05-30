@@ -102,8 +102,8 @@ class FunctionCatalog extends FunctionDefinitionCatalog {
     sqlFunctions += sqlFunction
   }
 
-  def getUserDefinedFunctions: Seq[String] = {
-    sqlFunctions.map(_.getName)
+  def getUserDefinedFunctions: Array[String] = {
+    sqlFunctions.map(_.getName).toArray
   }
 
   def getSqlOperatorTable: SqlOperatorTable =
