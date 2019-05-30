@@ -20,20 +20,140 @@ package org.apache.flink.table.planner
 
 import java.lang.{Boolean => JBool}
 
+import org.apache.calcite.rel.RelNode
 import org.apache.flink.api.common.functions.MapFunction
-import org.apache.flink.api.common.typeinfo.TypeInformation
+import org.apache.flink.api.common.typeinfo.{SqlTimeTypeInfo, TypeInformation}
 import org.apache.flink.api.java.tuple.{Tuple2 => JTuple2}
-import org.apache.flink.api.java.typeutils.{GenericTypeInfo, PojoTypeInfo, TupleTypeInfo, TupleTypeInfoBase}
+import org.apache.flink.api.java.typeutils._
 import org.apache.flink.api.scala.typeutils.CaseClassTypeInfo
-import org.apache.flink.table.api.{TableConfig, TableException, Types}
+import org.apache.flink.streaming.api.datastream.DataStream
+import org.apache.flink.table.api._
+import org.apache.flink.table.calcite.FlinkTypeFactory
 import org.apache.flink.table.codegen.{FunctionCodeGenerator, GeneratedFunction}
-import org.apache.flink.table.plan.schema.RowSchema
-import org.apache.flink.table.runtime.conversion.{CRowToJavaTupleMapFunction, CRowToJavaTupleMapRunner, CRowToScalaTupleMapFunction, CRowToScalaTupleMapRunner}
+import org.apache.flink.table.runtime.conversion._
 import org.apache.flink.table.runtime.types.{CRow, CRowTypeInfo}
+import org.apache.flink.table.runtime.{CRowMapRunner, OutputRowtimeProcessFunction}
 import org.apache.flink.table.typeutils.TimeIndicatorTypeInfo
 import org.apache.flink.types.Row
 
 object ConversionUtils {
+
+  /**
+    * Translates a logical [[RelNode]] into a [[DataStream]].
+    *
+    * @param plan The root node of the relational expression tree.
+    * @param logicalType The row type of the result. Since the logicalPlan can lose the
+    *                    field naming during optimization we pass the row type separately.
+    * @param queryConfig     The configuration for the query to generate.
+    * @param withChangeFlag Set to true to emit records with change flags.
+    * @param tpe         The [[TypeInformation]] of the resulting [[DataStream]].
+    * @tparam A The type of the resulting [[DataStream]].
+    * @return The [[DataStream]] that corresponds to the translated [[Table]].
+    */
+  def convert[A](
+      plan: DataStream[CRow],
+      logicalType: TableSchema,
+      queryConfig: StreamQueryConfig,
+      withChangeFlag: Boolean,
+      tpe: TypeInformation[A],
+      config: TableConfig)
+    : DataStream[A] = {
+
+    val rowtimeFields = logicalType
+      .getFieldTypes.zip(logicalType.getFieldNames).zipWithIndex
+      .filter(f => FlinkTypeFactory.isRowtimeIndicatorType(f._1._1))
+
+    // convert the input type for the conversion mapper
+    // the input will be changed in the OutputRowtimeProcessFunction later
+    val convType = if (rowtimeFields.length > 1) {
+      throw new TableException(
+        s"Found more than one rowtime field: [${rowtimeFields.map(_._1._2).mkString(", ")}] in " +
+          s"the table that should be converted to a DataStream.\n" +
+          s"Please select the rowtime field that should be used as event-time timestamp for the " +
+          s"DataStream by casting all other fields to TIMESTAMP.")
+    } else if (rowtimeFields.length == 1) {
+      val origRowType = plan.getType.asInstanceOf[CRowTypeInfo].rowType
+      val convFieldTypes = origRowType.getFieldTypes.map { t =>
+        if (FlinkTypeFactory.isRowtimeIndicatorType(t)) {
+          SqlTimeTypeInfo.TIMESTAMP
+        } else {
+          t
+        }
+      }
+      CRowTypeInfo(new RowTypeInfo(convFieldTypes, origRowType.getFieldNames))
+    } else {
+      plan.getType
+    }
+
+    // convert CRow to output type
+    val conversion: MapFunction[CRow, A] = if (withChangeFlag) {
+      ConversionUtils.getConversionMapperWithChanges(
+        convType,
+        logicalType,
+        tpe,
+        "DataStreamSinkConversion",
+        config)
+    } else {
+      getConversionMapper(
+        convType,
+        logicalType,
+        tpe,
+        "DataStreamSinkConversion",
+        config)
+    }
+
+    val rootParallelism = plan.getParallelism
+
+    val withRowtime = if (rowtimeFields.isEmpty) {
+      // no rowtime field to set
+      plan.map(conversion)
+    } else {
+      // set the only rowtime field as event-time timestamp for DataStream
+      // and convert it to SQL timestamp
+      plan.process(new OutputRowtimeProcessFunction[A](conversion, rowtimeFields.head._2))
+    }
+
+    withRowtime
+      .returns(tpe)
+      .name(s"to: ${tpe.getTypeClass.getSimpleName}")
+      .setParallelism(rootParallelism)
+  }
+
+  /**
+    * Creates a final converter that maps the internal row type to external type.
+    *
+    * @param inputTypeInfo the input of the sink
+    * @param schema the input schema with correct field names (esp. for POJO field mapping)
+    * @param requestedTypeInfo the output type of the sink
+    * @param functionName name of the map function. Must not be unique but has to be a
+    *                     valid Java class identifier.
+    */
+  private def getConversionMapper[OUT](
+      inputTypeInfo: TypeInformation[CRow],
+      schema: TableSchema,
+      requestedTypeInfo: TypeInformation[OUT],
+      functionName: String,
+      config: TableConfig)
+    : MapFunction[CRow, OUT] = {
+
+    val converterFunction = ConversionUtils.generateRowConverterFunction[OUT](
+      inputTypeInfo.asInstanceOf[CRowTypeInfo].rowType,
+      schema,
+      requestedTypeInfo,
+      functionName,
+      config
+    )
+
+    converterFunction match {
+
+      case Some(func) =>
+        new CRowMapRunner[OUT](func.name, func.code, func.returnType)
+
+      case _ =>
+        new CRowToRowMapFunction().asInstanceOf[MapFunction[CRow, OUT]]
+    }
+  }
+
   /**
     * Creates a converter that maps the internal CRow type to Scala or Java Tuple2 with change flag.
     *
@@ -43,9 +163,9 @@ object ConversionUtils {
     * @param functionName name of the map function. Must not be unique but has to be a
     *                     valid Java class identifier.
     */
-  def getConversionMapperWithChanges[OUT](
+  private def getConversionMapperWithChanges[OUT](
     physicalTypeInfo: TypeInformation[CRow],
-    schema: RowSchema,
+    schema: TableSchema,
     requestedTypeInfo: TypeInformation[OUT],
     functionName: String,
     config: TableConfig)
@@ -108,9 +228,9 @@ object ConversionUtils {
       }
   }
 
-  def generateRowConverterFunction[OUT](
+  private def generateRowConverterFunction[OUT](
     inputTypeInfo: TypeInformation[Row],
-    schema: RowSchema,
+    schema: TableSchema,
     requestedTypeInfo: TypeInformation[OUT],
     functionName: String,
     config: TableConfig)
@@ -118,10 +238,11 @@ object ConversionUtils {
 
     // validate that at least the field types of physical and logical type match
     // we do that here to make sure that plan translation was correct
-    if (schema.typeInfo != inputTypeInfo) {
+    val typeInfo = schema.toRowType
+    if (typeInfo != inputTypeInfo) {
       throw new TableException(
         s"The field types of physical and logical row types do not match. " +
-          s"Physical type is [${schema.typeInfo}], Logical type is [$inputTypeInfo]. " +
+          s"Physical type is [$typeInfo], Logical type is [$inputTypeInfo]. " +
           s"This is a bug and should not happen. Please file an issue.")
     }
 
@@ -131,8 +252,8 @@ object ConversionUtils {
       return None
     }
 
-    val fieldTypes = schema.fieldTypeInfos
-    val fieldNames = schema.fieldNames
+    val fieldTypes = schema.getFieldTypes
+    val fieldNames = schema.getFieldNames
 
     // check for valid type info
     if (requestedTypeInfo.getArity != fieldTypes.length) {
