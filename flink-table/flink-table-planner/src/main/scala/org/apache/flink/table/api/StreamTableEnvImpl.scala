@@ -31,8 +31,7 @@ import org.apache.flink.api.common.functions.MapFunction
 import org.apache.flink.api.common.typeinfo.{SqlTimeTypeInfo, TypeInformation}
 import org.apache.flink.api.common.typeutils.CompositeType
 import org.apache.flink.api.java.tuple.{Tuple2 => JTuple2}
-import org.apache.flink.api.java.typeutils.{RowTypeInfo, TupleTypeInfo}
-import org.apache.flink.api.scala.typeutils.CaseClassTypeInfo
+import org.apache.flink.api.java.typeutils.RowTypeInfo
 import org.apache.flink.streaming.api.TimeCharacteristic
 import org.apache.flink.streaming.api.datastream.DataStream
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment
@@ -46,6 +45,7 @@ import org.apache.flink.table.plan.nodes.datastream.{DataStreamRel, UpdateAsRetr
 import org.apache.flink.table.plan.rules.FlinkRuleSets
 import org.apache.flink.table.plan.schema._
 import org.apache.flink.table.plan.util.UpdatingPlanChecker
+import org.apache.flink.table.planner.ConversionUtils
 import org.apache.flink.table.runtime.conversion._
 import org.apache.flink.table.runtime.types.{CRow, CRowTypeInfo}
 import org.apache.flink.table.runtime.{CRowMapRunner, OutputRowtimeProcessFunction}
@@ -343,11 +343,12 @@ abstract class StreamTableEnvImpl(
       functionName: String)
     : MapFunction[CRow, OUT] = {
 
-    val converterFunction = generateRowConverterFunction[OUT](
+    val converterFunction = ConversionUtils.generateRowConverterFunction[OUT](
       inputTypeInfo.asInstanceOf[CRowTypeInfo].rowType,
       schema,
       requestedTypeInfo,
-      functionName
+      functionName,
+      config
     )
 
     converterFunction match {
@@ -358,77 +359,6 @@ abstract class StreamTableEnvImpl(
       case _ =>
         new CRowToRowMapFunction().asInstanceOf[MapFunction[CRow, OUT]]
     }
-  }
-
-  /**
-    * Creates a converter that maps the internal CRow type to Scala or Java Tuple2 with change flag.
-    *
-    * @param physicalTypeInfo the input of the sink
-    * @param schema the input schema with correct field names (esp. for POJO field mapping)
-    * @param requestedTypeInfo the output type of the sink.
-    * @param functionName name of the map function. Must not be unique but has to be a
-    *                     valid Java class identifier.
-    */
-  private def getConversionMapperWithChanges[OUT](
-      physicalTypeInfo: TypeInformation[CRow],
-      schema: RowSchema,
-      requestedTypeInfo: TypeInformation[OUT],
-      functionName: String)
-    : MapFunction[CRow, OUT] = requestedTypeInfo match {
-
-    // Scala tuple
-    case t: CaseClassTypeInfo[_]
-      if t.getTypeClass == classOf[(_, _)] && t.getTypeAt(0) == Types.BOOLEAN =>
-
-      val reqType = t.getTypeAt[Any](1)
-
-      // convert Row into requested type and wrap result in Tuple2
-      val converterFunction = generateRowConverterFunction(
-        physicalTypeInfo.asInstanceOf[CRowTypeInfo].rowType,
-        schema,
-        reqType,
-        functionName
-      )
-
-      converterFunction match {
-
-        case Some(func) =>
-          new CRowToScalaTupleMapRunner(
-            func.name,
-            func.code,
-            requestedTypeInfo.asInstanceOf[TypeInformation[(Boolean, Any)]]
-          ).asInstanceOf[MapFunction[CRow, OUT]]
-
-        case _ =>
-          new CRowToScalaTupleMapFunction().asInstanceOf[MapFunction[CRow, OUT]]
-      }
-
-    // Java tuple
-    case t: TupleTypeInfo[_]
-      if t.getTypeClass == classOf[JTuple2[_, _]] && t.getTypeAt(0) == Types.BOOLEAN =>
-
-      val reqType = t.getTypeAt[Any](1)
-
-      // convert Row into requested type and wrap result in Tuple2
-      val converterFunction = generateRowConverterFunction(
-        physicalTypeInfo.asInstanceOf[CRowTypeInfo].rowType,
-        schema,
-        reqType,
-        functionName
-      )
-
-      converterFunction match {
-
-        case Some(func) =>
-          new CRowToJavaTupleMapRunner(
-            func.name,
-            func.code,
-            requestedTypeInfo.asInstanceOf[TypeInformation[JTuple2[JBool, Any]]]
-          ).asInstanceOf[MapFunction[CRow, OUT]]
-
-        case _ =>
-          new CRowToJavaTupleMapFunction().asInstanceOf[MapFunction[CRow, OUT]]
-      }
   }
 
   /**
@@ -850,11 +780,12 @@ abstract class StreamTableEnvImpl(
 
     // convert CRow to output type
     val conversion: MapFunction[CRow, A] = if (withChangeFlag) {
-      getConversionMapperWithChanges(
+      ConversionUtils.getConversionMapperWithChanges(
         convType,
         new RowSchema(logicalType),
         tpe,
-        "DataStreamSinkConversion")
+        "DataStreamSinkConversion",
+        config)
     } else {
       getConversionMapper(
         convType,
