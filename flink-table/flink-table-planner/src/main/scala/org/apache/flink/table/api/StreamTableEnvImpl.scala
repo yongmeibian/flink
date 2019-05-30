@@ -40,7 +40,7 @@ import org.apache.flink.table.plan.nodes.FlinkConventions
 import org.apache.flink.table.plan.nodes.datastream.{DataStreamRel, UpdateAsRetractionTrait}
 import org.apache.flink.table.plan.rules.FlinkRuleSets
 import org.apache.flink.table.plan.util.UpdatingPlanChecker
-import org.apache.flink.table.planner.ConversionUtils
+import org.apache.flink.table.planner.StreamConversionUtils
 import org.apache.flink.table.runtime.types.CRow
 import org.apache.flink.table.sinks._
 import org.apache.flink.table.sources.{StreamTableSource, TableSource, TableSourceUtil}
@@ -148,6 +148,7 @@ abstract class StreamTableEnvImpl(
 
       case upsertSink: UpsertStreamTableSink[_] =>
         // optimize plan
+        val relNode = getRelBuilder.tableOperation(tableOperation).build()
         val optimizedPlan = optimize(relNode, updatesAsRetraction = false)
         // check for append only table
         val isAppendOnlyTable = UpdatingPlanChecker.isAppendOnly(optimizedPlan)
@@ -161,12 +162,11 @@ abstract class StreamTableEnvImpl(
           case None if !isAppendOnlyTable => throw new TableException(
             "UpsertStreamTableSink requires that Table has full primary keys if it is updated.")
         }
-        val outputType = fromDataTypeToLegacyInfo(sink.getConsumedDataType)
-          .asInstanceOf[TypeInformation[T]]
+        val outputType = sink.getOutputType
         val resultType = getResultType(relNode, optimizedPlan)
         val cRowStream = translateToCRow(optimizedPlan, streamQueryConfig)
         // translate the Table into a DataStream and provide the type that the TableSink expects.
-        val result: DataStream[T] = ConversionUtils.convert(
+        val result: DataStream[T] = StreamConversionUtils.convert(
           cRowStream,
           resultType,
           streamQueryConfig,
@@ -179,18 +179,18 @@ abstract class StreamTableEnvImpl(
 
       case appendSink: AppendStreamTableSink[_] =>
         // optimize plan
+        val relNode = getRelBuilder.tableOperation(tableOperation).build()
         val optimizedPlan = optimize(relNode, updatesAsRetraction = false)
         // verify table is an insert-only (append-only) table
         if (!UpdatingPlanChecker.isAppendOnly(optimizedPlan)) {
           throw new TableException(
             "AppendStreamTableSink requires that Table has only insert changes.")
         }
-        val outputType = fromDataTypeToLegacyInfo(sink.getConsumedDataType)
-          .asInstanceOf[TypeInformation[T]]
+        val outputType = sink.getOutputType
         val resultType = getResultType(relNode, optimizedPlan)
         val cRowStream = translateToCRow(optimizedPlan, streamQueryConfig)
         // translate the Table into a DataStream and provide the type that the TableSink expects.
-        val result: DataStream[T] = ConversionUtils.convert(
+        val result: DataStream[T] = StreamConversionUtils.convert(
             cRowStream,
             resultType,
             streamQueryConfig,
@@ -348,7 +348,7 @@ abstract class StreamTableEnvImpl(
     // get CRow plan
     val plan: DataStream[CRow] = translateToCRow(dataStreamPlan, queryConfig)
 
-    ConversionUtils.convert(plan, rowType, queryConfig, withChangeFlag, tpe, config)
+    StreamConversionUtils.convert(plan, rowType, queryConfig, withChangeFlag, tpe, config)
   }
 
   /**
@@ -364,7 +364,8 @@ abstract class StreamTableEnvImpl(
 
     logicalPlan match {
       case node: DataStreamRel =>
-        node.translateToPlan(this, queryConfig)
+        null
+//        node.translateToPlan(this, queryConfig)
       case _ =>
         throw new TableException("Cannot generate DataStream due to an invalid logical plan. " +
           "This is a bug and should not happen. Please file an issue.")

@@ -18,6 +18,7 @@
 
 package org.apache.flink.table.operations
 
+import _root_.java.util.function.Supplier
 import java.util.{Collections, Optional, List => JList}
 
 import org.apache.flink.table.api._
@@ -33,7 +34,6 @@ import org.apache.flink.table.operations.AliasOperationUtils.createAliasList
 import org.apache.flink.table.operations.JoinQueryOperation.JoinType
 import org.apache.flink.table.operations.OperationExpressionsUtils.extractAggregationsAndProperties
 import org.apache.flink.table.operations.SetQueryOperation.SetQueryOperationType._
-import org.apache.flink.table.util.JavaScalaConversionUtil
 import org.apache.flink.table.util.JavaScalaConversionUtil.toScala
 import org.apache.flink.util.Preconditions
 
@@ -43,12 +43,12 @@ import _root_.scala.collection.JavaConverters._
 /**
   * Builder for [[[Operation]] tree.
   */
-class OperationTreeBuilderImpl(private val tableEnv: TableEnvImpl) extends OperationTreeBuilder{
+class OperationTreeBuilderImpl(
+  tableCatalog: TableReferenceLookup,
+  expressionBridge: ExpressionBridge[PlannerExpression],
+  functionCatalog: FunctionDefinitionCatalog,
+  isStreaming: Boolean) extends OperationTreeBuilder{
 
-  private val expressionBridge: ExpressionBridge[PlannerExpression] = tableEnv.expressionBridge
-  private val functionCatalog: FunctionDefinitionCatalog = tableEnv.functionCatalog
-
-  private val isStreaming = tableEnv.isInstanceOf[StreamTableEnvImpl]
   private val projectionOperationFactory = new ProjectionOperationFactory(expressionBridge)
   private val sortOperationFactory = new SortOperationFactory(isStreaming)
   private val calculatedTableFactory = new CalculatedTableFactory()
@@ -59,13 +59,6 @@ class OperationTreeBuilderImpl(private val tableEnv: TableEnvImpl) extends Opera
 
   private val noWindowPropertyChecker = new NoWindowPropertyChecker(
     "Window start and end properties are not available for Over windows.")
-
-  private val tableCatalog = new TableReferenceLookup {
-    override def lookupTable(name: String): Optional[TableReferenceExpression] =
-      JavaScalaConversionUtil
-      .toJava(tableEnv.scanInternal(Array(name))
-        .map(op => new TableReferenceExpression(name, op)))
-  }
 
   override def project(
       projectList: JList[Expression],
@@ -123,7 +116,7 @@ class OperationTreeBuilderImpl(private val tableEnv: TableEnvImpl) extends Opera
       overWindows: JList[OverWindow])
     : Unit = {
 
-    val callResolver = new LookupCallResolver(tableEnv.functionCatalog)
+    val callResolver = new LookupCallResolver(functionCatalog)
     val expressionsWithResolvedCalls = projectList.map(_.accept(callResolver)).asJava
     val extracted = extractAggregationsAndProperties(expressionsWithResolvedCalls)
     if (!extracted.getWindowProperties.isEmpty) {

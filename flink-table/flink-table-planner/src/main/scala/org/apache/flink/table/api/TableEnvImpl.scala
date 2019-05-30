@@ -20,6 +20,7 @@ package org.apache.flink.table.api
 
 import _root_.java.util.Optional
 import _root_.java.util.concurrent.atomic.AtomicInteger
+import _root_.java.util.function.{Supplier => JSupplier}
 
 import com.google.common.collect.ImmutableList
 import org.apache.calcite.jdbc.CalciteSchemaBuilder.asRootSchema
@@ -35,10 +36,11 @@ import org.apache.flink.api.common.typeinfo.TypeInformation
 import org.apache.flink.table.calcite._
 import org.apache.flink.table.catalog._
 import org.apache.flink.table.expressions._
+import org.apache.flink.table.expressions.lookups.TableReferenceLookup
 import org.apache.flink.table.factories.{TableFactoryService, TableFactoryUtil, TableSinkFactory}
 import org.apache.flink.table.functions.utils.UserDefinedFunctionUtils._
 import org.apache.flink.table.functions.{AggregateFunction, ScalarFunction, TableFunction, UserDefinedAggregateFunction}
-import org.apache.flink.table.operations._
+import org.apache.flink.table.operations.{OperationTreeBuilder, TableOperation, _}
 import org.apache.flink.table.plan.nodes.FlinkConventions
 import org.apache.flink.table.plan.rules.FlinkRuleSets
 import org.apache.flink.table.planner.PlanningConfigurationBuilder
@@ -70,10 +72,20 @@ abstract class TableEnvImpl(
   private[flink] val expressionBridge: ExpressionBridge[PlannerExpression] =
     new ExpressionBridge[PlannerExpression](functionCatalog, PlannerExpressionConverter.INSTANCE)
 
-  // a counter for unique attribute names
-  private[flink] val attrNameCntr: AtomicInteger = new AtomicInteger(0)
+  private def tableLookup: TableReferenceLookup = {
+    new TableReferenceLookup {
+      override def lookupTable(name: String): Optional[TableReferenceExpression] = {
+        JavaScalaConversionUtil
+          .toJava(scanInternal(Array(name)).map(t => new TableReferenceExpression(name, t)))
+      }
+    }
+  }
 
-  private[flink] val operationTreeBuilder = new OperationTreeBuilderImpl(this)
+  private[flink] val operationTreeBuilder = new OperationTreeBuilderImpl(
+    tableLookup,
+    expressionBridge,
+    functionCatalog,
+    !isBatch)
 
   private val planningConfigurationBuilder: PlanningConfigurationBuilder =
     new PlanningConfigurationBuilder(
@@ -588,9 +600,7 @@ abstract class TableEnvImpl(
     }
   }
 
-  override def listUserDefinedFunctions(): Array[String] = {
-    functionCatalog.getUserDefinedFunctions.toArray
-  }
+  override def listUserDefinedFunctions(): Array[String] = functionCatalog.getUserDefinedFunctions
 
   override def explain(table: Table): String
 
@@ -663,18 +673,21 @@ abstract class TableEnvImpl(
     */
   private[flink] def writeToSink[T](table: Table, sink: TableSink[T], conf: QueryConfig): Unit
 
-  override def insertInto(
-      table: Table,
-      queryConfig: QueryConfig,
-      sinkPath: String,
-      sinkPathContinued: String*)
-    : Unit = insertInto(table, queryConfig, sinkPath +: sinkPathContinued: _*)
 
   override def insertInto(
-      table: Table,
-      sinkPath: String,
-      sinkPathContinued: String*)
-    : Unit = insertInto(table, queryConfig, sinkPath +: sinkPathContinued: _*)
+    table: Table,
+    queryConfig: QueryConfig,
+    path: String,
+    pathContinued: String*): Unit = {
+    insertInto(table, queryConfig, path, pathContinued: _*)
+  }
+
+  override def insertInto(
+    table: Table,
+    path: String,
+    pathContinued: String*): Unit = {
+    insertInto(table, queryConfig, path, pathContinued: _*)
+  }
 
   /**
     * Writes the [[Table]] to a [[TableSink]] that was registered under the specified name.

@@ -16,19 +16,18 @@
  * limitations under the License.
  */
 
-package org.apache.flink.table.catalog.hive.client;
+package org.apache.flink.table.operations;
 
-import org.apache.hadoop.hive.conf.HiveConf;
+import org.apache.flink.annotation.Internal;
+import org.apache.flink.table.api.TableSchema;
 
 /**
- * Factory to create Hive metastore client.
+ * Subset of {@link TableOperation}s that describes the DML queries such as e.g. INSERT.
  */
-public class HiveMetastoreClientFactory {
-
-	private HiveMetastoreClientFactory() {
-	}
-
-	public static HiveMetastoreClientWrapper create(HiveConf hiveConf) {
-		return new HiveMetastoreClientWrapper(hiveConf);
+@Internal
+public abstract class DmlTableOperation implements TableOperation {
+	@Override
+	public final TableSchema getTableSchema() {
+		return TableSchema.builder().build();
 	}
 }

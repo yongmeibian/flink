@@ -38,7 +38,7 @@ import org.apache.flink.table.plan.nodes.FlinkConventions
 import org.apache.flink.table.plan.nodes.dataset.DataSetRel
 import org.apache.flink.table.plan.rules.FlinkRuleSets
 import org.apache.flink.table.plan.schema._
-import org.apache.flink.table.planner.ConversionUtils
+import org.apache.flink.table.planner.StreamConversionUtils
 import org.apache.flink.table.runtime.MapRunner
 import org.apache.flink.table.sinks._
 import org.apache.flink.table.sources.{BatchTableSource, TableSource, TableSourceUtil}
@@ -138,9 +138,9 @@ abstract class BatchTableEnvImpl(
       functionName: String)
     : Option[MapFunction[IN, OUT]] = {
 
-    val converterFunction = ConversionUtils.generateRowConverterFunction[OUT](
+    val converterFunction = StreamConversionUtils.generateRowConverterFunction[OUT](
       physicalTypeInfo.asInstanceOf[TypeInformation[Row]],
-      schema,
+      new TableSchema(schema.fieldNames.toArray, schema.fieldTypeInfos.toArray),
       requestedTypeInfo,
       functionName,
       config
