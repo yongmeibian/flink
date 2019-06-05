@@ -52,8 +52,6 @@ import org.junit.Assert.{assertEquals, assertTrue}
 import org.junit.Rule
 import org.junit.rules.{ExpectedException, TestName}
 
-import _root_.java.util.{Set => JSet}
-
 import _root_.scala.collection.JavaConversions._
 
 /**
@@ -78,8 +76,8 @@ abstract class TableTestBase {
   def batchTestUtil(): BatchTableTestUtil = BatchTableTestUtil(this)
 
   def verifyTableEquals(expected: Table, actual: Table): Unit = {
-    val expectedString = FlinkRelOptUtil.toString(expected.asInstanceOf[TableImpl].getRelNode)
-    val actualString = FlinkRelOptUtil.toString(actual.asInstanceOf[TableImpl].getRelNode)
+    val expectedString = FlinkRelOptUtil.toString(expected.asInstanceOf[BlinkTableImpl].getRelNode)
+    val actualString = FlinkRelOptUtil.toString(actual.asInstanceOf[BlinkTableImpl].getRelNode)
     assertEquals(
       "Logical plans do not match",
       LogicalPlanFormatUtils.formatTempTableId(expectedString),
@@ -235,7 +233,7 @@ abstract class TableTestUtil(test: TableTestBase) {
 
   def verifyPlanNotExpected(table: Table, notExpected: String*): Unit = {
     require(notExpected.nonEmpty)
-    val relNode = table.asInstanceOf[TableImpl].getRelNode
+    val relNode = table.asInstanceOf[BlinkTableImpl].getRelNode
     val optimizedPlan = getOptimizedPlan(
       Array(relNode),
       explainLevel = SqlExplainLevel.EXPPLAN_ATTRIBUTES,
@@ -283,7 +281,7 @@ abstract class TableTestUtil(test: TableTestBase) {
       withRowType: Boolean,
       printPlanBefore: Boolean): Unit = {
     val table = getTableEnv.sqlQuery(sql)
-    val relNode = table.asInstanceOf[TableImpl].getRelNode
+    val relNode = table.asInstanceOf[BlinkTableImpl].getRelNode
     val optimizedPlan = getOptimizedPlan(
       Array(relNode),
       explainLevel,
@@ -324,7 +322,7 @@ abstract class TableTestUtil(test: TableTestBase) {
       withRowType: Boolean,
       withRetractTraits: Boolean,
       printPlanBefore: Boolean): Unit = {
-    val relNode = table.asInstanceOf[TableImpl].getRelNode
+    val relNode = table.asInstanceOf[BlinkTableImpl].getRelNode
     val optimizedPlan = getOptimizedPlan(
       Array(relNode),
       explainLevel,

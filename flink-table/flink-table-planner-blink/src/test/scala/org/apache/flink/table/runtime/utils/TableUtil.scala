@@ -19,7 +19,7 @@
 package org.apache.flink.table.runtime.utils
 
 import org.apache.flink.api.common.typeinfo.TypeInformation
-import org.apache.flink.table.api.{BatchTableEnvironment, TableImpl}
+import org.apache.flink.table.api.{BatchTableEnvironment, BlinkTableImpl}
 import org.apache.flink.table.calcite.FlinkTypeFactory
 import org.apache.flink.table.sinks.{CollectRowTableSink, CollectTableSink}
 import org.apache.flink.table.types.TypeInfoLogicalTypeConverter
@@ -38,18 +38,18 @@ object TableUtil {
     * - You have to call TableEnvironment.execute() to run the job for print(), while collect()
     * calls execute automatically.
     */
-  def collect(table: TableImpl): Seq[Row] = collectSink(table, new CollectRowTableSink, None)
+  def collect(table: BlinkTableImpl): Seq[Row] = collectSink(table, new CollectRowTableSink, None)
 
-  def collect(table: TableImpl, jobName: String): Seq[Row] =
+  def collect(table: BlinkTableImpl, jobName: String): Seq[Row] =
     collectSink(table, new CollectRowTableSink, Option.apply(jobName))
 
-  def collectAsT[T](table: TableImpl, t: TypeInformation[_], jobName: String = null): Seq[T] =
+  def collectAsT[T](table: BlinkTableImpl, t: TypeInformation[_], jobName: String = null): Seq[T] =
     collectSink(
       table,
       new CollectTableSink(_ => t.asInstanceOf[TypeInformation[T]]), Option(jobName))
 
   def collectSink[T](
-      table: TableImpl, sink: CollectTableSink[T], jobName: Option[String] = None): Seq[T] = {
+      table: BlinkTableImpl, sink: CollectTableSink[T], jobName: Option[String] = None): Seq[T] = {
     // get schema information of table
     val rowType = table.getRelNode.getRowType
     val fieldNames = rowType.getFieldNames.asScala.toArray

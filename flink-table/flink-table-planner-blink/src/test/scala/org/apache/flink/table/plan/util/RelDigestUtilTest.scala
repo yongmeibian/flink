@@ -20,7 +20,7 @@ package org.apache.flink.table.plan.util
 import org.apache.flink.api.common.typeinfo.BasicTypeInfo.{DOUBLE_TYPE_INFO, INT_TYPE_INFO, STRING_TYPE_INFO}
 import org.apache.flink.api.java.typeutils.RowTypeInfo
 import org.apache.flink.streaming.api.scala.StreamExecutionEnvironment
-import org.apache.flink.table.api.{TableConfig, TableEnvironment, TableImpl}
+import org.apache.flink.table.api.{TableConfig, TableEnvironment, BlinkTableImpl}
 import org.apache.flink.table.runtime.utils.BatchTableEnvUtil
 import org.apache.flink.table.runtime.utils.BatchTestBase.row
 
@@ -58,7 +58,7 @@ class RelDigestUtilTest {
         |INTERSECT
         |(SELECT id AS random FROM MyTable ORDER BY rand() LIMIT 1)
       """.stripMargin)
-    val rel = table.asInstanceOf[TableImpl].getRelNode
+    val rel = table.asInstanceOf[BlinkTableImpl].getRelNode
     val expected = readFromResource("testGetDigestWithDynamicFunction.out")
     assertEquals(expected, RelDigestUtil.getDigest(rel))
   }
@@ -75,7 +75,7 @@ class RelDigestUtilTest {
         |INTERSECT
         |(SELECT * FROM MyView)
       """.stripMargin)
-    val rel = table.asInstanceOf[TableImpl].getRelNode.accept(new ExpandTableScanShuttle())
+    val rel = table.asInstanceOf[BlinkTableImpl].getRelNode.accept(new ExpandTableScanShuttle())
     val expected = readFromResource("testGetDigestWithDynamicFunctionView.out")
     assertEquals(expected, RelDigestUtil.getDigest(rel))
   }

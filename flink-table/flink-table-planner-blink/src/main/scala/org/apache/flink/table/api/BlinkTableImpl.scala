@@ -31,7 +31,7 @@ import _root_.scala.collection.JavaConversions._
 /**
   * The implementation of the [[Table]].
   *
-  * NOTE: Currently, [[TableImpl]] is just a wrapper for RelNode
+  * NOTE: Currently, [[BlinkTableImpl]] is just a wrapper for RelNode
   * and all the methods in the class are not implemented. This is
   * used to support end-to-end tests for Blink planner. It will be
   * implemented when we support full stack Table API for Blink planner.
@@ -39,7 +39,7 @@ import _root_.scala.collection.JavaConversions._
   * @param tableEnv The [[TableEnvironment]] to which the table is bound.
   * @param relNode  The Calcite RelNode representation
   */
-class TableImpl(val tableEnv: TableEnvironment, relNode: RelNode) extends Table {
+class BlinkTableImpl(val tableEnv: TableEnvironment, relNode: RelNode) extends Table {
 
   private lazy val tableSchema: TableSchema = {
     val rowType = relNode.getRowType

@@ -25,7 +25,7 @@ import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment
 import org.apache.flink.streaming.api.scala.{StreamExecutionEnvironment => ScalaExecEnv}
 import org.apache.flink.table.api.java.{BatchTableEnvironment => JavaBatchTableEnv}
 import org.apache.flink.table.api.scala.{BatchTableEnvironment => ScalaBatchTableEnv}
-import org.apache.flink.table.api.{SqlParserException, Table, TableConfig, TableConfigOptions, TableEnvironment, TableImpl}
+import org.apache.flink.table.api.{SqlParserException, Table, TableConfig, TableConfigOptions, TableEnvironment, BlinkTableImpl}
 import org.apache.flink.table.dataformat.{BinaryRow, BinaryRowWriter}
 import org.apache.flink.table.functions.AggregateFunction
 import org.apache.flink.table.plan.stats.FlinkStatistic
@@ -79,7 +79,7 @@ class BatchTestBase extends BatchAbstractTestBase {
     * @return string presentation of of explaining
     */
   def explainLogical(table: Table): String = {
-    val ast = table.asInstanceOf[TableImpl].getRelNode
+    val ast = table.asInstanceOf[BlinkTableImpl].getRelNode
     val logicalPlan = getPlan(ast)
 
     s"== Abstract Syntax Tree ==" +
@@ -133,7 +133,7 @@ class BatchTestBase extends BatchAbstractTestBase {
   def verifyPlan(sqlQuery: String): Unit = verifyPlan(parseQuery(sqlQuery))
 
   def verifyPlan(table: Table): Unit = {
-    val relNode = table.asInstanceOf[TableImpl].getRelNode
+    val relNode = table.asInstanceOf[BlinkTableImpl].getRelNode
     val actual = SystemUtils.LINE_SEPARATOR + getPlan(relNode)
     assertEqualsOrExpand("planAfter", actual.toString, expand = false)
   }
@@ -305,7 +305,7 @@ class BatchTestBase extends BatchAbstractTestBase {
 
   def parseQuery(sqlQuery: String): Table = tEnv.sqlQuery(sqlQuery)
 
-  def executeQuery(table: Table): Seq[Row] = TableUtil.collect(table.asInstanceOf[TableImpl])
+  def executeQuery(table: Table): Seq[Row] = TableUtil.collect(table.asInstanceOf[BlinkTableImpl])
 
   def executeQuery(sqlQuery: String): Seq[Row] = {
     val table = parseQuery(sqlQuery)

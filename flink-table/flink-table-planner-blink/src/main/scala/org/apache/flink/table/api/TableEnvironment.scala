@@ -294,7 +294,7 @@ abstract class TableEnvironment(val config: TableConfig) {
       table: Table,
       sink: TableSink[T],
       sinkName: String = null): Unit = {
-    sinkNodes += LogicalSink.create(table.asInstanceOf[TableImpl].getRelNode, sink, sinkName)
+    sinkNodes += LogicalSink.create(table.asInstanceOf[BlinkTableImpl].getRelNode, sink, sinkName)
   }
 
   /**
@@ -327,13 +327,13 @@ abstract class TableEnvironment(val config: TableConfig) {
   def registerTable(name: String, table: Table): Unit = {
 
     // check that table belongs to this table environment
-    if (table.asInstanceOf[TableImpl].tableEnv != this) {
+    if (table.asInstanceOf[BlinkTableImpl].tableEnv != this) {
       throw new TableException(
         "Only tables that belong to this TableEnvironment can be registered.")
     }
 
     checkValidTableName(name)
-    val tableTable = new RelTable(table.asInstanceOf[TableImpl].getRelNode)
+    val tableTable = new RelTable(table.asInstanceOf[BlinkTableImpl].getRelNode)
     registerTableInternal(name, tableTable)
   }
 
@@ -393,7 +393,7 @@ abstract class TableEnvironment(val config: TableConfig) {
       val table = schema.getTable(tableName)
       if (table != null) {
         val scan = relBuilder.scan(JArrays.asList(tablePath: _*)).build()
-        return Some(new TableImpl(this, scan))
+        return Some(new BlinkTableImpl(this, scan))
       }
     }
     None
@@ -497,7 +497,7 @@ abstract class TableEnvironment(val config: TableConfig) {
       val validated = planner.validate(parsed)
       // transform to a relational tree
       val relational = planner.rel(validated)
-      new TableImpl(this, relational.project())
+      new BlinkTableImpl(this, relational.project())
     } else {
       throw new TableException(
         "Unsupported SQL query! sqlQuery() only accepts SQL queries of type " +

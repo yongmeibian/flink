@@ -180,7 +180,7 @@ class BatchTableEnvironment(
     * @param extended Flag to include detailed optimizer estimates.
     */
   def explain(table: Table, extended: Boolean): String = {
-    val ast = table.asInstanceOf[TableImpl].getRelNode
+    val ast = table.asInstanceOf[BlinkTableImpl].getRelNode
     val execNodeDag = compileToExecNodePlan(ast)
     val transformations = translateToPlan(execNodeDag)
     val streamGraph = translateStreamGraph(transformations)

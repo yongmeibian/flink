@@ -18,7 +18,7 @@
 
 package org.apache.flink.table.plan.optimize
 
-import org.apache.flink.table.api.{StreamTableEnvironment, TableConfig, TableImpl}
+import org.apache.flink.table.api.{StreamTableEnvironment, TableConfig, BlinkTableImpl}
 import org.apache.flink.table.plan.`trait`.{AccMode, AccModeTraitDef, UpdateAsRetractionTraitDef}
 import org.apache.flink.table.plan.metadata.FlinkRelMetadataQuery
 import org.apache.flink.table.plan.nodes.calcite.Sink
@@ -114,7 +114,7 @@ class StreamCommonSubGraphBasedOptimizer(tEnv: StreamTableEnvironment)
         val name = tEnv.createUniqueTableName()
         registerIntermediateTable(tEnv, name, optimizedPlan, isAccRetract)
         val newTable = tEnv.scan(name)
-        block.setNewOutputNode(newTable.asInstanceOf[TableImpl].getRelNode)
+        block.setNewOutputNode(newTable.asInstanceOf[BlinkTableImpl].getRelNode)
         block.setOutputTableName(name)
         block.setOptimizedPlan(optimizedPlan)
     }
@@ -184,7 +184,7 @@ class StreamCommonSubGraphBasedOptimizer(tEnv: StreamTableEnvironment)
         val name = tEnv.createUniqueTableName()
         registerIntermediateTable(tEnv, name, optimizedPlan, isAccRetract = false)
         val newTable = tEnv.scan(name)
-        block.setNewOutputNode(newTable.asInstanceOf[TableImpl].getRelNode)
+        block.setNewOutputNode(newTable.asInstanceOf[BlinkTableImpl].getRelNode)
         block.setOutputTableName(name)
         block.setOptimizedPlan(optimizedPlan)
     }

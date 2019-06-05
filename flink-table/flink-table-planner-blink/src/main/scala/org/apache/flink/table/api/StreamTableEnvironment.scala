@@ -170,7 +170,7 @@ abstract class StreamTableEnvironment(
       resultType: TypeInformation[T]): DataStream[T] = {
     val sink = new DataStreamTableSink[T](table, resultType, updatesAsRetraction, withChangeFlag)
     val sinkName = createUniqueTableName()
-    val sinkNode = LogicalSink.create(table.asInstanceOf[TableImpl].getRelNode, sink, sinkName)
+    val sinkNode = LogicalSink.create(table.asInstanceOf[BlinkTableImpl].getRelNode, sink, sinkName)
     val transformation = translateSink(sinkNode)
     new DataStream(execEnv, transformation).asInstanceOf[DataStream[T]]
   }
@@ -218,7 +218,7 @@ abstract class StreamTableEnvironment(
     * @param extended Flag to include detailed optimizer estimates.
     */
   def explain(table: Table, extended: Boolean): String = {
-    val ast = table.asInstanceOf[TableImpl].getRelNode
+    val ast = table.asInstanceOf[BlinkTableImpl].getRelNode
     val execNodeDag = compileToExecNodePlan(ast)
     val transformations = translateToPlan(execNodeDag)
     val streamGraph = translateStreamGraph(transformations)

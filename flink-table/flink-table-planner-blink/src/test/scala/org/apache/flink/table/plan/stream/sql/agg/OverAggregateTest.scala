@@ -19,7 +19,7 @@
 package org.apache.flink.table.plan.stream.sql.agg
 
 import org.apache.flink.api.scala._
-import org.apache.flink.table.api.{TableException, TableImpl, ValidationException}
+import org.apache.flink.table.api.{TableException, BlinkTableImpl, ValidationException}
 import org.apache.flink.table.plan.util.FlinkRelOptUtil
 import org.apache.flink.table.runtime.utils.JavaUserDefinedScalarFunctions.OverAgg0
 import org.apache.flink.table.util.TableTestBase
@@ -35,8 +35,8 @@ class OverAggregateTest extends TableTestBase {
   def verifyPlanIdentical(sql1: String, sql2: String): Unit = {
     val table1 = util.tableEnv.sqlQuery(sql1)
     val table2 = util.tableEnv.sqlQuery(sql2)
-    val optimized1 = util.tableEnv.optimize(table1.asInstanceOf[TableImpl].getRelNode)
-    val optimized2 = util.tableEnv.optimize(table2.asInstanceOf[TableImpl].getRelNode)
+    val optimized1 = util.tableEnv.optimize(table1.asInstanceOf[BlinkTableImpl].getRelNode)
+    val optimized2 = util.tableEnv.optimize(table2.asInstanceOf[BlinkTableImpl].getRelNode)
     assertEquals(FlinkRelOptUtil.toString(optimized1), FlinkRelOptUtil.toString(optimized2))
   }
 

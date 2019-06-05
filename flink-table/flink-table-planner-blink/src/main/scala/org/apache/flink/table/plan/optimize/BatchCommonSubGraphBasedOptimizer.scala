@@ -18,7 +18,7 @@
 
 package org.apache.flink.table.plan.optimize
 
-import org.apache.flink.table.api.{BatchTableEnvironment, TableConfig, TableImpl}
+import org.apache.flink.table.api.{BatchTableEnvironment, TableConfig, BlinkTableImpl}
 import org.apache.flink.table.plan.nodes.physical.batch.BatchExecSink
 import org.apache.flink.table.plan.optimize.program.{BatchOptimizeContext, FlinkBatchProgram}
 import org.apache.flink.table.plan.schema.IntermediateRelTable
@@ -56,7 +56,7 @@ class BatchCommonSubGraphBasedOptimizer(tEnv: BatchTableEnvironment)
         val name = tEnv.createUniqueTableName()
         registerIntermediateTable(name, optimizedTree)
         val newTable = tEnv.scan(name)
-        block.setNewOutputNode(newTable.asInstanceOf[TableImpl].getRelNode)
+        block.setNewOutputNode(newTable.asInstanceOf[BlinkTableImpl].getRelNode)
         block.setOutputTableName(name)
     }
     block.setOptimizedPlan(optimizedTree)
