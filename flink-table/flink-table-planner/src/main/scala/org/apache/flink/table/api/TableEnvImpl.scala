@@ -41,7 +41,7 @@ import org.apache.flink.table.expressions._
 import org.apache.flink.table.factories.{TableFactoryService, TableFactoryUtil, TableSinkFactory}
 import org.apache.flink.table.functions.utils.UserDefinedFunctionUtils._
 import org.apache.flink.table.functions.{AggregateFunction, ScalarFunction, TableFunction, UserDefinedAggregateFunction}
-import org.apache.flink.table.operations.{CatalogQueryOperation, OperationTreeBuilder, PlannerQueryOperation, TableSourceQueryOperation}
+import org.apache.flink.table.operations._
 import org.apache.flink.table.plan.nodes.FlinkConventions
 import org.apache.flink.table.plan.rules.FlinkRuleSets
 import org.apache.flink.table.plan.schema.RowSchema
@@ -79,7 +79,7 @@ abstract class TableEnvImpl(
   // a counter for unique attribute names
   private[flink] val attrNameCntr: AtomicInteger = new AtomicInteger(0)
 
-  private[flink] val operationTreeBuilder = new OperationTreeBuilder(this)
+  private[flink] val operationTreeBuilder = new OperationTreeBuilderImpl(this)
 
   private val planningConfigurationBuilder: PlanningConfigurationBuilder =
     new PlanningConfigurationBuilder(
@@ -415,8 +415,8 @@ abstract class TableEnvImpl(
 
   override def registerTable(name: String, table: Table): Unit = {
 
-    // check that table belongs to this table environment
-    if (table.asInstanceOf[TableImpl].tableEnv != this) {
+    // check that table belongs to this table environment TODO
+    if (table.asInstanceOf[TableImpl].getTableEnvironment != this) {
       throw new TableException(
         "Only tables that belong to this TableEnvironment can be registered.")
     }
@@ -464,7 +464,7 @@ abstract class TableEnvImpl(
   }
 
   override def fromTableSource(source: TableSource[_]): Table = {
-    new TableImpl(this, new TableSourceQueryOperation(source, isBatch))
+    createTable(new TableSourceQueryOperation(source, isBatch))
   }
 
   /**
@@ -574,7 +574,7 @@ abstract class TableEnvImpl(
   @throws[TableException]
   override def scan(tablePath: String*): Table = {
     scanInternal(tablePath.toArray) match {
-      case Some(table) => new TableImpl(this, table)
+      case Some(table) => createTable(table)
       case None => throw new TableException(s"Table '${tablePath.mkString(".")}' was not found.")
     }
   }
@@ -614,7 +614,7 @@ abstract class TableEnvImpl(
       val validated = planner.validate(parsed)
       // transform to a relational tree
       val relational = planner.rel(validated)
-      new TableImpl(this, new PlannerQueryOperation(relational.rel))
+      createTable(new PlannerQueryOperation(relational.rel))
     } else {
       throw new TableException(
         "Unsupported SQL query! sqlQuery() only accepts SQL queries of type " +
@@ -636,9 +636,9 @@ abstract class TableEnvImpl(
         val query = insert.getSource
         val validatedQuery = planner.validate(query)
 
+        val tableOperation = new PlannerQueryOperation(planner.rel(validatedQuery).rel)
         // get query result as Table
-        val queryResult = new TableImpl(this,
-          new PlannerQueryOperation(planner.rel(validatedQuery).rel))
+        val queryResult = createTable(tableOperation)
 
         // get name of sink table
         val targetTablePath = insert.getTargetTable.asInstanceOf[SqlIdentifier].names
@@ -649,6 +649,14 @@ abstract class TableEnvImpl(
         throw new TableException(
           "Unsupported SQL query! sqlUpdate() only accepts SQL statements of type INSERT.")
     }
+  }
+
+  protected def createTable(tableOperation: QueryOperation) = {
+    TableImpl.createTable(
+      this,
+      tableOperation,
+      operationTreeBuilder,
+      functionCatalog)
   }
 
   /**

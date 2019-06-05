@@ -30,9 +30,9 @@ import org.apache.flink.table.expressions.catalog.FunctionDefinitionCatalog
 import org.apache.flink.table.expressions.lookups.TableReferenceLookup
 import org.apache.flink.table.functions.utils.UserDefinedFunctionUtils
 import org.apache.flink.table.operations.AliasOperationUtils.createAliasList
-import JoinQueryOperation.JoinType
+import org.apache.flink.table.operations.JoinQueryOperation.JoinType
 import org.apache.flink.table.operations.OperationExpressionsUtils.extractAggregationsAndProperties
-import SetQueryOperation.SetQueryOperationType._
+import org.apache.flink.table.operations.SetQueryOperation.SetQueryOperationType._
 import org.apache.flink.table.util.JavaScalaConversionUtil
 import org.apache.flink.table.util.JavaScalaConversionUtil.toScala
 import org.apache.flink.util.Preconditions
@@ -43,7 +43,7 @@ import _root_.scala.collection.JavaConverters._
 /**
   * Builder for [[[Operation]] tree.
   */
-class OperationTreeBuilder(private val tableEnv: TableEnvImpl) {
+class OperationTreeBuilderImpl(private val tableEnv: TableEnvImpl) extends OperationTreeBuilder{
 
   private val expressionBridge: ExpressionBridge[PlannerExpression] = tableEnv.expressionBridge
   private val functionCatalog: FunctionDefinitionCatalog = tableEnv.functionCatalog
@@ -67,15 +67,22 @@ class OperationTreeBuilder(private val tableEnv: TableEnvImpl) {
         .map(op => new TableReferenceExpression(name, op)))
   }
 
-  def project(
+  override def project(
+      projectList: JList[Expression],
+      child: QueryOperation)
+    : QueryOperation = {
+    project(projectList, child, explicitAlias = false)
+  }
+
+  override def project(
       projectList: JList[Expression],
       child: QueryOperation,
-      explicitAlias: Boolean = false)
+      explicitAlias: Boolean)
     : QueryOperation = {
     projectInternal(projectList, child, explicitAlias, Collections.emptyList())
   }
 
-  def project(
+  override def project(
       projectList: JList[Expression],
       child: QueryOperation,
       overWindows: JList[OverWindow])
@@ -133,7 +140,7 @@ class OperationTreeBuilder(private val tableEnv: TableEnvImpl) {
   /**
     * Adds additional columns. Existing fields will be replaced if replaceIfExist is true.
     */
-  def addColumns(
+  override def addColumns(
       replaceIfExist: Boolean,
       fieldLists: JList[Expression],
       child: QueryOperation)
@@ -147,7 +154,7 @@ class OperationTreeBuilder(private val tableEnv: TableEnvImpl) {
     project(newColumns, child)
   }
 
-  def renameColumns(
+  override def renameColumns(
       aliases: JList[Expression],
       child: QueryOperation)
     : QueryOperation = {
@@ -160,7 +167,7 @@ class OperationTreeBuilder(private val tableEnv: TableEnvImpl) {
     project(validateAliases, child)
   }
 
-  def dropColumns(
+  override def dropColumns(
       fieldLists: JList[Expression],
       child: QueryOperation)
     : QueryOperation = {
@@ -172,7 +179,7 @@ class OperationTreeBuilder(private val tableEnv: TableEnvImpl) {
     project(finalFields, child)
   }
 
-  def aggregate(
+  override def aggregate(
       groupingExpressions: JList[Expression],
       aggregates: JList[Expression],
       child: QueryOperation)
@@ -189,7 +196,7 @@ class OperationTreeBuilder(private val tableEnv: TableEnvImpl) {
   /**
     * Row based aggregate that will flatten the output if it is a composite type.
     */
-  def aggregate(
+  override def aggregate(
       groupingExpressions: JList[Expression],
       aggregate: Expression,
       child: QueryOperation)
@@ -240,7 +247,7 @@ class OperationTreeBuilder(private val tableEnv: TableEnvImpl) {
     aliasBackwardFields(flattenedOperation, alias, groupingExpressions.size())
   }
 
-  def tableAggregate(
+  override def tableAggregate(
       groupingExpressions: JList[Expression],
       tableAggFunction: Expression,
       child: QueryOperation)
@@ -267,7 +274,7 @@ class OperationTreeBuilder(private val tableEnv: TableEnvImpl) {
     aliasBackwardFields(tableAggOperation, resolvedFunctionAndAlias.f1, groupingExpressions.size())
   }
 
-  def windowAggregate(
+  override def windowAggregate(
       groupingExpressions: JList[Expression],
       window: GroupWindow,
       windowProperties: JList[Expression],
@@ -299,7 +306,7 @@ class OperationTreeBuilder(private val tableEnv: TableEnvImpl) {
       child)
   }
 
-  def windowTableAggregate(
+  override def windowTableAggregate(
     groupingExpressions: JList[Expression],
     window: GroupWindow,
     windowProperties: JList[Expression],
@@ -344,7 +351,7 @@ class OperationTreeBuilder(private val tableEnv: TableEnvImpl) {
     aliasBackwardFields(tableAggOperation, resolvedFunctionAndAlias.f1, groupingExpressions.size())
   }
 
-  def join(
+  override def join(
       left: QueryOperation,
       right: QueryOperation,
       joinType: JoinType,
@@ -358,7 +365,7 @@ class OperationTreeBuilder(private val tableEnv: TableEnvImpl) {
       .create(left, right, joinType, resolvedCondition.getOrElse(valueLiteral(true)), correlated)
   }
 
-  def joinLateral(
+  override def joinLateral(
       left: QueryOperation,
       tableFunction: Expression,
       joinType: JoinType,
@@ -372,7 +379,7 @@ class OperationTreeBuilder(private val tableEnv: TableEnvImpl) {
     join(left, temporalTable, joinType, condition, correlated = true)
   }
 
-  def resolveExpression(expression: Expression, queryOperation: QueryOperation*)
+  override def resolveExpression(expression: Expression, queryOperation: QueryOperation*)
     : Expression = {
     val resolver = resolverFor(tableCatalog, functionCatalog, queryOperation: _*).build()
 
@@ -391,7 +398,7 @@ class OperationTreeBuilder(private val tableEnv: TableEnvImpl) {
     }
   }
 
-  def sort(
+  override def sort(
       fields: JList[Expression],
       child: QueryOperation)
     : QueryOperation = {
@@ -402,15 +409,15 @@ class OperationTreeBuilder(private val tableEnv: TableEnvImpl) {
     sortOperationFactory.createSort(resolvedFields, child)
   }
 
-  def limitWithOffset(offset: Int, child: QueryOperation): QueryOperation = {
+  override def limitWithOffset(offset: Int, child: QueryOperation): QueryOperation = {
     sortOperationFactory.createLimitWithOffset(offset, child)
   }
 
-  def limitWithFetch(fetch: Int, child: QueryOperation): QueryOperation = {
+  override def limitWithFetch(fetch: Int, child: QueryOperation): QueryOperation = {
     sortOperationFactory.createLimitWithFetch(fetch, child)
   }
 
-  def alias(
+  override def alias(
       fields: JList[Expression],
       child: QueryOperation)
     : QueryOperation = {
@@ -420,7 +427,7 @@ class OperationTreeBuilder(private val tableEnv: TableEnvImpl) {
     project(newFields, child, explicitAlias = true)
   }
 
-  def filter(
+  override def filter(
       condition: Expression,
       child: QueryOperation)
     : QueryOperation = {
@@ -436,13 +443,13 @@ class OperationTreeBuilder(private val tableEnv: TableEnvImpl) {
     new FilterQueryOperation(resolvedExpression, child)
   }
 
-  def distinct(
+  override def distinct(
       child: QueryOperation)
     : QueryOperation = {
     new DistinctQueryOperation(child)
   }
 
-  def minus(
+  override def minus(
       left: QueryOperation,
       right: QueryOperation,
       all: Boolean)
@@ -450,7 +457,7 @@ class OperationTreeBuilder(private val tableEnv: TableEnvImpl) {
     setOperationFactory.create(MINUS, left, right, all)
   }
 
-  def intersect(
+  override def intersect(
       left: QueryOperation,
       right: QueryOperation,
       all: Boolean)
@@ -458,7 +465,7 @@ class OperationTreeBuilder(private val tableEnv: TableEnvImpl) {
     setOperationFactory.create(INTERSECT, left, right, all)
   }
 
-  def union(
+  override def union(
       left: QueryOperation,
       right: QueryOperation,
       all: Boolean)
@@ -466,7 +473,7 @@ class OperationTreeBuilder(private val tableEnv: TableEnvImpl) {
     setOperationFactory.create(UNION, left, right, all)
   }
 
-  def map(mapFunction: Expression, child: QueryOperation): QueryOperation = {
+  override def map(mapFunction: Expression, child: QueryOperation): QueryOperation = {
 
     val resolver = resolverFor(tableCatalog, functionCatalog, child).build()
     val resolvedMapFunction = resolveSingleExpression(mapFunction, resolver)
@@ -480,7 +487,7 @@ class OperationTreeBuilder(private val tableEnv: TableEnvImpl) {
     project(Collections.singletonList(expandedFields), child)
   }
 
-  def flatMap(tableFunction: Expression, child: QueryOperation): QueryOperation = {
+  override def flatMap(tableFunction: Expression, child: QueryOperation): QueryOperation = {
 
     val resolver = resolverFor(tableCatalog, functionCatalog, child).build()
     val resolvedTableFunction = resolveSingleExpression(tableFunction, resolver)
