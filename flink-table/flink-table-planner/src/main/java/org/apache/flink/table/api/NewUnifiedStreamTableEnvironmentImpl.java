@@ -43,11 +43,12 @@ import org.apache.flink.table.expressions.TableReferenceExpression;
 import org.apache.flink.table.functions.ScalarFunction;
 import org.apache.flink.table.functions.utils.UserDefinedFunctionUtils;
 import org.apache.flink.table.operations.CatalogQueryOperation;
+import org.apache.flink.table.operations.CatalogSinkModifyOperation;
 import org.apache.flink.table.operations.ModifyOperation;
+import org.apache.flink.table.operations.Operation;
 import org.apache.flink.table.operations.OperationTreeBuilder;
 import org.apache.flink.table.operations.OperationTreeBuilderImpl;
 import org.apache.flink.table.operations.QueryOperation;
-import org.apache.flink.table.operations.TableOperation;
 import org.apache.flink.table.operations.TableSourceQueryOperation;
 import org.apache.flink.table.planner.Planner;
 import org.apache.flink.table.planner.StreamPlanner;
@@ -59,34 +60,31 @@ import org.apache.flink.table.sources.TableSourceUtil;
 import org.apache.flink.table.validate.FunctionCatalog;
 import org.apache.flink.util.StringUtils;
 
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
-import java.util.concurrent.atomic.AtomicInteger;
 
 @Internal
 public class NewUnifiedStreamTableEnvironmentImpl implements TableEnvironment {
 
 	private final CatalogManager catalogManager;
-	private final FunctionCatalog functionCatalog;
-	private final StreamExecutionEnvironment execEnv;
 	private final TableConfig tableConfig;
-
-	private final AtomicInteger nameCntr = new AtomicInteger(0);
 
 	private final String defaultCatalogName;
 	private final String defaultDatabaseName;
 
 	private final OperationTreeBuilder operationTreeBuilder;
 
-	private final FlinkTypeFactory typeFactory = new FlinkTypeFactory(new FlinkTypeSystem());
-
-	private final Planner planner;
+	protected final FlinkTypeFactory typeFactory = new FlinkTypeFactory(new FlinkTypeSystem());
+	protected final StreamExecutionEnvironment execEnv;
+	protected final FunctionCatalog functionCatalog;
+	protected final Planner planner;
 
 	public NewUnifiedStreamTableEnvironmentImpl(
 			CatalogManager catalogManager,
 			TableConfig tableConfig,
-			FunctionCatalog functionCatalog,
 			StreamExecutionEnvironment executionEnvironment) {
 		this.catalogManager = catalogManager;
 		this.execEnv = executionEnvironment;
@@ -94,7 +92,7 @@ public class NewUnifiedStreamTableEnvironmentImpl implements TableEnvironment {
 		this.defaultCatalogName = tableConfig.getBuiltInCatalogName();
 		this.defaultDatabaseName = tableConfig.getBuiltInDatabaseName();
 
-		this.functionCatalog = functionCatalog;
+		this.functionCatalog = new FunctionCatalog();
 		this.planner = new StreamPlanner(execEnv, tableConfig, functionCatalog, catalogManager);
 		ExpressionBridge<PlannerExpression> expressionBridge = new ExpressionBridge<>(
 			functionCatalog,
@@ -153,7 +151,6 @@ public class NewUnifiedStreamTableEnvironmentImpl implements TableEnvironment {
 				"Only tables that belong to this TableEnvironment can be registered.");
 		}
 
-		checkValidTableName(name);
 		CatalogBaseTable tableTable = new QueryOperationCatalogView(table.getQueryOperation());
 		registerTableInternal(name, tableTable);
 	}
@@ -165,7 +162,6 @@ public class NewUnifiedStreamTableEnvironmentImpl implements TableEnvironment {
 				"StreamTableEnvironment");
 		}
 
-		checkValidTableName(name);
 		registerTableSourceInternal(name, tableSource);
 	}
 
@@ -192,7 +188,6 @@ public class NewUnifiedStreamTableEnvironmentImpl implements TableEnvironment {
 		}
 
 		checkValidTableName(name);
-
 		registerTableSinkInternal(name, configuredSink);
 	}
 
@@ -246,13 +241,21 @@ public class NewUnifiedStreamTableEnvironmentImpl implements TableEnvironment {
 
 	@Override
 	public Table sqlQuery(String query) {
-		TableOperation operation = planner.parse(query);
+		List<Operation> operations = planner.parse(query);
+
+		if (operations.size() != 1) {
+			throw new ValidationException(
+				"Unsupported SQL query! sqlQuery() only accepts a single SQL queries of type " +
+					"SELECT, UNION, INTERSECT, EXCEPT, VALUES, and ORDER_BY.");
+		}
+
+		Operation operation = operations.get(0);
 
 		if (operation instanceof QueryOperation && !(operation instanceof ModifyOperation)) {
 			return createTable((QueryOperation) operation);
 		} else {
-			throw new TableException(
-				"Unsupported SQL query! sqlQuery() only accepts SQL queries of type " +
+			throw new ValidationException(
+				"Unsupported SQL query! sqlQuery() only accepts a single SQL queries of type " +
 					"SELECT, UNION, INTERSECT, EXCEPT, VALUES, and ORDER_BY.");
 		}
 	}
@@ -264,17 +267,31 @@ public class NewUnifiedStreamTableEnvironmentImpl implements TableEnvironment {
 
 	@Override
 	public void insertInto(Table table, QueryConfig queryConfig, String path, String... pathContinued) {
-//		new CatalogSinkTableOperation()
+		List<String> fullPath = new ArrayList<>(Arrays.asList(pathContinued));
+		fullPath.add(0, path);
+
+		List<StreamTransformation<?>> translate = planner.translate(Collections.singletonList(new CatalogSinkModifyOperation(
+			fullPath,
+			table.getQueryOperation())));
+
+		translate.forEach(execEnv::addOperator);
 	}
 
 	@Override
 	public void insertInto(Table table, String path, String... pathContinued) {
-
+		insertInto(table, new StreamQueryConfig(), path, pathContinued);
 	}
 
 	@Override
 	public void sqlUpdate(String stmt, QueryConfig config) {
-		TableOperation operation = planner.parse(stmt);
+		List<Operation> operations = planner.parse(stmt);
+
+		if (operations.size() != 1) {
+			throw new TableException(
+				"Unsupported SQL query! sqlUpdate() only accepts a single SQL statements of type INSERT.");
+		}
+
+		Operation operation = operations.get(0);
 
 		if (operation instanceof ModifyOperation) {
 			List<StreamTransformation<?>> transformations =
@@ -283,7 +300,7 @@ public class NewUnifiedStreamTableEnvironmentImpl implements TableEnvironment {
 			transformations.forEach(execEnv::addOperator);
 		} else {
 			throw new TableException(
-				"Unsupported SQL query! sqlUpdate() only accepts SQL statements of type INSERT.");
+				"Unsupported SQL query! sqlUpdate() only accepts a single SQL statements of type INSERT.");
 		}
 	}
 
@@ -312,7 +329,7 @@ public class NewUnifiedStreamTableEnvironmentImpl implements TableEnvironment {
 		return tableConfig;
 	}
 
-	private void registerTableInternal(String name, CatalogBaseTable table) {
+	protected void registerTableInternal(String name, CatalogBaseTable table) {
 		try {
 			checkValidTableName(name);
 			ObjectPath path = new ObjectPath(defaultDatabaseName, name);
@@ -328,7 +345,7 @@ public class NewUnifiedStreamTableEnvironmentImpl implements TableEnvironment {
 		}
 	}
 
-	private void replaceTableInternal(String name, CatalogBaseTable table) {
+	protected void replaceTableInternal(String name, CatalogBaseTable table) {
 		try {
 			ObjectPath path = new ObjectPath(defaultDatabaseName, name);
 			Optional<Catalog> catalog = catalogManager.getCatalog(defaultCatalogName);
@@ -409,7 +426,7 @@ public class NewUnifiedStreamTableEnvironmentImpl implements TableEnvironment {
 		return catalogManager.resolveTable(name).flatMap(CatalogManager.ResolvedTable::getCatalogTable);
 	}
 
-	private TableImpl createTable(QueryOperation tableOperation) {
+	protected TableImpl createTable(QueryOperation tableOperation) {
 		return TableImpl.createTable(
 			this,
 			tableOperation,

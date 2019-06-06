@@ -29,7 +29,7 @@ import org.apache.flink.table.calcite.FlinkTypeFactory
 import org.apache.flink.table.expressions._
 import org.apache.flink.table.expressions.catalog.FunctionDefinitionCatalog
 import org.apache.flink.table.functions.sql.ScalarSqlFunctions
-import org.apache.flink.table.functions.utils.UserDefinedFunctionUtils.{createAggregateSqlFunction, createScalarSqlFunction, createTableSqlFunction}
+import org.apache.flink.table.functions.utils.UserDefinedFunctionUtils.{checkForInstantiation, checkNotSingleton, createAggregateSqlFunction, createScalarSqlFunction, createTableSqlFunction}
 import org.apache.flink.table.functions.{ScalarFunction, TableFunction, UserDefinedAggregateFunction}
 
 import _root_.scala.collection.JavaConversions._
@@ -66,6 +66,11 @@ class FunctionCatalog extends FunctionDefinitionCatalog {
       resultType: TypeInformation[_],
       typeFactory: FlinkTypeFactory)
     : Unit = {
+    // check if class not Scala object
+    checkNotSingleton(function.getClass)
+    // check if class could be instantiated
+    checkForInstantiation(function.getClass)
+
     registerFunction(
       name,
       new TableFunctionDefinition(name, function, resultType),
@@ -80,6 +85,11 @@ class FunctionCatalog extends FunctionDefinitionCatalog {
       accType: TypeInformation[_],
       typeFactory: FlinkTypeFactory)
     : Unit = {
+    // check if class not Scala object
+    checkNotSingleton(function.getClass)
+    // check if class could be instantiated
+    checkForInstantiation(function.getClass)
+
     registerFunction(
       name,
       new AggregateFunctionDefinition(name, function, resultType, accType),

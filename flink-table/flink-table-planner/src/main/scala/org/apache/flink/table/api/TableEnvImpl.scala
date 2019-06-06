@@ -19,8 +19,6 @@
 package org.apache.flink.table.api
 
 import _root_.java.util.Optional
-import _root_.java.util.concurrent.atomic.AtomicInteger
-import _root_.java.util.function.{Supplier => JSupplier}
 
 import com.google.common.collect.ImmutableList
 import org.apache.calcite.jdbc.CalciteSchemaBuilder.asRootSchema
@@ -40,7 +38,7 @@ import org.apache.flink.table.expressions.lookups.TableReferenceLookup
 import org.apache.flink.table.factories.{TableFactoryService, TableFactoryUtil, TableSinkFactory}
 import org.apache.flink.table.functions.utils.UserDefinedFunctionUtils._
 import org.apache.flink.table.functions.{AggregateFunction, ScalarFunction, TableFunction, UserDefinedAggregateFunction}
-import org.apache.flink.table.operations.{OperationTreeBuilder, TableOperation, _}
+import org.apache.flink.table.operations._
 import org.apache.flink.table.plan.nodes.FlinkConventions
 import org.apache.flink.table.plan.rules.FlinkRuleSets
 import org.apache.flink.table.planner.PlanningConfigurationBuilder
@@ -679,7 +677,7 @@ abstract class TableEnvImpl(
     queryConfig: QueryConfig,
     path: String,
     pathContinued: String*): Unit = {
-    insertInto(table, queryConfig, path, pathContinued: _*)
+    insertInto(table, queryConfig, path +: pathContinued: _*)
   }
 
   override def insertInto(

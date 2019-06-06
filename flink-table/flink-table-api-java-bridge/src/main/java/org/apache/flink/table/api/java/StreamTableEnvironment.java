@@ -106,7 +106,7 @@ public interface StreamTableEnvironment extends TableEnvironment {
 	 * Example:
 	 *
 	 * <pre>
-	 * {@ocde
+	 * {@code
 	 *   DataStream<Tuple2<String, Long>> stream = ...
 	 *   Table tab = tableEnv.fromDataStream(stream, "a, b");
 	 * }
@@ -402,7 +402,8 @@ public interface StreamTableEnvironment extends TableEnvironment {
 	 */
 	static StreamTableEnvironment create(StreamExecutionEnvironment executionEnvironment, TableConfig tableConfig) {
 		try {
-			Class<?> clazz = Class.forName("org.apache.flink.table.api.java.StreamTableEnvImpl");
+			Class<?> clazz = Class.forName("org.apache.flink.table.api.java.NewStreamTableEnvironment");
+
 			Constructor con = clazz.getConstructor(
 				StreamExecutionEnvironment.class,
 				TableConfig.class,

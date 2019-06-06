@@ -36,7 +36,7 @@ import org.apache.flink.table.calcite.{CalciteConfig, FlinkPlannerImpl, FlinkRel
 import org.apache.flink.table.catalog.{CatalogManager, CatalogManagerCalciteSchema}
 import org.apache.flink.table.explain.PlanJsonParser
 import org.apache.flink.table.expressions.{ExpressionBridge, PlannerExpression, PlannerExpressionConverter}
-import org.apache.flink.table.operations.OutputConversionOperation.UpdateMode
+import org.apache.flink.table.operations.OutputConversionModifyOperation.UpdateMode
 import org.apache.flink.table.operations._
 import org.apache.flink.table.plan.nodes.datastream.DataStreamRel
 import org.apache.flink.table.plan.util.UpdatingPlanChecker
@@ -46,6 +46,7 @@ import org.apache.flink.table.types.utils.TypeConversions
 import org.apache.flink.table.validate.FunctionCatalog
 
 import _root_.scala.collection.JavaConverters._
+import _root_.java.util.{List => JList}
 
 class StreamPlanner(
   execEnv: StreamExecutionEnvironment,
@@ -73,7 +74,7 @@ class StreamPlanner(
       .orElse(CalciteConfig.DEFAULT),
     planningConfigurationBuilder)
 
-  override def parse(stmt: String): TableOperation = {
+  override def parse(stmt: String): JList[Operation] = {
     val planner = getFlinkPlanner
     // parse the sql query
     val parsed = planner.parse(stmt)
@@ -83,9 +84,10 @@ class StreamPlanner(
         // get name of sink table
         val targetTablePath = insert.getTargetTable.asInstanceOf[SqlIdentifier].names
 
-        new CatalogSinkOperation(targetTablePath, toRel(planner, insert.getSource))
+        List(new CatalogSinkModifyOperation(targetTablePath, toRel(planner, insert.getSource))
+          .asInstanceOf[Operation]).asJava
       case node if node.getKind.belongsTo(SqlKind.QUERY) =>
-        toRel(planner, parsed)
+        List(toRel(planner, parsed).asInstanceOf[Operation]).asJava
       case _ =>
         throw new TableException(
           "Unsupported SQL query! parse() only accepts SQL queries of type " +
@@ -112,10 +114,10 @@ class StreamPlanner(
   private def translate(tableOperation: ModifyOperation)
     : StreamTransformation[_] = {
     tableOperation match {
-      case s : UnregisteredSinkOperation[_] =>
-        writeToSink(tableOperation, s.getSink, new StreamQueryConfig).getTransformation
+      case s : UnregisteredSinkModifyOperation[_] =>
+        writeToSink(s.getChild, s.getSink, new StreamQueryConfig).getTransformation
 
-      case outputConversion: OutputConversionOperation[_] =>
+      case outputConversion: OutputConversionModifyOperation =>
         val (isRetract, withChangeFlag) = outputConversion.getUpdateMode match {
           case UpdateMode.RETRACT => (true, true)
           case UpdateMode.APPEND => (false, false)
@@ -123,7 +125,7 @@ class StreamPlanner(
         }
 
         translateToType(
-          tableOperation,
+          tableOperation.getChild,
           new StreamQueryConfig,
           isRetract,
           withChangeFlag,
@@ -132,7 +134,7 @@ class StreamPlanner(
 
       case _ =>
         val dataStreamPlan = optimizer
-          .optimize(tableOperation, updatesAsRetraction = false, getRelBuilder)
+          .optimize(tableOperation.getChild, updatesAsRetraction = false, getRelBuilder)
         translateToCRow(dataStreamPlan, new StreamQueryConfig).getTransformation
     }
   }
