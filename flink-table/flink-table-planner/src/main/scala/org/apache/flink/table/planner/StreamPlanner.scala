@@ -48,6 +48,8 @@ import org.apache.flink.table.validate.FunctionCatalog
 import _root_.scala.collection.JavaConverters._
 import _root_.java.util.{List => JList}
 
+import org.apache.flink.annotation.VisibleForTesting
+
 class StreamPlanner(
   execEnv: StreamExecutionEnvironment,
   config: TableConfig,
@@ -68,7 +70,8 @@ class StreamPlanner(
       internalSchema,
       expressionBridge)
 
-  private val optimizer: StreamOptimizer = new StreamOptimizer(
+  @VisibleForTesting
+  private[flink] val optimizer: StreamOptimizer = new StreamOptimizer(
     config.getPlannerConfig
       .unwrap(classOf[CalciteConfig])
       .orElse(CalciteConfig.DEFAULT),

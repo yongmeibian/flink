@@ -23,17 +23,15 @@ import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.api.java.typeutils.TupleTypeInfo;
 import org.apache.flink.api.java.typeutils.TypeExtractor;
-import org.apache.flink.streaming.api.TimeCharacteristic;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.streaming.api.transformations.StreamTransformation;
-import org.apache.flink.table.api.NewUnifiedStreamTableEnvironmentImpl;
+import org.apache.flink.table.api.NewUnifiedTableEnvironmentImpl;
 import org.apache.flink.table.api.StreamQueryConfig;
 import org.apache.flink.table.api.Table;
 import org.apache.flink.table.api.TableConfig;
 import org.apache.flink.table.api.TableException;
 import org.apache.flink.table.api.Types;
-import org.apache.flink.table.api.ValidationException;
 import org.apache.flink.table.catalog.CatalogManager;
 import org.apache.flink.table.descriptors.ConnectorDescriptor;
 import org.apache.flink.table.descriptors.StreamTableDescriptor;
@@ -46,15 +44,14 @@ import org.apache.flink.table.operations.DataStreamQueryOperation;
 import org.apache.flink.table.operations.OutputConversionModifyOperation;
 import org.apache.flink.table.types.DataType;
 import org.apache.flink.table.types.utils.TypeConversions;
-import org.apache.flink.table.typeutils.FieldInfoUtils;
 
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 
 @Internal
-public class NewStreamTableEnvironment extends NewUnifiedStreamTableEnvironmentImpl implements StreamTableEnvironment {
-	private NewStreamTableEnvironment(
+public class NewStreamTableEnvironment extends NewUnifiedTableEnvironmentImpl implements StreamTableEnvironment {
+	public NewStreamTableEnvironment(
 				CatalogManager catalogManager,
 				TableConfig tableConfig,
 				StreamExecutionEnvironment executionEnvironment) {
@@ -102,12 +99,33 @@ public class NewStreamTableEnvironment extends NewUnifiedStreamTableEnvironmentI
 
 	@Override
 	public <T, ACC> void registerFunction(String name, TableAggregateFunction<T, ACC> tableAggregateFunction) {
+		TypeInformation<T> typeInfo = TypeExtractor.createTypeInfo(
+			tableAggregateFunction,
+			AggregateFunction.class,
+			tableAggregateFunction.getClass(),
+			0);
 
+		TypeInformation<T> accTypeInfo = TypeExtractor.createTypeInfo(
+			tableAggregateFunction,
+			AggregateFunction.class,
+			tableAggregateFunction.getClass(),
+			1);
+
+		functionCatalog.registerAggregateFunction(
+			name,
+			tableAggregateFunction,
+			typeInfo,
+			accTypeInfo,
+			typeFactory
+		);
 	}
 
 	@Override
 	public <T> Table fromDataStream(DataStream<T> dataStream) {
-		DataStreamQueryOperation<T> queryOperation = asQueryOperation(dataStream, Optional.empty());
+		DataStreamQueryOperation<T> queryOperation = DataStreamQueryOperation.asQueryOperation(
+			dataStream,
+			Optional.empty(),
+			execEnv.getStreamTimeCharacteristic());
 
 		return createTable(queryOperation);
 	}
@@ -115,7 +133,10 @@ public class NewStreamTableEnvironment extends NewUnifiedStreamTableEnvironmentI
 	@Override
 	public <T> Table fromDataStream(DataStream<T> dataStream, String fields) {
 		List<Expression> expressions = ExpressionParser.parseExpressionList(fields);
-		DataStreamQueryOperation<T> queryOperation = asQueryOperation(dataStream, Optional.of(expressions));
+		DataStreamQueryOperation<T> queryOperation = DataStreamQueryOperation.asQueryOperation(
+			dataStream,
+			Optional.of(expressions),
+			execEnv.getStreamTimeCharacteristic());
 
 		return createTable(queryOperation);
 	}
@@ -194,33 +215,6 @@ public class NewStreamTableEnvironment extends NewUnifiedStreamTableEnvironmentI
 
 	public StreamTableDescriptor connect(ConnectorDescriptor connectorDescriptor) {
 		return (StreamTableDescriptor) super.connect(connectorDescriptor);
-	}
-
-	private <T> DataStreamQueryOperation<T> asQueryOperation(
-			DataStream<T> dataStream,
-			Optional<List<Expression>> fields) {
-		TypeInformation<T> streamType = dataStream.getType();
-
-		// get field names and types for all non-replaced fields
-		FieldInfoUtils.TypeInfoSchema typeInfoSchema = fields.map(f -> {
-			FieldInfoUtils.TypeInfoSchema fieldsInfo = FieldInfoUtils.getFieldsInfo(
-				streamType,
-				f.toArray(new Expression[0]));
-
-			// check if event-time is enabled
-			if (fieldsInfo.isRowtimeDefined() &&
-				execEnv.getStreamTimeCharacteristic() != TimeCharacteristic.EventTime) {
-				throw new ValidationException(String.format(
-					"A rowtime attribute requires an EventTime time characteristic in stream environment. But is: %s",
-					execEnv.getStreamTimeCharacteristic()));
-			}
-			return fieldsInfo;
-		}).orElseGet(() -> FieldInfoUtils.getFieldsInfo(streamType));
-
-		return new DataStreamQueryOperation<>(
-			dataStream,
-			typeInfoSchema.getIndices(),
-			typeInfoSchema.toTableSchema());
 	}
 
 	private <T> DataStream<T> toDataStream(Table table, OutputConversionModifyOperation modifyOperation) {

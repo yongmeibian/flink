@@ -19,13 +19,19 @@
 package org.apache.flink.table.operations;
 
 import org.apache.flink.annotation.Internal;
+import org.apache.flink.api.common.typeinfo.TypeInformation;
+import org.apache.flink.streaming.api.TimeCharacteristic;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.table.api.TableSchema;
+import org.apache.flink.table.api.ValidationException;
+import org.apache.flink.table.expressions.Expression;
+import org.apache.flink.table.typeutils.FieldInfoUtils;
 
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 /**
  * Describes a relational operation that reads from a {@link DataStream}.
@@ -81,5 +87,33 @@ public class DataStreamQueryOperation<E> implements QueryOperation {
 	@Override
 	public <T> T accept(QueryOperationVisitor<T> visitor) {
 		return visitor.visit(this);
+	}
+
+	public static  <T> DataStreamQueryOperation<T> asQueryOperation(
+			DataStream<T> dataStream,
+			Optional<List<Expression>> fields,
+			TimeCharacteristic timeCharacteristic) {
+		TypeInformation<T> streamType = dataStream.getType();
+
+		// get field names and types for all non-replaced fields
+		FieldInfoUtils.TypeInfoSchema typeInfoSchema = fields.map(f -> {
+			FieldInfoUtils.TypeInfoSchema fieldsInfo = FieldInfoUtils.getFieldsInfo(
+				streamType,
+				f.toArray(new Expression[0]));
+
+			// check if event-time is enabled
+			if (fieldsInfo.isRowtimeDefined() &&
+				timeCharacteristic != TimeCharacteristic.EventTime) {
+				throw new ValidationException(String.format(
+					"A rowtime attribute requires an EventTime time characteristic in stream environment. But is: %s",
+					timeCharacteristic));
+			}
+			return fieldsInfo;
+		}).orElseGet(() -> FieldInfoUtils.getFieldsInfo(streamType));
+
+		return new DataStreamQueryOperation<>(
+			dataStream,
+			typeInfoSchema.getIndices(),
+			typeInfoSchema.toTableSchema());
 	}
 }

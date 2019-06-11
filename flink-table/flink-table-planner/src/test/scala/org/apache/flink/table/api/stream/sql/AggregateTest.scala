@@ -60,36 +60,36 @@ class AggregateTest extends TableTestBase {
     streamUtil.verifySql(sql, expected)
   }
 
-  @Test
-  def testUserDefinedAggregateFunctionWithScalaAccumulator(): Unit = {
-    streamUtil.addFunction("udag", new MyAgg)
-    val aggFunctionDefinition = streamUtil
-      .tableEnv
-      .functionCatalog
-      .lookupFunction("udag")
-      .asInstanceOf[AggregateFunctionDefinition]
-
-    val typeInfo = aggFunctionDefinition.getAccumulatorTypeInfo
-    assertTrue(typeInfo.isInstanceOf[CaseClassTypeInfo[_]])
-    assertEquals(2, typeInfo.getTotalFields)
-    val caseTypeInfo = typeInfo.asInstanceOf[CaseClassTypeInfo[_]]
-    assertEquals(Types.LONG, caseTypeInfo.getTypeAt(0))
-    assertEquals(Types.LONG, caseTypeInfo.getTypeAt(1))
-
-    streamUtil.addFunction("udag2", new MyAgg2)
-    val aggFunctionDefinition2 = streamUtil
-      .tableEnv
-      .functionCatalog
-      .lookupFunction("udag2")
-      .asInstanceOf[AggregateFunctionDefinition]
-
-    val typeInfo2 = aggFunctionDefinition2.getAccumulatorTypeInfo
-    assertTrue(s"actual type: $typeInfo2", typeInfo2.isInstanceOf[RowTypeInfo])
-    assertEquals(2, typeInfo2.getTotalFields)
-    val rowTypeInfo = typeInfo2.asInstanceOf[RowTypeInfo]
-    assertEquals(Types.LONG, rowTypeInfo.getTypeAt(0))
-    assertEquals(Types.INT, rowTypeInfo.getTypeAt(1))
-  }
+//  @Test
+//  def testUserDefinedAggregateFunctionWithScalaAccumulator(): Unit = {
+//    streamUtil.addFunction("udag", new MyAgg)
+//    val aggFunctionDefinition = streamUtil
+//      .tableEnv
+//      .functionCatalog
+//      .lookupFunction("udag")
+//      .asInstanceOf[AggregateFunctionDefinition]
+//
+//    val typeInfo = aggFunctionDefinition.getAccumulatorTypeInfo
+//    assertTrue(typeInfo.isInstanceOf[CaseClassTypeInfo[_]])
+//    assertEquals(2, typeInfo.getTotalFields)
+//    val caseTypeInfo = typeInfo.asInstanceOf[CaseClassTypeInfo[_]]
+//    assertEquals(Types.LONG, caseTypeInfo.getTypeAt(0))
+//    assertEquals(Types.LONG, caseTypeInfo.getTypeAt(1))
+//
+//    streamUtil.addFunction("udag2", new MyAgg2)
+//    val aggFunctionDefinition2 = streamUtil
+//      .tableEnv
+//      .functionCatalog
+//      .lookupFunction("udag2")
+//      .asInstanceOf[AggregateFunctionDefinition]
+//
+//    val typeInfo2 = aggFunctionDefinition2.getAccumulatorTypeInfo
+//    assertTrue(s"actual type: $typeInfo2", typeInfo2.isInstanceOf[RowTypeInfo])
+//    assertEquals(2, typeInfo2.getTotalFields)
+//    val rowTypeInfo = typeInfo2.asInstanceOf[RowTypeInfo]
+//    assertEquals(Types.LONG, rowTypeInfo.getTypeAt(0))
+//    assertEquals(Types.INT, rowTypeInfo.getTypeAt(1))
+//  }
 }
 
 case class MyAccumulator(var sum: Long, var count: Long)

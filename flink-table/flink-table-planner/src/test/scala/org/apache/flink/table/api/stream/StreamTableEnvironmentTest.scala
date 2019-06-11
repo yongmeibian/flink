@@ -26,8 +26,7 @@ import org.apache.flink.api.scala._
 import org.apache.flink.streaming.api.TimeCharacteristic
 import org.apache.flink.streaming.api.datastream.DataStream
 import org.apache.flink.streaming.api.environment.{StreamExecutionEnvironment => JStreamExecEnv}
-import org.apache.flink.table.api.java.{StreamTableEnvironment => JStreamTableEnv}
-import org.apache.flink.table.api.java.{StreamTableEnvImpl => JStreamTableEnvImpl}
+import org.apache.flink.table.api.java.{StreamTableEnvironment => JStreamTableEnv, NewStreamTableEnvironment => JStreamTableEnvironmentImpl}
 import org.apache.flink.table.api.scala._
 import org.apache.flink.table.api.{TableConfig, Types}
 import org.apache.flink.table.catalog.{CatalogManager, GenericInMemoryCatalog}
@@ -178,12 +177,12 @@ class StreamTableEnvironmentTest extends TableTestBase {
     val jStreamExecEnv = mock(classOf[JStreamExecEnv])
     when(jStreamExecEnv.getStreamTimeCharacteristic).thenReturn(TimeCharacteristic.EventTime)
     val config = new TableConfig
-    val jTEnv = new JStreamTableEnvImpl(
-      jStreamExecEnv,
-      config,
+    val jTEnv = new JStreamTableEnvironmentImpl(
       new CatalogManager(
         config.getBuiltInCatalogName,
-        new GenericInMemoryCatalog(config.getBuiltInCatalogName, config.getBuiltInDatabaseName)))
+        new GenericInMemoryCatalog(config.getBuiltInCatalogName, config.getBuiltInDatabaseName)),
+      config,
+      jStreamExecEnv)
 
     val sType = new TupleTypeInfo(Types.LONG, Types.INT, Types.STRING, Types.INT, Types.LONG)
       .asInstanceOf[TupleTypeInfo[JTuple5[JLong, JInt, String, JInt, JLong]]]

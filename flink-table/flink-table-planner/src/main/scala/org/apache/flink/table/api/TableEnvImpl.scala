@@ -105,7 +105,6 @@ abstract class TableEnvImpl(
 
   private[flink] def queryConfig: QueryConfig = this match {
     case _: BatchTableEnvImpl => new BatchQueryConfig
-    case _: StreamTableEnvImpl => new StreamQueryConfig
     case _ => null
   }
 

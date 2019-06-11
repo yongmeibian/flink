@@ -281,19 +281,19 @@ object StreamTableEnvironment {
   def create(executionEnvironment: StreamExecutionEnvironment, tableConfig: TableConfig)
   : StreamTableEnvironment = {
     try {
-      val clazz = Class.forName("org.apache.flink.table.api.scala.StreamTableEnvImpl")
+      val clazz = Class.forName("org.apache.flink.table.api.scala.NewStreamTableEnvironment")
       val const = clazz
         .getConstructor(
-          classOf[StreamExecutionEnvironment],
+          classOf[CatalogManager],
           classOf[TableConfig],
-          classOf[CatalogManager])
+          classOf[StreamExecutionEnvironment])
       val catalogManager = new CatalogManager(
         tableConfig.getBuiltInCatalogName,
         new GenericInMemoryCatalog(
           tableConfig.getBuiltInCatalogName,
           tableConfig.getBuiltInDatabaseName)
       )
-      const.newInstance(executionEnvironment, tableConfig, catalogManager)
+      const.newInstance(catalogManager, tableConfig, executionEnvironment)
         .asInstanceOf[StreamTableEnvironment]
     } catch {
       case t: Throwable => throw new TableException("Create StreamTableEnvironment failed.", t)

@@ -19,6 +19,7 @@
 package org.apache.flink.table.api;
 
 import org.apache.flink.annotation.Internal;
+import org.apache.flink.annotation.VisibleForTesting;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.streaming.api.TimeCharacteristic;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
@@ -67,7 +68,7 @@ import java.util.List;
 import java.util.Optional;
 
 @Internal
-public class NewUnifiedStreamTableEnvironmentImpl implements TableEnvironment {
+public class NewUnifiedTableEnvironmentImpl implements TableEnvironment {
 
 	private final CatalogManager catalogManager;
 	private final TableConfig tableConfig;
@@ -82,7 +83,7 @@ public class NewUnifiedStreamTableEnvironmentImpl implements TableEnvironment {
 	protected final FunctionCatalog functionCatalog;
 	protected final Planner planner;
 
-	public NewUnifiedStreamTableEnvironmentImpl(
+	public NewUnifiedTableEnvironmentImpl(
 			CatalogManager catalogManager,
 			TableConfig tableConfig,
 			StreamExecutionEnvironment executionEnvironment) {
@@ -106,6 +107,11 @@ public class NewUnifiedStreamTableEnvironmentImpl implements TableEnvironment {
 			functionCatalog,
 			true
 		);
+	}
+
+	@VisibleForTesting
+	public Planner getPlanner() {
+		return planner;
 	}
 
 	@Override
@@ -417,9 +423,6 @@ public class NewUnifiedStreamTableEnvironmentImpl implements TableEnvironment {
 		} else {
 			registerTableInternal(name, ConnectorCatalogTable.sink(tableSink, false));
 		}
-
-		throw new TableException("Only StreamTableSink can be registered in " +
-			"StreamTableEnvironment");
 	}
 
 	private Optional<CatalogBaseTable> getCatalogTable(String... name) {
