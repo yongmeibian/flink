@@ -67,8 +67,7 @@ public class NewStreamTableEnvironment extends NewUnifiedTableEnvironmentImpl im
 		functionCatalog.registerTableFunction(
 			name,
 			tableFunction,
-			typeInfo,
-			typeFactory
+			typeInfo
 		);
 	}
 
@@ -83,8 +82,7 @@ public class NewStreamTableEnvironment extends NewUnifiedTableEnvironmentImpl im
 			name,
 			aggregateFunction,
 			typeInfo,
-			accTypeInfo,
-			typeFactory
+			accTypeInfo
 		);
 	}
 
@@ -99,8 +97,7 @@ public class NewStreamTableEnvironment extends NewUnifiedTableEnvironmentImpl im
 			name,
 			tableAggregateFunction,
 			typeInfo,
-			accTypeInfo,
-			typeFactory
+			accTypeInfo
 		);
 	}
 

@@ -46,37 +46,6 @@ import scala.collection.mutable
 
 object UserDefinedFunctionUtils {
 
-  /**
-    * Checks if a user-defined function can be easily instantiated.
-    */
-  def checkForInstantiation(clazz: Class[_]): Unit = {
-    if (!InstantiationUtil.isPublic(clazz)) {
-      throw new ValidationException(s"Function class ${clazz.getCanonicalName} is not public.")
-    }
-    else if (!InstantiationUtil.isProperClass(clazz)) {
-      throw new ValidationException(
-        s"Function class ${clazz.getCanonicalName} is no proper class," +
-        " it is either abstract, an interface, or a primitive type.")
-    }
-    else if (InstantiationUtil.isNonStaticInnerClass(clazz)) {
-      throw new ValidationException(
-        s"The class ${clazz.getCanonicalName} is an inner class, but not statically accessible.")
-    }
-  }
-
-  /**
-    * Check whether this is a Scala object. It is forbidden to use [[TableFunction]] implemented
-    * by a Scala object, since concurrent risks.
-    */
-  def checkNotSingleton(clazz: Class[_]): Unit = {
-    // TODO it is not a good way to check singleton. Maybe improve it further.
-    if (clazz.getFields.map(_.getName) contains "MODULE$") {
-      throw new ValidationException(
-        s"TableFunction implemented by class ${clazz.getCanonicalName} " +
-          s"is a Scala object, it is forbidden since concurrent risks.")
-    }
-  }
-
   // ----------------------------------------------------------------------------------------------
   // Utilities for user-defined methods
   // ----------------------------------------------------------------------------------------------

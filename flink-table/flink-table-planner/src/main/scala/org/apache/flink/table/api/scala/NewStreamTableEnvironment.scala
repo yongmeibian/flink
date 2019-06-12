@@ -122,8 +122,7 @@ class NewStreamTableEnvironment(
     functionCatalog.registerTableFunction(
       name,
       tf,
-      typeInfo,
-      typeFactory
+      typeInfo
     )
   }
 
@@ -139,8 +138,7 @@ class NewStreamTableEnvironment(
       name,
       f,
       typeInfo,
-      accTypeInfo,
-      typeFactory
+      accTypeInfo
     )
   }
 
@@ -156,8 +154,7 @@ class NewStreamTableEnvironment(
       name,
       f,
       typeInfo,
-      accTypeInfo,
-      typeFactory
+      accTypeInfo
     )
   }
 

@@ -31,6 +31,7 @@ import org.apache.flink.table.catalog.CatalogBaseTable;
 import org.apache.flink.table.catalog.CatalogManager;
 import org.apache.flink.table.catalog.ConnectorCatalogTable;
 import org.apache.flink.table.catalog.ExternalCatalog;
+import org.apache.flink.table.catalog.FunctionCatalog;
 import org.apache.flink.table.catalog.ObjectPath;
 import org.apache.flink.table.catalog.QueryOperationCatalogView;
 import org.apache.flink.table.catalog.exceptions.DatabaseNotExistException;
@@ -59,7 +60,6 @@ import org.apache.flink.table.sinks.TableSink;
 import org.apache.flink.table.sources.StreamTableSource;
 import org.apache.flink.table.sources.TableSource;
 import org.apache.flink.table.sources.TableSourceUtil;
-import org.apache.flink.table.validate.FunctionCatalog;
 import org.apache.flink.util.StringUtils;
 
 import java.util.ArrayList;
@@ -143,13 +143,9 @@ public class NewUnifiedTableEnvironmentImpl implements TableEnvironment {
 
 	@Override
 	public void registerFunction(String name, ScalarFunction function) {
-		// check if class could be instantiated
-		UserDefinedFunctionUtils.checkForInstantiation(function.getClass());
-
 		functionCatalog.registerScalarFunction(
 			name,
-			function,
-			typeFactory);
+			function);
 	}
 
 	@Override

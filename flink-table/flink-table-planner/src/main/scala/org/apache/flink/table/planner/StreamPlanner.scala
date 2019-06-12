@@ -18,6 +18,7 @@
 
 package org.apache.flink.table.planner
 import _root_.java.lang.{Boolean => JBool}
+import _root_.java.util.{List => JList}
 import java.util
 
 import org.apache.calcite.jdbc.CalciteSchema
@@ -26,6 +27,7 @@ import org.apache.calcite.plan.RelOptUtil
 import org.apache.calcite.rel.RelNode
 import org.apache.calcite.sql.{SqlIdentifier, SqlInsert, SqlKind, SqlNode}
 import org.apache.calcite.tools.FrameworkConfig
+import org.apache.flink.annotation.VisibleForTesting
 import org.apache.flink.api.common.typeinfo.TypeInformation
 import org.apache.flink.api.java.tuple.{Tuple2 => JTuple2}
 import org.apache.flink.streaming.api.datastream.DataStream
@@ -33,9 +35,10 @@ import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment
 import org.apache.flink.streaming.api.transformations.StreamTransformation
 import org.apache.flink.table.api._
 import org.apache.flink.table.calcite.{CalciteConfig, FlinkPlannerImpl, FlinkRelBuilder, FlinkTypeFactory}
-import org.apache.flink.table.catalog.{CatalogManager, CatalogManagerCalciteSchema, CatalogTable, ConnectorCatalogTable}
+import org.apache.flink.table.catalog._
 import org.apache.flink.table.explain.PlanJsonParser
 import org.apache.flink.table.expressions.{ExpressionBridge, PlannerExpression, PlannerExpressionConverter}
+import org.apache.flink.table.factories.{TableFactoryService, TableFactoryUtil, TableSinkFactory}
 import org.apache.flink.table.operations.OutputConversionModifyOperation.UpdateMode
 import org.apache.flink.table.operations._
 import org.apache.flink.table.plan.nodes.datastream.DataStreamRel
@@ -43,14 +46,9 @@ import org.apache.flink.table.plan.util.UpdatingPlanChecker
 import org.apache.flink.table.runtime.types.CRow
 import org.apache.flink.table.sinks.{AppendStreamTableSink, RetractStreamTableSink, TableSink, UpsertStreamTableSink}
 import org.apache.flink.table.types.utils.TypeConversions
-import org.apache.flink.table.validate.FunctionCatalog
+import org.apache.flink.table.util.JavaScalaConversionUtil
 
 import _root_.scala.collection.JavaConverters._
-import _root_.java.util.{List => JList}
-
-import org.apache.flink.annotation.VisibleForTesting
-import org.apache.flink.table.factories.{TableFactoryService, TableFactoryUtil, TableSinkFactory}
-import org.apache.flink.table.util.JavaScalaConversionUtil
 
 class StreamPlanner(
   execEnv: StreamExecutionEnvironment,

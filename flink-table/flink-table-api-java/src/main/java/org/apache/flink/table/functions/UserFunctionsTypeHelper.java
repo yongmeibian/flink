@@ -21,6 +21,10 @@ package org.apache.flink.table.functions;
 import org.apache.flink.annotation.Internal;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.api.java.typeutils.TypeExtractor;
+import org.apache.flink.table.api.ValidationException;
+import org.apache.flink.util.InstantiationUtil;
+
+import java.util.Arrays;
 
 @Internal
 public class UserFunctionsTypeHelper {
@@ -131,6 +135,35 @@ public class UserFunctionsTypeHelper {
 				TableFunction.class,
 				tableFunction.getClass(),
 				0);
+		}
+	}
+
+	/**
+	 * Checks if a user-defined function can be easily instantiated.
+	 */
+	public static void validateInstantiation(Class<?> clazz) {
+		if (!InstantiationUtil.isPublic(clazz)) {
+			throw new ValidationException(String.format("Function class %s is not public.", clazz.getCanonicalName()));
+		} else if (!InstantiationUtil.isProperClass(clazz)) {
+			throw new ValidationException(String.format(
+				"Function class %s is no proper class," +
+					" it is either abstract, an interface, or a primitive type.", clazz.getCanonicalName()));
+		} else if (InstantiationUtil.isNonStaticInnerClass(clazz)) {
+			throw new ValidationException(String.format(
+				"The class %s is an inner class, but not statically accessible.", clazz.getCanonicalName()));
+		}
+	}
+
+	/**
+	 * Check whether this is a Scala object. It is forbidden to use {@link TableFunction} implemented
+	 * by a Scala object, since concurrent risks.
+	 */
+	public static void validateNotSingleton(Class<?> clazz) {
+		// TODO it is not a good way to check singleton. Maybe improve it further.
+		if (Arrays.stream(clazz.getFields()).anyMatch(f -> f.getName().equals("MODULE$"))) {
+			throw new ValidationException(String.format(
+				"TableFunction implemented by class %s " +
+					"is a Scala object, it is forbidden since concurrent risks.", clazz.getCanonicalName()));
 		}
 	}
 
