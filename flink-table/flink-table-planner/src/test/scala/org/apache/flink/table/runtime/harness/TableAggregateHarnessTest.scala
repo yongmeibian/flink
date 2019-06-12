@@ -25,9 +25,9 @@ import org.apache.flink.api.scala._
 import org.apache.flink.streaming.api.scala.StreamExecutionEnvironment
 import org.apache.flink.streaming.runtime.streamrecord.StreamRecord
 import org.apache.flink.table.api.scala._
-import org.apache.flink.table.runtime.harness.HarnessTestBase._
+import org.apache.flink.table.runtime.harness.HarnessTestBase.TestStreamQueryConfig
 import org.apache.flink.table.runtime.types.CRow
-import org.apache.flink.table.utils.{Top3WithMapView}
+import org.apache.flink.table.utils.Top3WithMapView
 import org.apache.flink.types.Row
 import org.junit.Test
 
@@ -35,8 +35,7 @@ import scala.collection.mutable
 
 class TableAggregateHarnessTest extends HarnessTestBase {
 
-  protected var queryConfig =
-    new TestStreamQueryConfig(Time.seconds(2), Time.seconds(3))
+  protected var queryConfig = new TestStreamQueryConfig(Time.seconds(2), Time.seconds(3))
   val data = new mutable.MutableList[(Int, Int)]
 
   @Test

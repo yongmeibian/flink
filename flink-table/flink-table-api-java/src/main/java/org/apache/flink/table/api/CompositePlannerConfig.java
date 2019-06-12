@@ -16,19 +16,29 @@
  * limitations under the License.
  */
 
-package org.apache.flink.table.catalog.hive.client;
+package org.apache.flink.table.api;
 
-import org.apache.hadoop.hive.conf.HiveConf;
+import org.apache.flink.annotation.Internal;
+
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Optional;
 
 /**
- * Factory to create Hive metastore client.
+ * A {@link PlannerConfig} to pass multiple different configs under a single object. It allows storing only a single
+ * instance of a given class. If there is an object of the same class already, it is replaced with the new one.
  */
-public class HiveMetastoreClientFactory {
+@Internal
+public class CompositePlannerConfig implements PlannerConfig {
+	private final Map<Class<? extends PlannerConfig>, PlannerConfig> configs = new HashMap<>();
 
-	private HiveMetastoreClientFactory() {
+	public void addConfig(PlannerConfig config) {
+		configs.put(config.getClass(), config);
 	}
 
-	public static HiveMetastoreClientWrapper create(HiveConf hiveConf) {
-		return new HiveMetastoreClientWrapper(hiveConf);
+	@Override
+	@SuppressWarnings("unchecked")
+	public <T extends PlannerConfig> Optional<T> unwrap(Class<T> type) {
+		return (Optional<T>) Optional.ofNullable(configs.get(type));
 	}
 }

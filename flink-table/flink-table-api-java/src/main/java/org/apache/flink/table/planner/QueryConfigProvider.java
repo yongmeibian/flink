@@ -16,19 +16,25 @@
  * limitations under the License.
  */
 
-package org.apache.flink.table.catalog.hive.client;
+package org.apache.flink.table.planner;
 
-import org.apache.hadoop.hive.conf.HiveConf;
+import org.apache.flink.annotation.Internal;
+import org.apache.flink.table.api.PlannerConfig;
+import org.apache.flink.table.api.StreamQueryConfig;
 
 /**
- * Factory to create Hive metastore client.
+ * An adapter to {@link PlannerConfig} that enables to pass {@link org.apache.flink.table.api.QueryConfig}
+ * to {@link Planner} via {@link org.apache.flink.table.api.TableConfig},
  */
-public class HiveMetastoreClientFactory {
+@Internal
+public class QueryConfigProvider implements PlannerConfig {
+	private StreamQueryConfig config;
 
-	private HiveMetastoreClientFactory() {
+	public StreamQueryConfig getConfig() {
+		return config;
 	}
 
-	public static HiveMetastoreClientWrapper create(HiveConf hiveConf) {
-		return new HiveMetastoreClientWrapper(hiveConf);
+	public void setConfig(StreamQueryConfig config) {
+		this.config = config;
 	}
 }

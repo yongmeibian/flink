@@ -40,8 +40,7 @@ import org.junit.Test
   */
 class JoinHarnessTest extends HarnessTestBase {
 
-  private val queryConfig =
-    new TestStreamQueryConfig(Time.milliseconds(2), Time.milliseconds(4))
+  private val queryConfig = new TestStreamQueryConfig(Time.milliseconds(2), Time.milliseconds(4))
 
   private val rowType = Types.ROW(
     Types.LONG,

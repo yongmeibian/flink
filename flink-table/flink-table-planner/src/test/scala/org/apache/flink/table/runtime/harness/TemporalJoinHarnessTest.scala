@@ -47,8 +47,8 @@ import org.hamcrest.Matchers.{endsWith, startsWith}
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
+import scala.collection.JavaConverters._
 import scala.collection.mutable.ArrayBuffer
-import collection.JavaConverters._
 
 class TemporalJoinHarnessTest extends HarnessTestBase {
 
@@ -56,8 +56,7 @@ class TemporalJoinHarnessTest extends HarnessTestBase {
 
   private val tableConfig = new TableConfig
 
-  private val queryConfig =
-    new TestStreamQueryConfig(Time.milliseconds(2), Time.milliseconds(4))
+  private val queryConfig = new TestStreamQueryConfig(Time.milliseconds(2), Time.milliseconds(4))
 
   private val ORDERS_KEY = "o_currency"
 

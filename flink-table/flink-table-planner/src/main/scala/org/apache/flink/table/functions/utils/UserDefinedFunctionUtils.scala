@@ -570,10 +570,10 @@ object UserDefinedFunctionUtils {
     *
     * @return The inferred result type of the AggregateFunction.
     */
-  def getResultTypeOfAggregateFunction(
-      aggregateFunction: UserDefinedAggregateFunction[_, _],
-      extractedType: TypeInformation[_] = null)
-    : TypeInformation[_] = {
+  def getResultTypeOfAggregateFunction[T, ACC](
+      aggregateFunction: UserDefinedAggregateFunction[T, ACC],
+      extractedType: TypeInformation[T] = null)
+    : TypeInformation[T] = {
 
     val resultType = aggregateFunction.getResultType
     if (resultType != null) {
@@ -582,7 +582,7 @@ object UserDefinedFunctionUtils {
       extractedType
     } else {
       try {
-        extractTypeFromAggregateFunction(aggregateFunction, 0)
+        extractTypeFromAggregateFunction(aggregateFunction, 0).asInstanceOf[TypeInformation[T]]
       } catch {
         case ite: InvalidTypesException =>
           throw new TableException(
@@ -602,10 +602,10 @@ object UserDefinedFunctionUtils {
     *
     * @return The inferred accumulator type of the AggregateFunction.
     */
-  def getAccumulatorTypeOfAggregateFunction(
-    aggregateFunction: UserDefinedAggregateFunction[_, _],
-    extractedType: TypeInformation[_] = null)
-  : TypeInformation[_] = {
+  def getAccumulatorTypeOfAggregateFunction[T, ACC](
+    aggregateFunction: UserDefinedAggregateFunction[T, ACC],
+    extractedType: TypeInformation[ACC] = null)
+  : TypeInformation[ACC] = {
 
     val accType = aggregateFunction.getAccumulatorType
     if (accType != null) {
@@ -614,7 +614,7 @@ object UserDefinedFunctionUtils {
       extractedType
     } else {
       try {
-        extractTypeFromAggregateFunction(aggregateFunction, 1)
+        extractTypeFromAggregateFunction(aggregateFunction, 1).asInstanceOf[TypeInformation[ACC]]
       } catch {
         case ite: InvalidTypesException =>
           throw new TableException(
@@ -643,7 +643,7 @@ object UserDefinedFunctionUtils {
       aggregateFunction,
       classOf[UserDefinedAggregateFunction[_, _]],
       aggregateFunction.getClass,
-      parameterTypePos).asInstanceOf[TypeInformation[_]]
+      parameterTypePos)
   }
 
   /**

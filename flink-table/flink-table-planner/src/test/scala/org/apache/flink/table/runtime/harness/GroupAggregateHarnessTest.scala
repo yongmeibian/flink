@@ -39,8 +39,7 @@ import scala.collection.mutable
 
 class GroupAggregateHarnessTest extends HarnessTestBase {
 
-  protected var queryConfig =
-    new TestStreamQueryConfig(Time.seconds(2), Time.seconds(3))
+  protected var queryConfig = new TestStreamQueryConfig(Time.seconds(2), Time.seconds(3))
 
   @Test
   def testAggregate(): Unit = {
@@ -359,7 +358,7 @@ class GroupAggregateHarnessTest extends HarnessTestBase {
     testHarness.setProcessingTime(6002)
 
     // retract after cleanup
-    testHarness.processElement(new StreamRecord(CRow(false, 1L: JLong, 1: JInt, 2L: JLong)))
+    testHarness.processElement(new StreamRecord(CRow(false, 1L: JLong, 1L: JLong, 2L: JLong)))
 
     val result = testHarness.getOutput
 

@@ -28,8 +28,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 class StateCleaningCountTriggerHarnessTest {
-  protected var queryConfig =
-    new TestStreamQueryConfig(Time.seconds(2), Time.seconds(3))
+  protected var queryConfig = new TestStreamQueryConfig(Time.seconds(2), Time.seconds(3))
 
   @Test
   def testFiringAndFiringWithPurging(): Unit = {

@@ -30,9 +30,9 @@ import org.apache.flink.table.api.StreamQueryConfig
 import org.apache.flink.table.runtime.harness.HarnessTestBase.{TestStreamQueryConfig, TupleRowKeySelector}
 import org.apache.flink.table.runtime.join.BaseTwoInputStreamOperatorWithStateRetention
 import org.apache.flink.table.runtime.types.CRow
+import org.hamcrest.MatcherAssert.assertThat
 import org.hamcrest.{Description, TypeSafeMatcher}
 import org.junit.{After, Before, Test}
-import org.hamcrest.MatcherAssert.assertThat
 
 import scala.collection.mutable
 import scala.collection.mutable.ArrayBuffer

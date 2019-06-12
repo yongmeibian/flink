@@ -52,6 +52,7 @@ import org.apache.flink.table.operations.OperationTreeBuilderImpl;
 import org.apache.flink.table.operations.QueryOperation;
 import org.apache.flink.table.operations.TableSourceQueryOperation;
 import org.apache.flink.table.planner.Planner;
+import org.apache.flink.table.planner.QueryConfigProvider;
 import org.apache.flink.table.planner.StreamPlanner;
 import org.apache.flink.table.sinks.StreamTableSink;
 import org.apache.flink.table.sinks.TableSink;
@@ -71,16 +72,16 @@ import java.util.Optional;
 public class NewUnifiedTableEnvironmentImpl implements TableEnvironment {
 
 	private final CatalogManager catalogManager;
-	private final TableConfig tableConfig;
 
 	private final String defaultCatalogName;
 	private final String defaultDatabaseName;
-
+	private final TableConfig tableConfig;
 	private final OperationTreeBuilder operationTreeBuilder;
 
 	protected final FlinkTypeFactory typeFactory = new FlinkTypeFactory(new FlinkTypeSystem());
 	protected final StreamExecutionEnvironment execEnv;
 	protected final FunctionCatalog functionCatalog;
+	protected final QueryConfigProvider queryConfigProvider = new QueryConfigProvider();
 	protected final Planner planner;
 
 	public NewUnifiedTableEnvironmentImpl(
@@ -93,6 +94,7 @@ public class NewUnifiedTableEnvironmentImpl implements TableEnvironment {
 		this.defaultCatalogName = tableConfig.getBuiltInCatalogName();
 		this.defaultDatabaseName = tableConfig.getBuiltInDatabaseName();
 
+		this.tableConfig.setPlannerConfig(queryConfigProvider);
 		this.functionCatalog = new FunctionCatalog();
 		this.planner = new StreamPlanner(execEnv, tableConfig, functionCatalog, catalogManager);
 		ExpressionBridge<PlannerExpression> expressionBridge = new ExpressionBridge<>(
@@ -276,6 +278,7 @@ public class NewUnifiedTableEnvironmentImpl implements TableEnvironment {
 		List<String> fullPath = new ArrayList<>(Arrays.asList(pathContinued));
 		fullPath.add(0, path);
 
+		queryConfigProvider.setConfig((StreamQueryConfig) queryConfig);
 		List<StreamTransformation<?>> translate = planner.translate(Collections.singletonList(new CatalogSinkModifyOperation(
 			fullPath,
 			table.getQueryOperation())));
@@ -300,6 +303,7 @@ public class NewUnifiedTableEnvironmentImpl implements TableEnvironment {
 		Operation operation = operations.get(0);
 
 		if (operation instanceof ModifyOperation) {
+			queryConfigProvider.setConfig((StreamQueryConfig) config);
 			List<StreamTransformation<?>> transformations =
 				planner.translate(Collections.singletonList((ModifyOperation) operation));
 
@@ -374,6 +378,8 @@ public class NewUnifiedTableEnvironmentImpl implements TableEnvironment {
 	}
 
 	private void registerTableSourceInternal(String name, TableSource<?> tableSource) {
+		TableSourceUtil.validateTableSource(tableSource);
+
 		// check that event-time is enabled if table source includes rowtime attributes
 		if (TableSourceUtil.hasRowtimeAttribute(tableSource) &&
 			execEnv.getStreamTimeCharacteristic() != TimeCharacteristic.EventTime) {
@@ -388,7 +394,7 @@ public class NewUnifiedTableEnvironmentImpl implements TableEnvironment {
 			if (table.get() instanceof ConnectorCatalogTable<?, ?>) {
 				ConnectorCatalogTable<?, ?> sourceSinkTable = (ConnectorCatalogTable<?, ?>) table.get();
 				if (sourceSinkTable.getTableSource().isPresent()) {
-					throw new TableException(String.format(
+					throw new ValidationException(String.format(
 						"Table '%s' already exists. Please choose a different name.", name));
 				} else {
 					// wrapper contains only sink (not source)
@@ -397,6 +403,9 @@ public class NewUnifiedTableEnvironmentImpl implements TableEnvironment {
 						ConnectorCatalogTable
 							.sourceAndSink(tableSource, sourceSinkTable.getTableSink().get(), false));
 				}
+			} else {
+				throw new ValidationException(String.format(
+					"Table '%s' already exists. Please choose a different name.", name));
 			}
 		} else {
 			registerTableInternal(name, ConnectorCatalogTable.source(tableSource, false));
@@ -410,7 +419,7 @@ public class NewUnifiedTableEnvironmentImpl implements TableEnvironment {
 			if (table.get() instanceof ConnectorCatalogTable<?, ?>) {
 				ConnectorCatalogTable<?, ?> sourceSinkTable = (ConnectorCatalogTable<?, ?>) table.get();
 				if (sourceSinkTable.getTableSink().isPresent()) {
-					throw new TableException(String.format(
+					throw new ValidationException(String.format(
 						"Table '%s' already exists. Please choose a different name.", name));
 				} else {
 					// wrapper contains only sink (not source)
@@ -419,6 +428,9 @@ public class NewUnifiedTableEnvironmentImpl implements TableEnvironment {
 						ConnectorCatalogTable
 							.sourceAndSink(sourceSinkTable.getTableSource().get(), tableSink, false));
 				}
+			} else {
+				throw new ValidationException(String.format(
+					"Table '%s' already exists. Please choose a different name.", name));
 			}
 		} else {
 			registerTableInternal(name, ConnectorCatalogTable.sink(tableSink, false));

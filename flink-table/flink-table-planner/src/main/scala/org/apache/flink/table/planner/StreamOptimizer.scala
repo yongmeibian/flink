@@ -35,7 +35,7 @@ import org.apache.flink.table.plan.rules.FlinkRuleSets
 import scala.collection.JavaConverters._
 
 class StreamOptimizer(
-  calciteConfig: CalciteConfig,
+  calciteConfig: () => CalciteConfig,
   planningConfigurationBuilder: PlanningConfigurationBuilder) {
 
   /**
@@ -229,13 +229,14 @@ class StreamOptimizer(
     * including a custom RuleSet configuration.
     */
   private def getDecoRuleSet: RuleSet = {
-    calciteConfig.decoRuleSet match {
+    val config = calciteConfig.apply()
+    config.decoRuleSet match {
 
       case None =>
         FlinkRuleSets.DATASTREAM_DECO_RULES
 
       case Some(ruleSet) =>
-        if (calciteConfig.replacesDecoRuleSet) {
+        if (config.replacesDecoRuleSet) {
           ruleSet
         } else {
           RuleSets.ofList((FlinkRuleSets.DATASTREAM_DECO_RULES.asScala ++ ruleSet.asScala).asJava)
@@ -248,13 +249,14 @@ class StreamOptimizer(
     * including a custom RuleSet configuration.
     */
   private def getNormRuleSet: RuleSet = {
-    calciteConfig.normRuleSet match {
+    val config = calciteConfig.apply()
+    config.normRuleSet match {
 
       case None =>
         FlinkRuleSets.DATASTREAM_NORM_RULES
 
       case Some(ruleSet) =>
-        if (calciteConfig.replacesNormRuleSet) {
+        if (config.replacesNormRuleSet) {
           ruleSet
         } else {
           RuleSets.ofList((FlinkRuleSets.DATASTREAM_NORM_RULES.asScala ++ ruleSet.asScala).asJava)
@@ -267,13 +269,14 @@ class StreamOptimizer(
     * including a custom RuleSet configuration.
     */
   private def getLogicalOptRuleSet: RuleSet = {
-    calciteConfig.logicalOptRuleSet match {
+    val config = calciteConfig.apply()
+    config.logicalOptRuleSet match {
 
       case None =>
         FlinkRuleSets.LOGICAL_OPT_RULES
 
       case Some(ruleSet) =>
-        if (calciteConfig.replacesLogicalOptRuleSet) {
+        if (config.replacesLogicalOptRuleSet) {
           ruleSet
         } else {
           RuleSets.ofList((FlinkRuleSets.LOGICAL_OPT_RULES.asScala ++ ruleSet.asScala).asJava)
@@ -286,13 +289,14 @@ class StreamOptimizer(
     * including a custom RuleSet configuration.
     */
   private def getPhysicalOptRuleSet: RuleSet = {
-    calciteConfig.physicalOptRuleSet match {
+    val config = calciteConfig.apply()
+    config.physicalOptRuleSet match {
 
       case None =>
         FlinkRuleSets.DATASTREAM_OPT_RULES
 
       case Some(ruleSet) =>
-        if (calciteConfig.replacesPhysicalOptRuleSet) {
+        if (calciteConfig.apply().replacesPhysicalOptRuleSet) {
           ruleSet
         } else {
           RuleSets.ofList((FlinkRuleSets.DATASTREAM_OPT_RULES.asScala ++ ruleSet.asScala).asJava)

@@ -26,8 +26,8 @@ import org.apache.flink.api.scala._
 import org.apache.flink.contrib.streaming.state.RocksDBKeyedStateBackend
 import org.apache.flink.streaming.api.scala.StreamExecutionEnvironment
 import org.apache.flink.streaming.runtime.streamrecord.StreamRecord
-import org.apache.flink.table.api.scala._
 import org.apache.flink.table.api.dataview.MapView
+import org.apache.flink.table.api.scala._
 import org.apache.flink.table.dataview.StateMapView
 import org.apache.flink.table.runtime.aggregate.GroupAggProcessFunction
 import org.apache.flink.table.runtime.harness.HarnessTestBase.TestStreamQueryConfig

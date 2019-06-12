@@ -29,7 +29,7 @@ import org.apache.flink.table.api._
 import org.apache.flink.table.catalog.CatalogManager
 import org.apache.flink.table.descriptors.{ConnectorDescriptor, StreamTableDescriptor}
 import org.apache.flink.table.expressions.Expression
-import org.apache.flink.table.functions.{AggregateFunction, TableAggregateFunction, TableFunction}
+import org.apache.flink.table.functions.{AggregateFunction, TableAggregateFunction, TableFunction, UserFunctionsTypeHelper}
 import org.apache.flink.table.operations.{DataStreamQueryOperation, OutputConversionModifyOperation}
 import org.apache.flink.table.types.utils.TypeConversions
 
@@ -93,7 +93,7 @@ class NewStreamTableEnvironment(
       table.getQueryOperation,
       TypeConversions.fromLegacyInfoToDataType(returnType),
       OutputConversionModifyOperation.UpdateMode.APPEND)
-
+    queryConfigProvider.setConfig(queryConfig)
     toDataStream(table, modifyOperation)
   }
 
@@ -112,11 +112,13 @@ class NewStreamTableEnvironment(
       TypeConversions.fromLegacyInfoToDataType(returnType),
       OutputConversionModifyOperation.UpdateMode.RETRACT)
 
+    queryConfigProvider.setConfig(queryConfig)
     toDataStream(table, modifyOperation)
   }
 
   override def registerFunction[T: TypeInformation](name: String, tf: TableFunction[T]): Unit = {
-    val typeInfo = implicitly[TypeInformation[T]]
+    val typeInfo = UserFunctionsTypeHelper
+      .getReturnTypeOfTableFunction(tf, implicitly[TypeInformation[T]])
     functionCatalog.registerTableFunction(
       name,
       tf,
@@ -129,8 +131,10 @@ class NewStreamTableEnvironment(
       name: String,
       f: AggregateFunction[T, ACC])
     : Unit = {
-    val typeInfo = implicitly[TypeInformation[T]]
-    val accTypeInfo = implicitly[TypeInformation[ACC]]
+    val typeInfo = UserFunctionsTypeHelper
+      .getReturnTypeOfAggregateFunction(f, implicitly[TypeInformation[T]])
+    val accTypeInfo = UserFunctionsTypeHelper
+      .getAccumulatorTypeOfAggregateFunction(f, implicitly[TypeInformation[ACC]])
     functionCatalog.registerAggregateFunction(
       name,
       f,
@@ -144,8 +148,10 @@ class NewStreamTableEnvironment(
       name: String,
       f: TableAggregateFunction[T, ACC])
     : Unit = {
-    val typeInfo = implicitly[TypeInformation[T]]
-    val accTypeInfo = implicitly[TypeInformation[ACC]]
+    val typeInfo = UserFunctionsTypeHelper
+      .getReturnTypeOfAggregateFunction(f, implicitly[TypeInformation[T]])
+    val accTypeInfo = UserFunctionsTypeHelper
+      .getAccumulatorTypeOfAggregateFunction(f, implicitly[TypeInformation[ACC]])
     functionCatalog.registerAggregateFunction(
       name,
       f,

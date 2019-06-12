@@ -40,6 +40,7 @@ import org.apache.flink.table.expressions.ExpressionParser;
 import org.apache.flink.table.functions.AggregateFunction;
 import org.apache.flink.table.functions.TableAggregateFunction;
 import org.apache.flink.table.functions.TableFunction;
+import org.apache.flink.table.functions.UserFunctionsTypeHelper;
 import org.apache.flink.table.operations.DataStreamQueryOperation;
 import org.apache.flink.table.operations.OutputConversionModifyOperation;
 import org.apache.flink.table.types.DataType;
@@ -60,11 +61,8 @@ public class NewStreamTableEnvironment extends NewUnifiedTableEnvironmentImpl im
 
 	@Override
 	public <T> void registerFunction(String name, TableFunction<T> tableFunction) {
-		TypeInformation<T> typeInfo = TypeExtractor.createTypeInfo(
-			tableFunction,
-			TableFunction.class,
-			tableFunction.getClass(),
-			0);
+		TypeInformation<T> typeInfo = UserFunctionsTypeHelper.getReturnTypeOfTableFunction(
+			tableFunction);
 
 		functionCatalog.registerTableFunction(
 			name,
@@ -76,17 +74,10 @@ public class NewStreamTableEnvironment extends NewUnifiedTableEnvironmentImpl im
 
 	@Override
 	public <T, ACC> void registerFunction(String name, AggregateFunction<T, ACC> aggregateFunction) {
-		TypeInformation<T> typeInfo = TypeExtractor.createTypeInfo(
-			aggregateFunction,
-			AggregateFunction.class,
-			aggregateFunction.getClass(),
-			0);
-
-		TypeInformation<T> accTypeInfo = TypeExtractor.createTypeInfo(
-			aggregateFunction,
-			AggregateFunction.class,
-			aggregateFunction.getClass(),
-			1);
+		TypeInformation<T> typeInfo = UserFunctionsTypeHelper.getReturnTypeOfAggregateFunction(
+			aggregateFunction);
+		TypeInformation<ACC> accTypeInfo = UserFunctionsTypeHelper
+			.getAccumulatorTypeOfAggregateFunction(aggregateFunction);
 
 		functionCatalog.registerAggregateFunction(
 			name,
@@ -99,17 +90,10 @@ public class NewStreamTableEnvironment extends NewUnifiedTableEnvironmentImpl im
 
 	@Override
 	public <T, ACC> void registerFunction(String name, TableAggregateFunction<T, ACC> tableAggregateFunction) {
-		TypeInformation<T> typeInfo = TypeExtractor.createTypeInfo(
-			tableAggregateFunction,
-			AggregateFunction.class,
-			tableAggregateFunction.getClass(),
-			0);
-
-		TypeInformation<T> accTypeInfo = TypeExtractor.createTypeInfo(
-			tableAggregateFunction,
-			AggregateFunction.class,
-			tableAggregateFunction.getClass(),
-			1);
+		TypeInformation<T> typeInfo = UserFunctionsTypeHelper.getReturnTypeOfAggregateFunction(
+			tableAggregateFunction);
+		TypeInformation<ACC> accTypeInfo = UserFunctionsTypeHelper
+			.getAccumulatorTypeOfAggregateFunction(tableAggregateFunction);
 
 		functionCatalog.registerAggregateFunction(
 			name,
@@ -179,6 +163,7 @@ public class NewStreamTableEnvironment extends NewUnifiedTableEnvironmentImpl im
 			table.getQueryOperation(),
 			TypeConversions.fromLegacyInfoToDataType(typeInfo),
 			OutputConversionModifyOperation.UpdateMode.APPEND);
+		queryConfigProvider.setConfig(queryConfig);
 		return toDataStream(table, modifyOperation);
 	}
 
@@ -210,6 +195,7 @@ public class NewStreamTableEnvironment extends NewUnifiedTableEnvironmentImpl im
 			table.getQueryOperation(),
 			wrapWithChangeFlag(typeInfo),
 			OutputConversionModifyOperation.UpdateMode.RETRACT);
+		queryConfigProvider.setConfig(queryConfig);
 		return toDataStream(table, modifyOperation);
 	}
 

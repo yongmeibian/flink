@@ -33,7 +33,7 @@ import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment
 import org.apache.flink.streaming.api.transformations.StreamTransformation
 import org.apache.flink.table.api._
 import org.apache.flink.table.calcite.{CalciteConfig, FlinkPlannerImpl, FlinkRelBuilder, FlinkTypeFactory}
-import org.apache.flink.table.catalog.{CatalogManager, CatalogManagerCalciteSchema}
+import org.apache.flink.table.catalog.{CatalogManager, CatalogManagerCalciteSchema, CatalogTable, ConnectorCatalogTable}
 import org.apache.flink.table.explain.PlanJsonParser
 import org.apache.flink.table.expressions.{ExpressionBridge, PlannerExpression, PlannerExpressionConverter}
 import org.apache.flink.table.operations.OutputConversionModifyOperation.UpdateMode
@@ -49,6 +49,8 @@ import _root_.scala.collection.JavaConverters._
 import _root_.java.util.{List => JList}
 
 import org.apache.flink.annotation.VisibleForTesting
+import org.apache.flink.table.factories.{TableFactoryService, TableFactoryUtil, TableSinkFactory}
+import org.apache.flink.table.util.JavaScalaConversionUtil
 
 class StreamPlanner(
   execEnv: StreamExecutionEnvironment,
@@ -72,7 +74,7 @@ class StreamPlanner(
 
   @VisibleForTesting
   private[flink] val optimizer: StreamOptimizer = new StreamOptimizer(
-    config.getPlannerConfig
+    () => config.getPlannerConfig
       .unwrap(classOf[CalciteConfig])
       .orElse(CalciteConfig.DEFAULT),
     planningConfigurationBuilder)
@@ -84,6 +86,11 @@ class StreamPlanner(
 
     parsed match {
       case insert: SqlInsert =>
+        val targetColumnList = insert.getTargetColumnList
+        if (targetColumnList != null && insert.getTargetColumnList.size() != 0) {
+          throw new ValidationException("Partial inserts are not supported")
+        }
+
         // get name of sink table
         val targetTablePath = insert.getTargetTable.asInstanceOf[SqlIdentifier].names
 
@@ -118,7 +125,41 @@ class StreamPlanner(
     : StreamTransformation[_] = {
     tableOperation match {
       case s : UnregisteredSinkModifyOperation[_] =>
-        writeToSink(s.getChild, s.getSink, new StreamQueryConfig).getTransformation
+        writeToSink(s.getChild, s.getSink, unwrapQueryConfig).getTransformation
+
+      case catalogSink: CatalogSinkModifyOperation =>
+        getTableSink(catalogSink.getTablePath)
+          .map(sink => {
+            val query = catalogSink.getChild
+            // validate schema of source table and table sink
+            val srcFieldTypes = query.getTableSchema.getFieldTypes
+            val sinkFieldTypes = sink.getTableSchema.getFieldTypes
+
+            if (srcFieldTypes.length != sinkFieldTypes.length ||
+              srcFieldTypes.zip(sinkFieldTypes).exists { case (srcF, snkF) => srcF != snkF }) {
+
+              val srcFieldNames = query.getTableSchema.getFieldNames
+              val sinkFieldNames = sink.getTableSchema.getFieldNames
+
+              // format table and table sink schema strings
+              val srcSchema = srcFieldNames.zip(srcFieldTypes)
+                .map { case (n, t) => s"$n: ${t.getTypeClass.getSimpleName}" }
+                .mkString("[", ", ", "]")
+              val sinkSchema = sinkFieldNames.zip(sinkFieldTypes)
+                .map { case (n, t) => s"$n: ${t.getTypeClass.getSimpleName}" }
+                .mkString("[", ", ", "]")
+
+              throw new ValidationException(
+                s"Field types of query result and registered TableSink " +
+                  s"${catalogSink.getTablePath} do not match.\n" +
+                  s"Query result schema: $srcSchema\n" +
+                  s"TableSink schema:    $sinkSchema")
+            }
+            writeToSink(catalogSink.getChild, sink, unwrapQueryConfig).getTransformation
+          }) match {
+          case Some(t) => t
+          case None => throw new TableException(s"Sink ${catalogSink.getTablePath} does not exists")
+        }
 
       case outputConversion: OutputConversionModifyOperation =>
         val (isRetract, withChangeFlag) = outputConversion.getUpdateMode match {
@@ -129,7 +170,7 @@ class StreamPlanner(
 
         translateToType(
           tableOperation.getChild,
-          new StreamQueryConfig,
+          unwrapQueryConfig,
           isRetract,
           withChangeFlag,
           TypeConversions.fromDataTypeToLegacyInfo(outputConversion.getType))
@@ -138,15 +179,19 @@ class StreamPlanner(
       case _ =>
         val dataStreamPlan = optimizer
           .optimize(tableOperation.getChild, updatesAsRetraction = false, getRelBuilder)
-        translateToCRow(dataStreamPlan, new StreamQueryConfig).getTransformation
+        translateToCRow(dataStreamPlan, unwrapQueryConfig).getTransformation
     }
+  }
+
+  private def unwrapQueryConfig = {
+    config.getPlannerConfig.unwrap(classOf[QueryConfigProvider]).get().getConfig
   }
 
   override def explain(
       tableOperations: util.List[QueryOperation],
       extended: Boolean)
     : String = {
-    tableOperations.asScala.map(explain(_, new StreamQueryConfig))
+    tableOperations.asScala.map(explain(_, unwrapQueryConfig))
       .mkString(s"${System.lineSeparator}${System.lineSeparator}")
   }
 
@@ -321,7 +366,7 @@ class StreamPlanner(
           cRowStream,
           resultType,
           queryConfig,
-          withChangeFlag = false,
+          withChangeFlag = true,
           outputType,
           config)
         // Give the DataStream to the TableSink to emit it.
@@ -367,5 +412,28 @@ class StreamPlanner(
       .map(FlinkTypeFactory.toTypeInfo).toArray
 
     new TableSchema(originalNames, fieldTypes)
+  }
+
+  private def getTableSink(tablePath: JList[String]): Option[TableSink[_]] = {
+    JavaScalaConversionUtil.toScala(catalogManager.resolveTable(tablePath.asScala: _*)) match {
+      case Some(s) if s.getExternalCatalogTable.isPresent =>
+
+        Option(TableFactoryUtil.findAndCreateTableSink(s.getExternalCatalogTable.get()))
+
+      case Some(s) if JavaScalaConversionUtil.toScala(s.getCatalogTable)
+        .exists(_.isInstanceOf[ConnectorCatalogTable[_, _]]) =>
+
+        JavaScalaConversionUtil
+          .toScala(s.getCatalogTable.get().asInstanceOf[ConnectorCatalogTable[_, _]].getTableSink)
+
+      case Some(s) if JavaScalaConversionUtil.toScala(s.getCatalogTable)
+        .exists(_.isInstanceOf[CatalogTable]) =>
+
+        val sinkProperties = s.getCatalogTable.get().asInstanceOf[CatalogTable].toProperties
+        Option(TableFactoryService.find(classOf[TableSinkFactory[_]], sinkProperties)
+          .createTableSink(sinkProperties))
+
+      case _ => None
+    }
   }
 }
