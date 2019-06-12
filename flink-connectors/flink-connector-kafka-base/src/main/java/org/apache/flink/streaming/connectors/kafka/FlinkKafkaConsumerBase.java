@@ -96,7 +96,7 @@ public abstract class FlinkKafkaConsumerBase<T> extends RichParallelSourceFuncti
 	public static final int MAX_NUM_PENDING_CHECKPOINTS = 100;
 
 	/**
-	 * The default interval to execute partition discovery,
+	 * The default interval to apply partition discovery,
 	 * in milliseconds ({@code Long.MIN_VALUE}, i.e. disabled by default).
 	 */
 	public static final long PARTITION_DISCOVERY_DISABLED = Long.MIN_VALUE;

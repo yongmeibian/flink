@@ -29,7 +29,7 @@ import java.util.List;
 
 /**
  * Special version of {@link org.apache.flink.api.java.RemoteEnvironment} that has a reference
- * to a {@link org.apache.flink.api.scala.FlinkILoop}. When execute is called this will
+ * to a {@link org.apache.flink.api.scala.FlinkILoop}. When apply is called this will
  * use the reference of the ILoop to write the compiled classes of the current session to
  * a Jar file and submit these with the program.
  */

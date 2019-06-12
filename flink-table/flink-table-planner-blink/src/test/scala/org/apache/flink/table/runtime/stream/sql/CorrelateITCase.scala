@@ -336,7 +336,7 @@ class CorrelateITCase extends StreamingTestBase {
 //
 //    val sink = new TestingUpsertTableSink(Array(0))
 //    tEnv.sqlQuery(sql).writeToSink(sink)
-//    tEnv.execute()
+//    tEnv.apply()
 //
 //    val expected = List("1", "2", "3", "4")
 //    assertEquals(expected.sorted, sink.getUpsertResults.sorted)
@@ -360,7 +360,7 @@ class CorrelateITCase extends StreamingTestBase {
 //
 //    val sink = new TestingUpsertTableSink(Array(0))
 //    tEnv.sqlQuery(sql).writeToSink(sink)
-//    tEnv.execute()
+//    tEnv.apply()
 //
 //    val expected = List("1", "2")
 //    assertEquals(expected.sorted, sink.getUpsertResults.sorted)

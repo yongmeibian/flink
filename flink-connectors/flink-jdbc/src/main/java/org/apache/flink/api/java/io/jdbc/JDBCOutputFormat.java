@@ -215,7 +215,7 @@ public class JDBCOutputFormat extends RichOutputFormat<Row> {
 		}
 
 		if (batchCount >= batchInterval) {
-			// execute batch
+			// apply batch
 			flush();
 		}
 	}

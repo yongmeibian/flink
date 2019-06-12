@@ -31,7 +31,7 @@ import org.apache.calcite.util.ReflectiveVisitor;
  * executed directly.
  *
  * <p>For every kind of {@link SqlNode}, there needs to have a corresponding
- * method #execute(type) method, the 'type' argument should be the subclass
+ * method #apply(type) method, the 'type' argument should be the subclass
  * type for the supported {@link SqlNode}.
  */
 public class SqlExecutableStatement implements ReflectiveVisitor {
@@ -40,7 +40,7 @@ public class SqlExecutableStatement implements ReflectiveVisitor {
 	private final ReflectUtil.MethodDispatcher<Void> dispatcher =
 		ReflectUtil.createMethodDispatcher(Void.class,
 			this,
-			"execute",
+			"apply",
 			SqlNode.class);
 
 	//~ Constructors -----------------------------------------------------------
@@ -51,13 +51,13 @@ public class SqlExecutableStatement implements ReflectiveVisitor {
 
 	/**
 	 * This is the main entrance of executing all kinds of DDL/DML {@code SqlNode}s, different
-	 * SqlNode will have it's implementation in the #execute(type) method whose 'type' argument
+	 * SqlNode will have it's implementation in the #apply(type) method whose 'type' argument
 	 * is subclass of {@code SqlNode}.
 	 *
 	 * <p>Caution that the {@link #execute(SqlNode)} should never expect to be invoked.
 	 *
 	 * @param tableEnvironment TableEnvironment to interact with
-	 * @param sqlNode          SqlNode to execute on
+	 * @param sqlNode          SqlNode to apply on
 	 */
 	public static void executeSqlNode(TableEnvironment tableEnvironment, SqlNode sqlNode) {
 		SqlExecutableStatement statement = new SqlExecutableStatement(tableEnvironment);

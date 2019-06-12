@@ -119,7 +119,7 @@ class FlinkHepRuleSetProgram[OC <: FlinkOptimizeContext] extends FlinkRuleSetPro
 
 /**
   * An enumeration of hep rule execution type, to tell the [[HepPlanner]]
-  * how exactly execute the rules.
+  * how exactly apply the rules.
   */
 object HEP_RULES_EXECUTION_TYPE extends Enumeration {
   type HEP_RULES_EXECUTION_TYPE = Value

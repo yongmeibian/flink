@@ -73,7 +73,7 @@ public class JDBCAppendTableSinkBuilder {
 	}
 
 	/**
-	 * Specify the query that the sink will execute. Usually user can specify
+	 * Specify the query that the sink will apply. Usually user can specify
 	 * INSERT, REPLACE or UPDATE to push the data to the database.
 	 * @param query The query to be executed by the sink.
 	 * @see org.apache.flink.api.java.io.jdbc.JDBCOutputFormat.JDBCOutputFormatBuilder#setQuery(String)

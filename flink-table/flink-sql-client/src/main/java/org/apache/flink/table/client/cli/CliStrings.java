@@ -109,7 +109,7 @@ public final class CliStrings {
 
 	public static final String MESSAGE_QUIT = "Exiting " + CliStrings.CLI_NAME + "...";
 
-	public static final String MESSAGE_SQL_EXECUTION_ERROR = "Could not execute SQL statement.";
+	public static final String MESSAGE_SQL_EXECUTION_ERROR = "Could not apply SQL statement.";
 
 	public static final String MESSAGE_RESET = "All session properties have been set to their default values.";
 

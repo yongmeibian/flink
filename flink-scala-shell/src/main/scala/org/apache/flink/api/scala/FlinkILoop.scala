@@ -261,7 +261,7 @@ NOTE: Use the prebound Execution Environments and Table Environment to implement
 
     * val dataSet = benv.readTextFile("/path/to/data")
     * dataSet.writeAsText("/path/to/output")
-    * benv.execute("My batch program")
+    * benv.apply("My batch program")
     *
     * val batchTable = btenv.fromDataSet(dataSet)
     * btenv.registerTable("tableName", batchTable)
@@ -277,7 +277,7 @@ NOTE: Use the prebound Execution Environments and Table Environment to implement
     * val streamTable = stenv.fromDataStream(dataStream, 'num)
     * val resultTable = streamTable.select('num).where('num % 2 === 1 )
     * resultTable.toAppendStream[Row].print()
-    * senv.execute("My streaming program")
+    * senv.apply("My streaming program")
     HINT: You can only print a DataStream to the shell in local mode.
       """
     // scalastyle:on

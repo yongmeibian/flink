@@ -18,7 +18,6 @@
 
 package org.apache.flink.table.operations
 
-import _root_.java.util.function.Supplier
 import java.util.{Collections, Optional, List => JList}
 
 import org.apache.flink.table.api._

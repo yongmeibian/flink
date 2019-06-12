@@ -61,7 +61,7 @@ class ScalaShellLocalStartupITCase extends TestLogger {
         | }
         |}
         |mapped.output(new PrintingOutputFormat())
-        |val executionResult = benv.execute("Test Job")
+        |val executionResult = benv.apply("Test Job")
         |System.out.println("IntCounter: " + executionResult.getIntCounterResult("intCounter"))
         |
         |val elss = senv.fromElements("foobar","barfoo")
@@ -74,7 +74,7 @@ class ScalaShellLocalStartupITCase extends TestLogger {
         |}
         |
         |mapped.print
-        |senv.execute("awesome streaming process")
+        |senv.apply("awesome streaming process")
         |
         |:q
       """.stripMargin

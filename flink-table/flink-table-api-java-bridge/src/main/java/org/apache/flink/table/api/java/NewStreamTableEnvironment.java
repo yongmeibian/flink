@@ -26,15 +26,16 @@ import org.apache.flink.api.java.typeutils.TypeExtractor;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.streaming.api.transformations.StreamTransformation;
-import org.apache.flink.table.api.NewUnifiedTableEnvironmentImpl;
 import org.apache.flink.table.api.StreamQueryConfig;
 import org.apache.flink.table.api.Table;
 import org.apache.flink.table.api.TableConfig;
 import org.apache.flink.table.api.TableException;
 import org.apache.flink.table.api.Types;
+import org.apache.flink.table.api.UnifiedTableEnvironment;
 import org.apache.flink.table.catalog.CatalogManager;
 import org.apache.flink.table.descriptors.ConnectorDescriptor;
 import org.apache.flink.table.descriptors.StreamTableDescriptor;
+import org.apache.flink.table.executor.Executor;
 import org.apache.flink.table.expressions.Expression;
 import org.apache.flink.table.expressions.ExpressionParser;
 import org.apache.flink.table.functions.AggregateFunction;
@@ -46,17 +47,34 @@ import org.apache.flink.table.operations.OutputConversionModifyOperation;
 import org.apache.flink.table.types.DataType;
 import org.apache.flink.table.types.utils.TypeConversions;
 
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 
 @Internal
-public class NewStreamTableEnvironment extends NewUnifiedTableEnvironmentImpl implements StreamTableEnvironment {
+public class NewStreamTableEnvironment extends UnifiedTableEnvironment implements StreamTableEnvironment {
+
+	private final StreamExecutionEnvironment executionEnvironment;
+
 	public NewStreamTableEnvironment(
-				CatalogManager catalogManager,
-				TableConfig tableConfig,
-				StreamExecutionEnvironment executionEnvironment) {
-		super(catalogManager, tableConfig, executionEnvironment);
+			CatalogManager catalogManager,
+			TableConfig tableConfig,
+			StreamExecutionEnvironment executionEnvironment) {
+		super(catalogManager, tableConfig, lookupExecutor(executionEnvironment));
+		this.executionEnvironment = executionEnvironment;
+	}
+
+	private static Executor lookupExecutor(StreamExecutionEnvironment executionEnvironment) {
+		try {
+			Class<?> clazz = Class.forName("org.apache.flink.table.executor.ExecutorFactory");
+			Method createMethod = clazz.getMethod("create", StreamExecutionEnvironment.class);
+
+			return (Executor) createMethod.invoke(null, executionEnvironment);
+		} catch (ClassNotFoundException | NoSuchMethodException | IllegalAccessException | InvocationTargetException e) {
+			throw new TableException("Could not instantiate the planner.");
+		}
 	}
 
 	@Override
@@ -106,7 +124,7 @@ public class NewStreamTableEnvironment extends NewUnifiedTableEnvironmentImpl im
 		DataStreamQueryOperation<T> queryOperation = DataStreamQueryOperation.asQueryOperation(
 			dataStream,
 			Optional.empty(),
-			execEnv.getStreamTimeCharacteristic());
+			executionEnvironment.getStreamTimeCharacteristic());
 
 		return createTable(queryOperation);
 	}
@@ -117,7 +135,7 @@ public class NewStreamTableEnvironment extends NewUnifiedTableEnvironmentImpl im
 		DataStreamQueryOperation<T> queryOperation = DataStreamQueryOperation.asQueryOperation(
 			dataStream,
 			Optional.of(expressions),
-			execEnv.getStreamTimeCharacteristic());
+			executionEnvironment.getStreamTimeCharacteristic());
 
 		return createTable(queryOperation);
 	}
@@ -205,8 +223,8 @@ public class NewStreamTableEnvironment extends NewUnifiedTableEnvironmentImpl im
 
 		StreamTransformation<T> streamTransformation = getStreamTransformation(table, transformations);
 
-		execEnv.addOperator(streamTransformation);
-		return new DataStream<>(execEnv, streamTransformation);
+		executionEnvironment.addOperator(streamTransformation);
+		return new DataStream<>(executionEnvironment, streamTransformation);
 	}
 
 	@SuppressWarnings("unchecked")

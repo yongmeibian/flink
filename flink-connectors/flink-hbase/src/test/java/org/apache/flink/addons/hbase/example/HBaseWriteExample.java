@@ -96,7 +96,7 @@ public class HBaseWriteExample {
 			}
 		}).output(new HadoopOutputFormat<Text, Mutation>(new TableOutputFormat<Text>(), job));
 
-		// execute program
+		// apply program
 		env.execute("WordCount (HBase sink) Example");
 	}
 

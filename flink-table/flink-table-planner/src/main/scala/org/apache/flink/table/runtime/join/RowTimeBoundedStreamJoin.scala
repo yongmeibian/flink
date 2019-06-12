@@ -25,7 +25,7 @@ import org.apache.flink.table.runtime.types.CRow
 import org.apache.flink.types.Row
 
 /**
-  * The function to execute row(event) time bounded stream inner-join.
+  * The function to apply row(event) time bounded stream inner-join.
   */
 final class RowTimeBoundedStreamJoin(
     joinType: JoinType,

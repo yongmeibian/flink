@@ -31,13 +31,14 @@ import org.apache.calcite.sql.parser.SqlParser
 import org.apache.calcite.tools._
 import org.apache.flink.annotation.VisibleForTesting
 import org.apache.flink.api.common.typeinfo.TypeInformation
+import org.apache.flink.table.api.exceptions.ExternalCatalogNotExistException
 import org.apache.flink.table.calcite._
 import org.apache.flink.table.catalog._
 import org.apache.flink.table.expressions._
 import org.apache.flink.table.expressions.lookups.TableReferenceLookup
 import org.apache.flink.table.factories.{TableFactoryService, TableFactoryUtil, TableSinkFactory}
 import org.apache.flink.table.functions.utils.UserDefinedFunctionUtils._
-import org.apache.flink.table.functions.{AggregateFunction, ScalarFunction, TableFunction, UserDefinedAggregateFunction, UserFunctionsTypeHelper}
+import org.apache.flink.table.functions.{AggregateFunction, ScalarFunction, TableFunction, UserDefinedAggregateFunction}
 import org.apache.flink.table.operations._
 import org.apache.flink.table.plan.nodes.FlinkConventions
 import org.apache.flink.table.plan.rules.FlinkRuleSets
@@ -401,7 +402,7 @@ abstract class TableEnvImpl(
 
   override def registerTable(name: String, table: Table): Unit = {
 
-    // check that table belongs to this table environment TODO
+    // check that table belongs to this table environment
     if (table.asInstanceOf[TableImpl].getTableEnvironment != this) {
       throw new TableException(
         "Only tables that belong to this TableEnvironment can be registered.")

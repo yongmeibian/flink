@@ -46,7 +46,7 @@ import java.util.List;
  * <p>- In future versions: In gateway mode, the SQL CLI client connects to the REST API of the gateway
  * and allows for managing queries via console.
  *
- * <p>For debugging in an IDE you can execute the main method of this class using:
+ * <p>For debugging in an IDE you can apply the main method of this class using:
  * "embedded --defaults /path/to/sql-client-defaults.yaml --jar /path/to/target/flink-sql-client-*.jar"
  *
  * <p>Make sure that the FLINK_CONF_DIR environment variable is set.
@@ -122,7 +122,7 @@ public class SqlClient {
 			if (options.getUpdateStatement() == null) {
 				cli.open();
 			}
-			// execute single update statement
+			// apply single update statement
 			else {
 				final boolean success = cli.submitUpdate(options.getUpdateStatement());
 				if (!success) {

@@ -95,7 +95,7 @@ public class ElasticsearchSinkBaseTest {
 		testHarness.processElement(new StreamRecord<>("msg"));
 		verify(sink.getMockBulkProcessor(), times(1)).add(any(IndexRequest.class));
 
-		// manually execute the next bulk request
+		// manually apply the next bulk request
 		sink.manualBulkRequestWithAllPendingRequests();
 
 		try {
@@ -127,7 +127,7 @@ public class ElasticsearchSinkBaseTest {
 		testHarness.processElement(new StreamRecord<>("msg"));
 		verify(sink.getMockBulkProcessor(), times(1)).add(any(IndexRequest.class));
 
-		// manually execute the next bulk request
+		// manually apply the next bulk request
 		sink.manualBulkRequestWithAllPendingRequests();
 
 		try {
@@ -167,7 +167,7 @@ public class ElasticsearchSinkBaseTest {
 		testHarness.processElement(new StreamRecord<>("msg-1"));
 		verify(sink.getMockBulkProcessor(), times(1)).add(any(IndexRequest.class));
 
-		// manually execute the next bulk request (1 request only, thus should succeed)
+		// manually apply the next bulk request (1 request only, thus should succeed)
 		sink.manualBulkRequestWithAllPendingRequests();
 
 		// setup the requests to be flushed in the snapshot
@@ -220,7 +220,7 @@ public class ElasticsearchSinkBaseTest {
 		testHarness.processElement(new StreamRecord<>("msg"));
 		verify(sink.getMockBulkProcessor(), times(1)).add(any(IndexRequest.class));
 
-		// manually execute the next bulk request
+		// manually apply the next bulk request
 		sink.manualBulkRequestWithAllPendingRequests();
 
 		try {
@@ -252,7 +252,7 @@ public class ElasticsearchSinkBaseTest {
 		testHarness.processElement(new StreamRecord<>("msg"));
 		verify(sink.getMockBulkProcessor(), times(1)).add(any(IndexRequest.class));
 
-		// manually execute the next bulk request
+		// manually apply the next bulk request
 		sink.manualBulkRequestWithAllPendingRequests();
 
 		try {
@@ -287,7 +287,7 @@ public class ElasticsearchSinkBaseTest {
 		testHarness.processElement(new StreamRecord<>("msg-1"));
 		verify(sink.getMockBulkProcessor(), times(1)).add(any(IndexRequest.class));
 
-		// manually execute the next bulk request
+		// manually apply the next bulk request
 		sink.manualBulkRequestWithAllPendingRequests();
 
 		// setup the requests to be flushed in the snapshot

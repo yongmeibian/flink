@@ -36,6 +36,7 @@ import org.apache.flink.streaming.api.transformations.StreamTransformation
 import org.apache.flink.table.api._
 import org.apache.flink.table.calcite.{CalciteConfig, FlinkPlannerImpl, FlinkRelBuilder, FlinkTypeFactory}
 import org.apache.flink.table.catalog._
+import org.apache.flink.table.executor.{Executor, StreamingExecutor}
 import org.apache.flink.table.explain.PlanJsonParser
 import org.apache.flink.table.expressions.{ExpressionBridge, PlannerExpression, PlannerExpressionConverter}
 import org.apache.flink.table.factories.{TableFactoryService, TableFactoryUtil, TableSinkFactory}
@@ -51,7 +52,7 @@ import org.apache.flink.table.util.JavaScalaConversionUtil
 import _root_.scala.collection.JavaConverters._
 
 class StreamPlanner(
-  execEnv: StreamExecutionEnvironment,
+  executor: Executor,
   config: TableConfig,
   functionCatalog: FunctionCatalog,
   catalogManager: CatalogManager) extends Planner{
@@ -244,7 +245,8 @@ class StreamPlanner(
 
   private[flink] def getConfig: TableConfig = config
 
-  private[flink] def getExecutionEnvironment: StreamExecutionEnvironment = execEnv
+  private[flink] def getExecutionEnvironment: StreamExecutionEnvironment =
+    executor.asInstanceOf[StreamingExecutor].getExecutionEnvironment
 
   /* Implementation */
 

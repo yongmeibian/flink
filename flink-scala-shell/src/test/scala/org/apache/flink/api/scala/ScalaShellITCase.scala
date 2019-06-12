@@ -212,7 +212,7 @@ class ScalaShellITCase extends TestLogger {
         | 'count,'count.count as 'frequency)
         | val results = resultTable.toRetractStream[Row]
         | results.print
-        | senv.execute
+        | senv.apply
       """.stripMargin
     val output = processInShell(input)
     Assert.assertTrue(output.contains("6,1"))
@@ -259,7 +259,7 @@ class ScalaShellITCase extends TestLogger {
         import org.apache.flink.api.scala.jar.TestingData
         val source = senv.fromCollection(TestingData.elements)
         source.print()
-        senv.execute
+        senv.apply
       """.stripMargin
 
     val output: String = processInShell(input, Option("customjar-test-jar.jar"))
@@ -301,7 +301,7 @@ class ScalaShellITCase extends TestLogger {
         | }
         |}
         |mapped.output(new PrintingOutputFormat())
-        |val executionResult = benv.execute("Test Job")
+        |val executionResult = benv.apply("Test Job")
         |System.out.println("IntCounter: " + executionResult.getIntCounterResult("intCounter"))
         |
         |val elss = senv.fromElements("foobar","barfoo")
@@ -314,7 +314,7 @@ class ScalaShellITCase extends TestLogger {
         |}
         |
         |mapped.print
-        |senv.execute("awesome streaming process")
+        |senv.apply("awesome streaming process")
         |
         |:q
       """.stripMargin

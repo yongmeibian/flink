@@ -289,7 +289,7 @@ public class AbstractPartitionDiscovererTest {
 			// all partitions must have been assigned
 			assertTrue(allInitialPartitions.isEmpty());
 
-			// now, execute discover again (should find the extra new partitions)
+			// now, apply discover again (should find the extra new partitions)
 			List<KafkaTopicPartition> secondDiscoverySubtask0 = partitionDiscovererSubtask0.discoverPartitions();
 			List<KafkaTopicPartition> secondDiscoverySubtask1 = partitionDiscovererSubtask1.discoverPartitions();
 			List<KafkaTopicPartition> secondDiscoverySubtask2 = partitionDiscovererSubtask2.discoverPartitions();

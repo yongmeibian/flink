@@ -38,7 +38,7 @@ import org.apache.flink.types.Row
 import org.apache.flink.util.Collector
 
 /**
-  * A CoProcessFunction to execute time-bounded stream inner-join.
+  * A CoProcessFunction to apply time-bounded stream inner-join.
   * Two kinds of time criteria:
   * "L.time between R.time + X and R.time + Y" or "R.time between L.time - Y and L.time - X" where
   * X and Y might be negative or positive and X <= Y.

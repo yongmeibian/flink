@@ -72,7 +72,7 @@ public class ScalaShellRemoteStreamEnvironment extends RemoteStreamEnvironment {
 	 * Executes the remote job.
 	 *
 	 * @param streamGraph
-	 *            Stream Graph to execute
+	 *            Stream Graph to apply
 	 * @param jarFiles
 	 * 			  List of jar file URLs to ship to the cluster
 	 * @return The result of the job execution, containing elapsed time and accumulators.

@@ -34,6 +34,7 @@ import org.apache.flink.table.catalog.{CatalogManager, GenericInMemoryCatalog}
 import org.apache.flink.table.expressions.Expression
 import org.apache.flink.table.functions.{AggregateFunction, ScalarFunction, TableFunction}
 import org.apache.flink.table.operations.{DataSetQueryOperation, DataStreamQueryOperation}
+import org.apache.flink.table.operations.scala.{DataStreamQueryOperation => SDataStreamQueryOperation}
 import org.apache.flink.table.planner.StreamPlanner
 import org.apache.flink.table.utils.TableTestUtil.createCatalogManager
 import org.junit.Assert.assertEquals
@@ -159,7 +160,7 @@ object TableTestUtil {
   private[utils] def toRelNode(expected: Table) = {
     expected.asInstanceOf[TableImpl].getTableEnvironment match {
       case t: TableEnvImpl => t.getRelBuilder.tableOperation(expected.getQueryOperation).build()
-      case t: NewUnifiedTableEnvironmentImpl =>
+      case t: UnifiedTableEnvironment =>
         t.getPlanner.asInstanceOf[StreamPlanner].getRelBuilder
           .tableOperation(expected.getQueryOperation).build()
       case _ =>
@@ -220,9 +221,13 @@ object TableTestUtil {
   }
 
   def streamTableNode(table: Table): String = {
-    val dataStreamTable = table.getQueryOperation.asInstanceOf[DataStreamQueryOperation[_]]
-    s"DataStreamScan(id=[${dataStreamTable.getDataStream.getId}], " +
-      s"fields=[${dataStreamTable.getTableSchema.getFieldNames.mkString(", ")}])"
+    val (id, fieldNames) = table.getQueryOperation match {
+      case q: SDataStreamQueryOperation[_] => (q.getDataStream.getId, q.getTableSchema.getFieldNames)
+      case q: DataStreamQueryOperation[_] => (q.getDataStream.getId, q.getTableSchema.getFieldNames)
+      case n => throw new AssertionError(s"Unexpected table node $n")
+    }
+
+    s"DataStreamScan(id=[$id], fields=[${fieldNames.mkString(", ")}])"
   }
 }
 
@@ -438,7 +443,7 @@ case class StreamTableTestUtil(
 
   protected def optimize(resultTable1: Table): RelNode = {
     val planner = resultTable1.asInstanceOf[TableImpl].getTableEnvironment
-      .asInstanceOf[NewUnifiedTableEnvironmentImpl].getPlanner.asInstanceOf[StreamPlanner]
+      .asInstanceOf[UnifiedTableEnvironment].getPlanner.asInstanceOf[StreamPlanner]
     val optimized = planner.optimizer
       .optimize(resultTable1.getQueryOperation, updatesAsRetraction = false, planner.getRelBuilder)
     optimized

@@ -21,11 +21,8 @@ package org.apache.flink.table.api;
 import org.apache.flink.annotation.Internal;
 import org.apache.flink.annotation.VisibleForTesting;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
-import org.apache.flink.streaming.api.TimeCharacteristic;
-import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.streaming.api.transformations.StreamTransformation;
-import org.apache.flink.table.calcite.FlinkTypeFactory;
-import org.apache.flink.table.calcite.FlinkTypeSystem;
+import org.apache.flink.table.api.exceptions.ExternalCatalogNotExistException;
 import org.apache.flink.table.catalog.Catalog;
 import org.apache.flink.table.catalog.CatalogBaseTable;
 import org.apache.flink.table.catalog.CatalogManager;
@@ -38,30 +35,27 @@ import org.apache.flink.table.catalog.exceptions.DatabaseNotExistException;
 import org.apache.flink.table.descriptors.ConnectorDescriptor;
 import org.apache.flink.table.descriptors.StreamTableDescriptor;
 import org.apache.flink.table.descriptors.TableDescriptor;
-import org.apache.flink.table.expressions.ExpressionBridge;
-import org.apache.flink.table.expressions.PlannerExpression;
-import org.apache.flink.table.expressions.PlannerExpressionConverter$;
 import org.apache.flink.table.expressions.TableReferenceExpression;
+import org.apache.flink.table.expressions.catalog.FunctionDefinitionCatalog;
+import org.apache.flink.table.expressions.lookups.TableReferenceLookup;
 import org.apache.flink.table.functions.ScalarFunction;
-import org.apache.flink.table.functions.utils.UserDefinedFunctionUtils;
 import org.apache.flink.table.operations.CatalogQueryOperation;
 import org.apache.flink.table.operations.CatalogSinkModifyOperation;
 import org.apache.flink.table.operations.ModifyOperation;
 import org.apache.flink.table.operations.Operation;
 import org.apache.flink.table.operations.OperationTreeBuilder;
-import org.apache.flink.table.operations.OperationTreeBuilderImpl;
 import org.apache.flink.table.operations.QueryOperation;
 import org.apache.flink.table.operations.TableSourceQueryOperation;
+import org.apache.flink.table.executor.Executor;
 import org.apache.flink.table.planner.Planner;
 import org.apache.flink.table.planner.QueryConfigProvider;
-import org.apache.flink.table.planner.StreamPlanner;
-import org.apache.flink.table.sinks.StreamTableSink;
 import org.apache.flink.table.sinks.TableSink;
-import org.apache.flink.table.sources.StreamTableSource;
 import org.apache.flink.table.sources.TableSource;
-import org.apache.flink.table.sources.TableSourceUtil;
 import org.apache.flink.util.StringUtils;
 
+import java.lang.reflect.Constructor;
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -69,7 +63,7 @@ import java.util.List;
 import java.util.Optional;
 
 @Internal
-public class NewUnifiedTableEnvironmentImpl implements TableEnvironment {
+public class UnifiedTableEnvironment implements TableEnvironment {
 
 	private final CatalogManager catalogManager;
 
@@ -78,37 +72,63 @@ public class NewUnifiedTableEnvironmentImpl implements TableEnvironment {
 	private final TableConfig tableConfig;
 	private final OperationTreeBuilder operationTreeBuilder;
 
-	protected final FlinkTypeFactory typeFactory = new FlinkTypeFactory(new FlinkTypeSystem());
-	protected final StreamExecutionEnvironment execEnv;
+	protected final Executor execEnv;
 	protected final FunctionCatalog functionCatalog;
 	protected final QueryConfigProvider queryConfigProvider = new QueryConfigProvider();
 	protected final Planner planner;
 
-	public NewUnifiedTableEnvironmentImpl(
+	public UnifiedTableEnvironment(
 			CatalogManager catalogManager,
 			TableConfig tableConfig,
-			StreamExecutionEnvironment executionEnvironment) {
+			Executor executor) {
 		this.catalogManager = catalogManager;
-		this.execEnv = executionEnvironment;
+		this.execEnv = executor;
 		this.tableConfig = tableConfig;
 		this.defaultCatalogName = tableConfig.getBuiltInCatalogName();
 		this.defaultDatabaseName = tableConfig.getBuiltInDatabaseName();
 
 		this.tableConfig.setPlannerConfig(queryConfigProvider);
 		this.functionCatalog = new FunctionCatalog();
-		this.planner = new StreamPlanner(execEnv, tableConfig, functionCatalog, catalogManager);
-		ExpressionBridge<PlannerExpression> expressionBridge = new ExpressionBridge<>(
-			functionCatalog,
-			PlannerExpressionConverter$.MODULE$.INSTANCE());
-		operationTreeBuilder = new OperationTreeBuilderImpl(
+		this.planner = lookupPlanner(execEnv, tableConfig, functionCatalog, catalogManager);
+		this.operationTreeBuilder = lookupTreeBuilder(
 			path -> {
 				Optional<CatalogQueryOperation> catalogTableOperation = scanInternal(path);
 				return catalogTableOperation.map(tableOperation -> new TableReferenceExpression(path, tableOperation));
 			},
-			expressionBridge,
-			functionCatalog,
-			true
+			functionCatalog
 		);
+	}
+
+	private static Planner lookupPlanner(
+			Executor executor,
+			TableConfig tableConfig,
+			FunctionCatalog functionCatalog,
+			CatalogManager catalogManager) {
+		try {
+			Class<?> clazz = Class.forName("org.apache.flink.table.planner.StreamPlanner");
+			Constructor con = clazz.getConstructor(
+				Executor.class,
+				TableConfig.class,
+				FunctionCatalog.class,
+				CatalogManager.class);
+
+			return (Planner) con.newInstance(executor, tableConfig, functionCatalog, catalogManager);
+		} catch (ClassNotFoundException | NoSuchMethodException | InstantiationException | IllegalAccessException | InvocationTargetException e) {
+			throw new TableException("Could not instantiate the planner.");
+		}
+	}
+
+	private static OperationTreeBuilder lookupTreeBuilder(
+			TableReferenceLookup tableReferenceLookup,
+			FunctionDefinitionCatalog functionDefinitionCatalog) {
+		try {
+			Class<?> clazz = Class.forName("org.apache.flink.table.operations.OperationTreeBuilderFactory");
+			Method createMethod = clazz.getMethod("create", TableReferenceLookup.class, FunctionDefinitionCatalog.class);
+
+			return (OperationTreeBuilder) createMethod.invoke(null, tableReferenceLookup, functionDefinitionCatalog);
+		} catch (ClassNotFoundException | NoSuchMethodException | IllegalAccessException | InvocationTargetException e) {
+			throw new TableException("Could not instantiate the planner.");
+		}
 	}
 
 	@VisibleForTesting
@@ -161,10 +181,10 @@ public class NewUnifiedTableEnvironmentImpl implements TableEnvironment {
 
 	@Override
 	public void registerTableSource(String name, TableSource<?> tableSource) {
-		if (!(tableSource instanceof StreamTableSource<?>)) {
-			throw new TableException("Only StreamTableSource can be registered in " +
-				"StreamTableEnvironment");
-		}
+//		if (!(tableSource instanceof StreamTableSource<?>)) {
+//			throw new TableException("Only StreamTableSource can be registered in " +
+//				"StreamTableEnvironment");
+//		}
 
 		registerTableSourceInternal(name, tableSource);
 	}
@@ -185,11 +205,11 @@ public class NewUnifiedTableEnvironmentImpl implements TableEnvironment {
 			throw new TableException("Table schema cannot be empty.");
 		}
 
-		if (!(configuredSink instanceof StreamTableSink<?>)) {
-			throw new TableException(
-				"Only AppendStreamTableSink, UpsertStreamTableSink, and RetractStreamTableSink can be " +
-					"registered in StreamTableEnvironment.");
-		}
+//		if (!(configuredSink instanceof StreamTableSink<?>)) {
+//			throw new TableException(
+//				"Only AppendStreamTableSink, UpsertStreamTableSink, and RetractStreamTableSink can be " +
+//					"registered in StreamTableEnvironment.");
+//		}
 
 		checkValidTableName(name);
 		registerTableSinkInternal(name, configuredSink);
@@ -279,7 +299,7 @@ public class NewUnifiedTableEnvironmentImpl implements TableEnvironment {
 			fullPath,
 			table.getQueryOperation())));
 
-		translate.forEach(execEnv::addOperator);
+		execEnv.apply(translate);
 	}
 
 	@Override
@@ -303,7 +323,7 @@ public class NewUnifiedTableEnvironmentImpl implements TableEnvironment {
 			List<StreamTransformation<?>> transformations =
 				planner.translate(Collections.singletonList((ModifyOperation) operation));
 
-			transformations.forEach(execEnv::addOperator);
+			execEnv.apply(transformations);
 		} else {
 			throw new TableException(
 				"Unsupported SQL query! sqlUpdate() only accepts a single SQL statements of type INSERT.");
@@ -374,15 +394,15 @@ public class NewUnifiedTableEnvironmentImpl implements TableEnvironment {
 	}
 
 	private void registerTableSourceInternal(String name, TableSource<?> tableSource) {
-		TableSourceUtil.validateTableSource(tableSource);
-
-		// check that event-time is enabled if table source includes rowtime attributes
-		if (TableSourceUtil.hasRowtimeAttribute(tableSource) &&
-			execEnv.getStreamTimeCharacteristic() != TimeCharacteristic.EventTime) {
-			throw new TableException(String.format(
-				"A rowtime attribute requires an EventTime time characteristic in stream " +
-					"environment. But is: %s}", execEnv.getStreamTimeCharacteristic()));
-		}
+//		TableSourceUtil.validateTableSource(tableSource);
+//
+//		// check that event-time is enabled if table source includes rowtime attributes
+//		if (TableSourceUtil.hasRowtimeAttribute(tableSource) &&
+//			execEnv.getStreamTimeCharacteristic() != TimeCharacteristic.EventTime) {
+//			throw new TableException(String.format(
+//				"A rowtime attribute requires an EventTime time characteristic in stream " +
+//					"environment. But is: %s}", execEnv.getStreamTimeCharacteristic()));
+//		}
 
 		Optional<CatalogBaseTable> table = getCatalogTable(defaultCatalogName, defaultDatabaseName, name);
 

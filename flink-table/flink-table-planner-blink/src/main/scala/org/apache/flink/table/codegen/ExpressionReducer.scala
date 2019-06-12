@@ -102,7 +102,7 @@ class ExpressionReducer(
     val parameters = if (config.getConf != null) config.getConf else new Configuration()
     val reduced = try {
       richMapFunction.open(parameters)
-      // execute
+      // apply
       richMapFunction.map(EMPTY_ROW)
     } finally {
       richMapFunction.close()

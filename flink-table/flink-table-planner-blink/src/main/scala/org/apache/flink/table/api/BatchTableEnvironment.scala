@@ -88,7 +88,7 @@ class BatchTableEnvironment(
 
   override def execute(jobName: String): JobExecutionResult = {
     generateStreamGraph(jobName)
-    // TODO supports streamEnv.execute(streamGraph)
+    // TODO supports streamEnv.apply(streamGraph)
     streamEnv.execute(jobName)
   }
 

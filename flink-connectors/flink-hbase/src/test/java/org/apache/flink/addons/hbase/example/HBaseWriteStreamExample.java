@@ -36,7 +36,7 @@ import java.io.IOException;
  * example for an HBase running in a cloud. You need a running local HBase with a
  * table "flinkExample" and a column "entry". If your HBase configuration does
  * not fit the hbase-site.xml in the resource folder then you gave to delete temporary this
- * hbase-site.xml to execute the example properly.
+ * hbase-site.xml to apply the example properly.
  */
 public class HBaseWriteStreamExample {
 

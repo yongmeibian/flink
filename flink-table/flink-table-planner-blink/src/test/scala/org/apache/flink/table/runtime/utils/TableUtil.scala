@@ -35,8 +35,8 @@ object TableUtil {
     *
     * Note: The difference between print() and collect() is
     * - print() prints data on workers and collect() collects data to the client.
-    * - You have to call TableEnvironment.execute() to run the job for print(), while collect()
-    * calls execute automatically.
+    * - You have to call TableEnvironment.apply() to run the job for print(), while collect()
+    * calls apply automatically.
     */
   def collect(table: BlinkTableImpl): Seq[Row] = collectSink(table, new CollectRowTableSink, None)
 

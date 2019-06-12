@@ -117,7 +117,7 @@ object TPCHQuery3Table {
     // emit result
     result.writeAsCsv(outputPath, "\n", "|")
 
-    // execute program
+    // apply program
     env.execute("Scala TPCH Query 3 (Table API Expression) Example")
   }
   

@@ -110,7 +110,7 @@ public class CliOptionsParser {
 			.numberOfArgs(1)
 			.argName("SQL update statement")
 			.desc(
-				"Experimental (for testing only!): Instructs the SQL Client to immediately execute " +
+				"Experimental (for testing only!): Instructs the SQL Client to immediately apply " +
 				"the given update statement after starting up. The process is shut down after the " +
 				"statement has been submitted to the cluster and returns an appropriate return code. " +
 				"Currently, this feature is only supported for INSERT INTO statements that declare " +

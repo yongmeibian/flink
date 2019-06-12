@@ -34,7 +34,7 @@ public final class CassandraSinkBaseConfig implements Serializable  {
 	public static final int DEFAULT_MAX_CONCURRENT_REQUESTS = Integer.MAX_VALUE;
 
 	/**
-	 * The default timeout duration when acquiring a permit to execute. By default, {@code Long.MAX_VALUE}.
+	 * The default timeout duration when acquiring a permit to apply. By default, {@code Long.MAX_VALUE}.
 	 */
 	public static final Duration DEFAULT_MAX_CONCURRENT_REQUESTS_TIMEOUT = Duration.ofMillis(Long.MAX_VALUE);
 
@@ -43,7 +43,7 @@ public final class CassandraSinkBaseConfig implements Serializable  {
 	/** Maximum number of concurrent requests allowed. */
 	private final int maxConcurrentRequests;
 
-	/** Timeout duration when acquiring a permit to execute. */
+	/** Timeout duration when acquiring a permit to apply. */
 	private final Duration maxConcurrentRequestsTimeout;
 
 	private CassandraSinkBaseConfig(

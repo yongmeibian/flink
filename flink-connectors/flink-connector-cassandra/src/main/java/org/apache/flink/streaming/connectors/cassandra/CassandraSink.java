@@ -377,7 +377,7 @@ public class CassandraSink<IN> {
 		 * <p>This call has no effect if {@link CassandraSinkBuilder#enableWriteAheadLog()} is called.
 		 *
 		 * @param maxConcurrentRequests maximum number of concurrent requests allowed
-		 * @param timeout timeout duration when acquiring a permit to execute
+		 * @param timeout timeout duration when acquiring a permit to apply
 		 * @return this builder
 		 */
 		public CassandraSinkBuilder<IN> setMaxConcurrentRequests(int maxConcurrentRequests, Duration timeout) {

@@ -17,6 +17,7 @@
  */
 package org.apache.flink.table.api.scala
 
+import java.lang.reflect.InvocationTargetException
 import java.util
 import java.util.{Collections, Optional}
 
@@ -24,13 +25,16 @@ import org.apache.flink.api.common.typeinfo.TypeInformation
 import org.apache.flink.api.scala._
 import org.apache.flink.streaming.api.datastream.{DataStream => JDataStream}
 import org.apache.flink.streaming.api.scala.{DataStream, StreamExecutionEnvironment}
+import org.apache.flink.streaming.api.environment.{StreamExecutionEnvironment => JStreamExecutionEnvironment}
 import org.apache.flink.streaming.api.transformations.StreamTransformation
 import org.apache.flink.table.api._
 import org.apache.flink.table.catalog.CatalogManager
 import org.apache.flink.table.descriptors.{ConnectorDescriptor, StreamTableDescriptor}
+import org.apache.flink.table.executor.Executor
 import org.apache.flink.table.expressions.Expression
 import org.apache.flink.table.functions.{AggregateFunction, TableAggregateFunction, TableFunction, UserFunctionsTypeHelper}
-import org.apache.flink.table.operations.{DataStreamQueryOperation, OutputConversionModifyOperation}
+import org.apache.flink.table.operations.OutputConversionModifyOperation
+import org.apache.flink.table.operations.scala.DataStreamQueryOperation
 import org.apache.flink.table.types.utils.TypeConversions
 
 import _root_.scala.collection.JavaConverters._
@@ -45,10 +49,10 @@ class NewStreamTableEnvironment(
     catalogManager: CatalogManager,
     config: TableConfig,
     scalaExecutionEnvironment: StreamExecutionEnvironment)
-  extends NewUnifiedTableEnvironmentImpl(
+  extends UnifiedTableEnvironment(
     catalogManager,
     config,
-    scalaExecutionEnvironment.getWrappedStreamExecutionEnvironment)
+    NewStreamTableEnvironment.lookupExecutor(scalaExecutionEnvironment))
   with org.apache.flink.table.api.scala.StreamTableEnvironment {
 
   override def fromDataStream[T](dataStream: DataStream[T]): Table = {
@@ -170,8 +174,10 @@ class NewStreamTableEnvironment(
     val streamTransformation: StreamTransformation[T] = getStreamTransformation(
       table,
       transformations)
-    execEnv.addOperator(streamTransformation)
-    new DataStream[T](new JDataStream[T](execEnv, streamTransformation))
+    scalaExecutionEnvironment.getWrappedStreamExecutionEnvironment.addOperator(streamTransformation)
+    new DataStream[T](new JDataStream[T](
+      scalaExecutionEnvironment
+        .getWrappedStreamExecutionEnvironment, streamTransformation))
   }
 
   private def getStreamTransformation[T](
@@ -187,4 +193,18 @@ class NewStreamTableEnvironment(
     }
     transformations.get(0).asInstanceOf[StreamTransformation[T]]
   }
+}
+
+object NewStreamTableEnvironment {
+  private def lookupExecutor(executionEnvironment: StreamExecutionEnvironment) =
+    try {
+      val clazz = Class.forName("org.apache.flink.table.executor.ExecutorFactory")
+      val createMethod = clazz.getMethod("create", classOf[JStreamExecutionEnvironment])
+      createMethod.invoke(null, executionEnvironment.getWrappedStreamExecutionEnvironment)
+        .asInstanceOf[Executor]
+    } catch {
+      case e@(_: ClassNotFoundException | _: NoSuchMethodException | _: IllegalAccessException |
+              _: InvocationTargetException) =>
+        throw new TableException("Could not instantiate the planner.")
+    }
 }

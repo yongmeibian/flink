@@ -36,7 +36,7 @@ import java.util.Map;
 
 /**
  * A pipeline is a linear workflow which chains {@link Estimator}s and {@link Transformer}s to
- * execute an algorithm.
+ * apply an algorithm.
  *
  * <p>A pipeline itself can either act as an Estimator or a Transformer, depending on the stages it
  * includes. More specifically:

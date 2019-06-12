@@ -107,7 +107,7 @@ abstract class StreamTableEnvironment(
 
   override def execute(jobName: String): JobExecutionResult = {
     generateStreamGraph(jobName)
-    // TODO supports execEnv.execute(streamGraph)
+    // TODO supports execEnv.apply(streamGraph)
     execEnv.execute(jobName)
   }
 
