@@ -18,12 +18,17 @@
 
 package org.apache.flink.table.planner.plan;
 
+import org.apache.flink.table.api.TableSchema;
 import org.apache.flink.table.api.ValidationException;
 import org.apache.flink.table.catalog.CatalogBaseTable;
 import org.apache.flink.table.catalog.CatalogTable;
+import org.apache.flink.table.catalog.CatalogView;
 import org.apache.flink.table.catalog.ConnectorCatalogTable;
+import org.apache.flink.table.catalog.ObjectPath;
 import org.apache.flink.table.catalog.QueryOperationCatalogView;
+import org.apache.flink.table.planner.calcite.FlinkTypeFactory;
 import org.apache.flink.table.planner.catalog.CatalogSchemaTable;
+import org.apache.flink.table.planner.catalog.FlinkViewTable;
 import org.apache.flink.table.planner.catalog.QueryOperationCatalogViewTable;
 import org.apache.flink.table.planner.plan.schema.CatalogSourceTable;
 import org.apache.flink.table.planner.plan.schema.FlinkPreparingTableBase;
@@ -32,6 +37,8 @@ import org.apache.flink.table.planner.plan.stats.FlinkStatistic;
 import org.apache.flink.table.sources.LookupableTableSource;
 import org.apache.flink.table.sources.StreamTableSource;
 import org.apache.flink.table.sources.TableSource;
+import org.apache.flink.table.types.DataType;
+import org.apache.flink.table.types.logical.LogicalType;
 
 import org.apache.calcite.config.CalciteConnectionConfig;
 import org.apache.calcite.jdbc.CalciteSchema;
@@ -40,8 +47,11 @@ import org.apache.calcite.prepare.CalciteCatalogReader;
 import org.apache.calcite.prepare.Prepare;
 import org.apache.calcite.rel.type.RelDataType;
 import org.apache.calcite.rel.type.RelDataTypeFactory;
+import org.apache.calcite.schema.Table;
+import org.apache.calcite.schema.impl.ViewTable;
 import org.apache.calcite.sql.validate.SqlNameMatchers;
 
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -116,6 +126,13 @@ public class FlinkCalciteCatalogReader extends CalciteCatalogReader {
 				throw new ValidationException("Cannot convert a connector table " +
 					"without source.");
 			}
+		} else if (baseTable instanceof CatalogView) {
+			return convertCatalogView(
+				relOptSchema,
+				names,
+				rowType,
+				schemaTable.getStatistic(),
+				(CatalogView) baseTable);
 		} else if (baseTable instanceof CatalogTable) {
 			return convertCatalogTable(relOptSchema,
 				names,
@@ -133,6 +150,15 @@ public class FlinkCalciteCatalogReader extends CalciteCatalogReader {
 			RelDataType rowType,
 			QueryOperationCatalogView view) {
 		return QueryOperationCatalogViewTable.create(relOptSchema, names, rowType, view);
+	}
+
+	private static FlinkPreparingTableBase convertCatalogView(
+			RelOptSchema relOptSchema,
+			List<String> names,
+			RelDataType rowType,
+			FlinkStatistic statistic,
+			CatalogView view) {
+		return new FlinkViewTable(relOptSchema, rowType, names, statistic, view, names.subList(0, 1));
 	}
 
 	private static FlinkPreparingTableBase convertSourceTable(

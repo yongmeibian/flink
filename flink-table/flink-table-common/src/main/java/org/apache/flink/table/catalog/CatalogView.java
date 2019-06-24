@@ -43,5 +43,4 @@ public interface CatalogView extends CatalogBaseTable {
 	 * @return the view definition in expanded text.
 	 */
 	String getExpandedQuery();
-
 }

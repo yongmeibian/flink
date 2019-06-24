@@ -29,6 +29,7 @@ import org.apache.flink.table.catalog.QueryOperationCatalogView;
 import org.apache.flink.table.catalog.exceptions.TableNotExistException;
 import org.apache.flink.table.catalog.stats.CatalogColumnStatistics;
 import org.apache.flink.table.catalog.stats.CatalogTableStatistics;
+import org.apache.flink.table.factories.TableFactory;
 import org.apache.flink.table.plan.stats.TableStats;
 import org.apache.flink.table.planner.plan.stats.FlinkStatistic;
 
@@ -39,6 +40,7 @@ import org.apache.calcite.schema.Schemas;
 import org.apache.calcite.schema.Table;
 
 import java.util.HashSet;
+import java.util.Optional;
 import java.util.Set;
 
 import static java.lang.String.format;
@@ -68,25 +70,28 @@ class DatabaseCalciteSchema extends FlinkSchema {
 		return catalogManager.getTable(identifier)
 			.map(result -> {
 				CatalogBaseTable table = result.getTable();
-				Catalog catalog = catalogManager.getCatalog(catalogName).get();
-				FlinkStatistic statistic = getStatistic(result.isTemporary(),
-					catalog, table, identifier);
+				FlinkStatistic statistic = getStatistic(result.isTemporary(), table, identifier);
 				return new CatalogSchemaTable(identifier,
 					table,
 					statistic,
-					catalog.getTableFactory().orElse(null),
+					catalogManager.getCatalog(catalogName)
+						.flatMap(Catalog::getTableFactory)
+						.orElse(null),
 					isStreamingMode,
 					result.isTemporary());
 			})
 			.orElse(null);
 	}
 
-	private static FlinkStatistic getStatistic(boolean isTemporary, Catalog catalog,
-			CatalogBaseTable catalogBaseTable, ObjectIdentifier tableIdentifier) {
+	private FlinkStatistic getStatistic(
+			boolean isTemporary,
+			CatalogBaseTable catalogBaseTable,
+			ObjectIdentifier tableIdentifier) {
 		if (isTemporary || catalogBaseTable instanceof QueryOperationCatalogView) {
 			return FlinkStatistic.UNKNOWN();
 		}
 		if (catalogBaseTable instanceof CatalogTable) {
+			Catalog catalog = catalogManager.getCatalog(catalogName).get();
 			return FlinkStatistic.builder()
 				.tableStats(extractTableStats(catalog, tableIdentifier))
 				.build();
@@ -95,7 +100,8 @@ class DatabaseCalciteSchema extends FlinkSchema {
 		}
 	}
 
-	private static TableStats extractTableStats(Catalog catalog,
+	private static TableStats extractTableStats(
+			Catalog catalog,
 			ObjectIdentifier objectIdentifier) {
 		final ObjectPath tablePath = objectIdentifier.toObjectPath();
 		try {

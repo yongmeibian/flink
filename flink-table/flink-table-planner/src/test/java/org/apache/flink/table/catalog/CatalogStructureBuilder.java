@@ -21,6 +21,7 @@ package org.apache.flink.table.catalog;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
+import org.apache.flink.table.api.SqlDialect;
 import org.apache.flink.table.api.TableSchema;
 import org.apache.flink.table.api.Types;
 import org.apache.flink.table.sources.StreamTableSource;
@@ -69,12 +70,16 @@ public class CatalogStructureBuilder {
 		return new CatalogStructureBuilder();
 	}
 
-	public static DatabaseBuilder database(String name, TableBuilder... tables) {
+	public static DatabaseBuilder database(String name, DatabaseEntryBuilder... tables) {
 		return new DatabaseBuilder(name, tables);
 	}
 
 	public static TableBuilder table(String name) {
 		return new TableBuilder(name);
+	}
+
+	public static ViewBuilder view(String name) {
+		return new ViewBuilder(name);
 	}
 
 	public CatalogStructureBuilder builtin(DatabaseBuilder defaultDb, DatabaseBuilder... databases) throws Exception {
@@ -144,10 +149,10 @@ public class CatalogStructureBuilder {
 	 * Helper class for creating mock {@link CatalogDatabase} in a {@link CatalogStructureBuilder}.
 	 */
 	public static class DatabaseBuilder {
-		private final TableBuilder[] tables;
+		private final DatabaseEntryBuilder[] tables;
 		private final String name;
 
-		public DatabaseBuilder(String name, TableBuilder[] tables) {
+		public DatabaseBuilder(String name, DatabaseEntryBuilder[] tables) {
 			this.tables = tables;
 			this.name = name;
 		}
@@ -157,7 +162,7 @@ public class CatalogStructureBuilder {
 		}
 
 		public void build(Catalog catalog, String catalogName) throws Exception {
-			for (TableBuilder tableBuilder : tables) {
+			for (DatabaseEntryBuilder tableBuilder : tables) {
 				catalog.createTable(
 					new ObjectPath(name, tableBuilder.getName()),
 					tableBuilder.build(catalogName + "." + name),
@@ -167,9 +172,18 @@ public class CatalogStructureBuilder {
 	}
 
 	/**
+	 * Common interface for both {@link TableBuilder} & {@link ViewBuilder}.
+	 */
+	public interface DatabaseEntryBuilder {
+		String getName();
+
+		CatalogBaseTable build(String path);
+	}
+
+	/**
 	 * Helper class for creating mock {@link CatalogTable} in a {@link CatalogStructureBuilder}.
 	 */
-	public static class TableBuilder {
+	public static class TableBuilder implements DatabaseEntryBuilder {
 		private final String name;
 
 		TableBuilder(String name) {
@@ -182,6 +196,38 @@ public class CatalogStructureBuilder {
 
 		public TestTable build(String path) {
 			return new TestTable(path + "." + name, false);
+		}
+	}
+
+	/**
+	 * Helper class for creating mock {@link CatalogView} in a {@link CatalogStructureBuilder}.
+	 */
+	public static class ViewBuilder implements DatabaseEntryBuilder {
+		private final String name;
+		private String query;
+
+		ViewBuilder(String name) {
+			this.name = name;
+		}
+
+		public String getName() {
+			return name;
+		}
+
+		public ViewBuilder withQuery(String query) {
+			this.query = query;
+			return this;
+		}
+
+		public TestView build(String path) {
+			return new TestView(
+				query,
+				query,
+				TableSchema.builder().build(),
+				Collections.emptyMap(),
+				"",
+				true,
+				path + "." + name);
 		}
 	}
 

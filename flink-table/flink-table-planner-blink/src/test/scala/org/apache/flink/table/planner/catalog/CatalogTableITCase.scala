@@ -20,8 +20,8 @@ package org.apache.flink.table.planner.catalog
 
 import org.apache.flink.table.api.config.ExecutionConfigOptions
 import org.apache.flink.table.api.internal.TableEnvironmentImpl
-import org.apache.flink.table.api.{EnvironmentSettings, TableEnvironment, ValidationException}
-import org.apache.flink.table.catalog.{CatalogFunctionImpl, ObjectPath}
+import org.apache.flink.table.api.{DataTypes, EnvironmentSettings, TableEnvironment, TableSchema, ValidationException}
+import org.apache.flink.table.catalog.{CatalogFunctionImpl, CatalogViewImpl, ObjectPath}
 import org.apache.flink.table.planner.expressions.utils.Func0
 import org.apache.flink.table.planner.factories.utils.TestCollectionTableFactory
 import org.apache.flink.table.planner.runtime.utils.JavaUserDefinedScalarFunctions.JavaFunc0
@@ -137,6 +137,63 @@ class CatalogTableITCase(isStreamingMode: Boolean) {
 
   @Test
   def testInsertInto(): Unit = {
+    val sourceData = List(
+      toRow(1, "1000", 2),
+      toRow(2, "1", 3),
+      toRow(3, "2000", 4),
+      toRow(1, "2", 2),
+      toRow(2, "3000", 3)
+    )
+    TestCollectionTableFactory.initData(sourceData)
+    val sourceDDL =
+      """
+        |create table t1(
+        |  a int,
+        |  b varchar,
+        |  c int
+        |) with (
+        |  'connector' = 'COLLECTION'
+        |)
+      """.stripMargin
+    val sinkDDL =
+      """
+        |create table t2(
+        |  a int,
+        |  b varchar,
+        |  c int
+        |) with (
+        |  'connector' = 'COLLECTION'
+        |)
+      """.stripMargin
+
+    val catalog = tableEnv.getCatalog(tableEnv.getCurrentCatalog).get()
+    catalog.createTable(
+      new ObjectPath(tableEnv.getCurrentDatabase, "view"), new CatalogViewImpl(
+        "select t1.a, t1.b, (t1.a + 1) as c from t1",
+        "select t1.a, t1.b, (t1.a + 1) as c from t1",
+        TableSchema.builder()
+          .field("a", DataTypes.INT())
+          .field("b", DataTypes.STRING())
+          .field("c", DataTypes.INT())
+          .build(),
+        new util.HashMap[String, String](),
+        ""
+      ), true)
+
+    val query =
+      """
+        |insert into t2
+        |select * from view
+      """.stripMargin
+    tableEnv.sqlUpdate(sourceDDL)
+    tableEnv.sqlUpdate(sinkDDL)
+    tableEnv.sqlUpdate(query)
+    execJob("testJob")
+    assertEquals(sourceData.sorted, TestCollectionTableFactory.RESULT.sorted)
+  }
+
+  @Test
+  def testReadFromView(): Unit = {
     val sourceData = List(
       toRow(1, "1000", 2),
       toRow(2, "1", 3),
