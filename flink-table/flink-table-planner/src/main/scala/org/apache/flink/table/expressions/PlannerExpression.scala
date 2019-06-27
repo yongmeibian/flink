@@ -17,14 +17,15 @@
  */
 package org.apache.flink.table.expressions
 
-import java.util
+import org.apache.flink.api.common.typeinfo.TypeInformation
+import org.apache.flink.table.calcite.FlinkTypeFactory
+import org.apache.flink.table.plan.TreeNode
+import org.apache.flink.table.validate.{ValidationResult, ValidationSuccess}
 
 import org.apache.calcite.rex.RexNode
 import org.apache.calcite.tools.RelBuilder
 
-import org.apache.flink.api.common.typeinfo.TypeInformation
-import org.apache.flink.table.plan.TreeNode
-import org.apache.flink.table.validate.{ValidationResult, ValidationSuccess}
+import java.util
 
 import _root_.scala.collection.JavaConversions._
 
@@ -95,4 +96,13 @@ abstract class UnaryExpression extends PlannerExpression {
 
 abstract class LeafExpression extends PlannerExpression {
   private[flink] val children = Nil
+}
+
+case class RexNodePlannerExpression(rexNode: RexNode) extends PlannerExpression {
+  override private[flink] def resultType: TypeInformation[_] = FlinkTypeFactory
+    .toTypeInfo(rexNode.getType)
+
+  override private[flink] def children = Seq()
+
+  override private[flink] def toRexNode(implicit relBuilder: RelBuilder): RexNode = rexNode
 }

@@ -805,6 +805,9 @@ class PlannerExpressionConverter private extends ApiExpressionVisitor[PlannerExp
       // already converted planner expressions will pass this visitor without modification
       case plannerExpression: PlannerExpression => plannerExpression
 
+      case rexNodeExpression: RexNodeExpression =>
+        RexNodePlannerExpression(rexNodeExpression.getRexNode)
+
       case _ =>
         throw new TableException("Unrecognized expression: " + other)
     }

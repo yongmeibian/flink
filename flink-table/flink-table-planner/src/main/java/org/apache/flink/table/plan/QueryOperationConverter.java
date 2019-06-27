@@ -31,12 +31,10 @@ import org.apache.flink.table.expressions.Aggregation;
 import org.apache.flink.table.expressions.CallExpression;
 import org.apache.flink.table.expressions.Expression;
 import org.apache.flink.table.expressions.ExpressionBridge;
+import org.apache.flink.table.expressions.ExpressionConverter;
 import org.apache.flink.table.expressions.ExpressionDefaultVisitor;
-import org.apache.flink.table.expressions.FieldReferenceExpression;
 import org.apache.flink.table.expressions.PlannerExpression;
 import org.apache.flink.table.expressions.ResolvedExpression;
-import org.apache.flink.table.expressions.RexPlannerExpression;
-import org.apache.flink.table.expressions.UnresolvedCallExpression;
 import org.apache.flink.table.expressions.WindowReference;
 import org.apache.flink.table.functions.TableFunction;
 import org.apache.flink.table.functions.utils.TableSqlFunction;
@@ -96,7 +94,6 @@ import scala.Some;
 import static java.util.Arrays.asList;
 import static java.util.stream.Collectors.toList;
 import static org.apache.flink.table.expressions.ApiExpressionUtils.isFunctionOfKind;
-import static org.apache.flink.table.expressions.ApiExpressionUtils.unresolvedCall;
 import static org.apache.flink.table.expressions.ExpressionUtils.extractValue;
 import static org.apache.flink.table.functions.BuiltInFunctionDefinitions.AS;
 import static org.apache.flink.table.functions.FunctionKind.AGGREGATE;
@@ -115,7 +112,6 @@ public class QueryOperationConverter extends QueryOperationDefaultVisitor<RelNod
 	private final ExpressionBridge<PlannerExpression> expressionBridge;
 	private final AggregateVisitor aggregateVisitor = new AggregateVisitor();
 	private final TableAggregateVisitor tableAggregateVisitor = new TableAggregateVisitor();
-	private final JoinExpressionVisitor joinExpressionVisitor = new JoinExpressionVisitor();
 
 	public QueryOperationConverter(
 			FlinkRelBuilder relBuilder,
@@ -190,7 +186,7 @@ public class QueryOperationConverter extends QueryOperationDefaultVisitor<RelNod
 
 			return relBuilder.join(
 				convertJoinType(join.getJoinType()),
-				join.getCondition().accept(joinExpressionVisitor),
+				convertToRexNode(join.getCondition(), 2),
 				corSet)
 				.build();
 		}
@@ -346,14 +342,23 @@ public class QueryOperationConverter extends QueryOperationDefaultVisitor<RelNod
 		}
 
 		private RexNode convertToRexNode(Expression expression) {
-			return expressionBridge.bridge(expression).toRexNode(relBuilder);
+			return convertToRexNode(expression, 1);
+		}
+
+		private RexNode convertToRexNode(Expression expression, int numberOfInputs) {
+			ExpressionConverter expressionConverter = new ExpressionConverter(relBuilder, numberOfInputs);
+			return expression.accept(expressionConverter);
 		}
 
 		private List<RexNode> convertToRexNodes(List<ResolvedExpression> expressions) {
+			return convertToRexNodes(expressions, 1);
+		}
+
+		private List<RexNode> convertToRexNodes(List<ResolvedExpression> expressions, int numberOfInputs) {
+			ExpressionConverter expressionConverter = new ExpressionConverter(relBuilder, numberOfInputs);
 			return expressions
 				.stream()
-				.map(expressionBridge::bridge)
-				.map(expr -> expr.toRexNode(relBuilder))
+				.map(expr -> expr.accept(expressionConverter))
 				.collect(toList());
 		}
 
@@ -398,32 +403,6 @@ public class QueryOperationConverter extends QueryOperationDefaultVisitor<RelNod
 				default:
 					throw new TableException("Unknown join type: " + joinType);
 			}
-		}
-	}
-
-	private class JoinExpressionVisitor extends ExpressionDefaultVisitor<RexNode> {
-
-		private static final int numberOfJoinInputs = 2;
-
-		@Override
-		public RexNode visit(CallExpression unresolvedCall) {
-			final Expression[] newChildren = unresolvedCall.getChildren().stream().map(expr -> {
-				RexNode convertedNode = expr.accept(this);
-				return (Expression) new RexPlannerExpression(convertedNode);
-			}).toArray(Expression[]::new);
-
-			UnresolvedCallExpression newCall = unresolvedCall(unresolvedCall.getFunctionDefinition(), newChildren);
-			return expressionBridge.bridge(newCall).toRexNode(relBuilder);
-		}
-
-		@Override
-		public RexNode visit(FieldReferenceExpression fieldReference) {
-			return relBuilder.field(numberOfJoinInputs, fieldReference.getInputIndex(), fieldReference.getFieldIndex());
-		}
-
-		@Override
-		protected RexNode defaultMethod(Expression expression) {
-			return expressionBridge.bridge(expression).toRexNode(relBuilder);
 		}
 	}
 
