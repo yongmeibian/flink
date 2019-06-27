@@ -44,6 +44,8 @@ public class BuiltinFunctionsReturnTypeInferenceTest {
 
 	private static final DataType BOOLEAN_NOT_NULL = DataTypes.BOOLEAN().notNull();
 	private static final DataType BOOLEAN_NULLABLE = DataTypes.BOOLEAN().notNull();
+	private static final DataType INT_NULLABLE = DataTypes.INT().nullable();
+	private static final DataType TIMESTAMP_NOT_NULL = DataTypes.TIMESTAMP().notNull();
 
 	@Parameters(name = "{index}: {0}=[parameters: {1}, return type: {2}]")
 	public static List<Object[]> functionCalls() {
@@ -70,7 +72,13 @@ public class BuiltinFunctionsReturnTypeInferenceTest {
 				{BuiltInFunctionDefinitions.IS_NOT_TRUE, Collections.singletonList(BOOLEAN_NULLABLE), BOOLEAN_NOT_NULL},
 
 				{BuiltInFunctionDefinitions.IS_NOT_FALSE, Collections.singletonList(BOOLEAN_NOT_NULL), BOOLEAN_NOT_NULL},
-				{BuiltInFunctionDefinitions.IS_NOT_FALSE, Collections.singletonList(BOOLEAN_NULLABLE), BOOLEAN_NOT_NULL}
+				{BuiltInFunctionDefinitions.IS_NOT_FALSE, Collections.singletonList(BOOLEAN_NULLABLE), BOOLEAN_NOT_NULL},
+
+				{BuiltInFunctionDefinitions.IS_NULL, Collections.singletonList(INT_NULLABLE), BOOLEAN_NOT_NULL},
+				{BuiltInFunctionDefinitions.IS_NULL, Collections.singletonList(TIMESTAMP_NOT_NULL), BOOLEAN_NOT_NULL},
+
+				{BuiltInFunctionDefinitions.IS_NOT_NULL, Collections.singletonList(INT_NULLABLE), BOOLEAN_NOT_NULL},
+				{BuiltInFunctionDefinitions.IS_NOT_NULL, Collections.singletonList(TIMESTAMP_NOT_NULL), BOOLEAN_NOT_NULL}
 			});
 	}
 

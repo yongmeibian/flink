@@ -19,6 +19,7 @@
 package org.apache.flink.table.types.inference;
 
 import org.apache.flink.annotation.Internal;
+import org.apache.flink.table.types.inference.validators.AnyTypeValidator;
 import org.apache.flink.table.types.inference.validators.PassingTypeValidator;
 import org.apache.flink.table.types.inference.validators.TypeRootTypeValidator;
 import org.apache.flink.table.types.logical.LogicalTypeRoot;
@@ -33,10 +34,9 @@ import java.util.Arrays;
 @Internal
 public final class InputTypeValidators {
 
-	/**
-	 * Validator that does not perform any validation and always passes.
-	 */
-	public static final InputTypeValidator PASSING = new PassingTypeValidator();
+	// --------------------------------------------------------------------------------------------
+	// factory methods for type strategies
+	// --------------------------------------------------------------------------------------------
 
 	/**
 	 * Validator which checks if operands are of given type roots.
@@ -44,6 +44,20 @@ public final class InputTypeValidators {
 	public static InputTypeValidator typeRoot(LogicalTypeRoot... types) {
 		return new TypeRootTypeValidator(Arrays.asList(types));
 	}
+
+	// --------------------------------------------------------------------------------------------
+	// concrete, reusable type strategies
+	// --------------------------------------------------------------------------------------------
+
+	/**
+	 * Validator that does not perform any validation and always passes.
+	 */
+	public static final InputTypeValidator PASSING = new PassingTypeValidator();
+
+	/**
+	 * Validator that expects a single argument, but accepts all types.
+	 */
+	public static final InputTypeValidator ANY = new AnyTypeValidator(1);
 
 	// --------------------------------------------------------------------------------------------
 

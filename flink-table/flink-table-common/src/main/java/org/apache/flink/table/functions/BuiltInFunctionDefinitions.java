@@ -115,13 +115,15 @@ public final class BuiltInFunctionDefinitions {
 		new BuiltInFunctionDefinition.Builder()
 			.name("isNull")
 			.kind(SCALAR)
-			.outputTypeStrategy(TypeStrategies.MISSING)
+			.outputTypeStrategy(TypeStrategies.BOOLEAN_NOT_NULL)
+			.inputTypeValidator(InputTypeValidators.ANY)
 			.build();
 	public static final BuiltInFunctionDefinition IS_NOT_NULL =
 		new BuiltInFunctionDefinition.Builder()
 			.name("isNotNull")
 			.kind(SCALAR)
-			.outputTypeStrategy(TypeStrategies.MISSING)
+			.outputTypeStrategy(TypeStrategies.BOOLEAN_NOT_NULL)
+			.inputTypeValidator(InputTypeValidators.ANY)
 			.build();
 	public static final BuiltInFunctionDefinition IS_TRUE =
 		new BuiltInFunctionDefinition.Builder()

@@ -41,31 +41,39 @@ import java.util.List;
 public class BuiltinFunctionsValidationTest {
 
 	private static final DataType BOOLEAN_NOT_NULL = DataTypes.BOOLEAN().notNull();
+	private static final DataType INT_NULLABLE = DataTypes.INT().nullable();
+	private static final DataType TIMESTAMP_NOT_NULL = DataTypes.TIMESTAMP().notNull();
 
 	@Parameters(name = "{index}: {0}=[parameters: {1}]")
 	public static List<Object[]> functionCalls() {
 		return Arrays.asList(
 			new Object[][]{
-				{BuiltInFunctionDefinitions.AND, Arrays.asList(DataTypes.INT(), BOOLEAN_NOT_NULL)},
-				{BuiltInFunctionDefinitions.AND, Arrays.asList(DataTypes.INT(), BOOLEAN_NOT_NULL, BOOLEAN_NOT_NULL)},
+				{BuiltInFunctionDefinitions.AND, Arrays.asList(INT_NULLABLE, BOOLEAN_NOT_NULL)},
+				{BuiltInFunctionDefinitions.AND, Arrays.asList(INT_NULLABLE, BOOLEAN_NOT_NULL, BOOLEAN_NOT_NULL)},
 
-				{BuiltInFunctionDefinitions.OR, Arrays.asList(DataTypes.INT(), BOOLEAN_NOT_NULL)},
-				{BuiltInFunctionDefinitions.OR, Arrays.asList(DataTypes.INT(), BOOLEAN_NOT_NULL, BOOLEAN_NOT_NULL)},
+				{BuiltInFunctionDefinitions.OR, Arrays.asList(INT_NULLABLE, BOOLEAN_NOT_NULL)},
+				{BuiltInFunctionDefinitions.OR, Arrays.asList(INT_NULLABLE, BOOLEAN_NOT_NULL, BOOLEAN_NOT_NULL)},
 
-				{BuiltInFunctionDefinitions.NOT, Collections.singletonList(DataTypes.INT())},
-				{BuiltInFunctionDefinitions.NOT, Arrays.asList(DataTypes.INT(), BOOLEAN_NOT_NULL)},
+				{BuiltInFunctionDefinitions.NOT, Collections.singletonList(INT_NULLABLE)},
+				{BuiltInFunctionDefinitions.NOT, Arrays.asList(INT_NULLABLE, BOOLEAN_NOT_NULL)},
 
-				{BuiltInFunctionDefinitions.IS_TRUE, Collections.singletonList(DataTypes.INT())},
-				{BuiltInFunctionDefinitions.IS_TRUE, Arrays.asList(DataTypes.INT(), BOOLEAN_NOT_NULL)},
+				{BuiltInFunctionDefinitions.IS_TRUE, Collections.singletonList(INT_NULLABLE)},
+				{BuiltInFunctionDefinitions.IS_TRUE, Arrays.asList(INT_NULLABLE, BOOLEAN_NOT_NULL)},
 
-				{BuiltInFunctionDefinitions.IS_FALSE, Collections.singletonList(DataTypes.INT())},
-				{BuiltInFunctionDefinitions.IS_FALSE, Arrays.asList(DataTypes.INT(), BOOLEAN_NOT_NULL)},
+				{BuiltInFunctionDefinitions.IS_FALSE, Collections.singletonList(INT_NULLABLE)},
+				{BuiltInFunctionDefinitions.IS_FALSE, Arrays.asList(INT_NULLABLE, BOOLEAN_NOT_NULL)},
 
-				{BuiltInFunctionDefinitions.IS_NOT_TRUE, Collections.singletonList(DataTypes.INT())},
-				{BuiltInFunctionDefinitions.IS_NOT_TRUE, Arrays.asList(DataTypes.INT(), BOOLEAN_NOT_NULL)},
+				{BuiltInFunctionDefinitions.IS_NOT_TRUE, Collections.singletonList(INT_NULLABLE)},
+				{BuiltInFunctionDefinitions.IS_NOT_TRUE, Arrays.asList(INT_NULLABLE, BOOLEAN_NOT_NULL)},
 
-				{BuiltInFunctionDefinitions.IS_NOT_FALSE, Collections.singletonList(DataTypes.INT())},
-				{BuiltInFunctionDefinitions.IS_NOT_FALSE, Arrays.asList(DataTypes.INT(), BOOLEAN_NOT_NULL)},
+				{BuiltInFunctionDefinitions.IS_NOT_FALSE, Collections.singletonList(INT_NULLABLE)},
+				{BuiltInFunctionDefinitions.IS_NOT_FALSE, Arrays.asList(INT_NULLABLE, BOOLEAN_NOT_NULL)},
+
+				{BuiltInFunctionDefinitions.IS_NULL, Arrays.asList(INT_NULLABLE, TIMESTAMP_NOT_NULL)},
+				{BuiltInFunctionDefinitions.IS_NULL, Arrays.asList(TIMESTAMP_NOT_NULL, TIMESTAMP_NOT_NULL)},
+
+				{BuiltInFunctionDefinitions.IS_NOT_NULL, Arrays.asList(INT_NULLABLE, TIMESTAMP_NOT_NULL)},
+				{BuiltInFunctionDefinitions.IS_NOT_NULL, Arrays.asList(TIMESTAMP_NOT_NULL, TIMESTAMP_NOT_NULL)}
 			});
 	}
 
