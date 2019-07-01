@@ -22,38 +22,55 @@ import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.api.common.typeinfo.Types;
 import org.apache.flink.table.api.TableException;
 import org.apache.flink.table.calcite.FlinkRelBuilder;
+import org.apache.flink.table.functions.BuiltInFunctionDefinition;
 import org.apache.flink.table.functions.BuiltInFunctionDefinitions;
 import org.apache.flink.table.types.DataType;
 import org.apache.flink.table.types.logical.DayTimeIntervalType;
 import org.apache.flink.table.types.logical.LogicalType;
+import org.apache.flink.table.types.logical.LogicalTypeRoot;
 import org.apache.flink.table.types.logical.TimeType;
 import org.apache.flink.table.types.logical.TimestampType;
 import org.apache.flink.table.types.logical.YearMonthIntervalType;
 
 import com.google.common.collect.ImmutableList;
 import org.apache.calcite.avatica.util.TimeUnit;
+import org.apache.calcite.avatica.util.TimeUnitRange;
 import org.apache.calcite.rel.type.RelDataType;
+import org.apache.calcite.rex.RexBuilder;
+import org.apache.calcite.rex.RexFieldCollation;
 import org.apache.calcite.rex.RexNode;
 import org.apache.calcite.rex.RexSubQuery;
+import org.apache.calcite.rex.RexWindowBound;
+import org.apache.calcite.sql.SqlAggFunction;
+import org.apache.calcite.sql.SqlBasicCall;
 import org.apache.calcite.sql.SqlIntervalQualifier;
+import org.apache.calcite.sql.SqlKind;
+import org.apache.calcite.sql.SqlLiteral;
+import org.apache.calcite.sql.SqlNode;
+import org.apache.calcite.sql.SqlPostfixOperator;
+import org.apache.calcite.sql.SqlWindow;
 import org.apache.calcite.sql.fun.SqlStdOperatorTable;
 import org.apache.calcite.sql.parser.SqlParserPos;
+import org.apache.calcite.sql.type.OrdinalReturnTypeInference;
 import org.apache.calcite.util.DateString;
 import org.apache.calcite.util.TimeString;
 import org.apache.calcite.util.TimestampString;
 
 import java.math.BigDecimal;
+import java.sql.Time;
 import java.sql.Timestamp;
 import java.time.Duration;
 import java.time.LocalDate;
-import java.time.LocalTime;
 import java.time.Period;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
 import static org.apache.flink.table.types.logical.LogicalTypeRoot.CHAR;
 import static org.apache.flink.table.types.logical.LogicalTypeRoot.DECIMAL;
+import static org.apache.flink.table.types.logical.LogicalTypeRoot.SYMBOL;
 import static org.apache.flink.table.types.logical.LogicalTypeRoot.TIMESTAMP_WITHOUT_TIME_ZONE;
 import static org.apache.flink.table.types.logical.utils.LogicalTypeChecks.getPrecision;
 import static org.apache.flink.table.types.logical.utils.LogicalTypeChecks.hasLength;
@@ -123,6 +140,8 @@ public class ExpressionConverter extends ResolvedExpressionVisitor<RexNode> {
 				Optional<Integer> fieldIndex = ExpressionUtils.extractValue(call.getChildren().get(1), Integer.class);
 				return relBuilder.getRexBuilder().makeFieldAccess(expression, fieldIndex.get());
 			}
+		} else if (call.getFunctionDefinition() == BuiltInFunctionDefinitions.OVER) {
+			return convertOver(call);
 		}
 
 		List<RexNode> childrenRexNodes = call.getChildren()
@@ -131,7 +150,7 @@ public class ExpressionConverter extends ResolvedExpressionVisitor<RexNode> {
 			.collect(Collectors.toList());
 
 		if (call.getFunctionDefinition() == BuiltInFunctionDefinitions.AND) {
-			return relBuilder.getRexBuilder().makeCall(SqlStdOperatorTable.AND, childrenRexNodes);
+			return relBuilder.and(childrenRexNodes);
 		} else {
 			List<ResolvedExpression> childrenExpressions = childrenRexNodes.stream()
 				.map(RexNodeExpression::new)
@@ -142,9 +161,111 @@ public class ExpressionConverter extends ResolvedExpressionVisitor<RexNode> {
 		}
 	}
 
+	private RexNode convertOver(CallExpression call) {
+		RexBuilder rexBuilder = relBuilder.getRexBuilder();
+
+		// assemble aggregation
+		SqlAggFunction operator = ((Aggregation) (call.getChildren()
+			.get(0)
+			.accept(toPlannerExpression))).getSqlAggFunction(relBuilder);
+		DataType dataType = call.getOutputDataType();
+		RelDataType aggResultType = relBuilder
+			.getTypeFactory()
+			.createTypeFromTypeInfo(fromDataTypeToLegacyInfo(dataType), dataType.getLogicalType().isNullable());
+
+		// assemble exprs by agg children
+		List<RexNode> aggExprs = call.getChildren().get(0).getChildren()
+			.stream()
+			.map(expr -> expr.accept(this))
+			.collect(Collectors.toList());
+
+		// assemble order by key
+		Expression orderBy = call.getChildren().get(1);
+		RexFieldCollation orderKey = new RexFieldCollation(orderBy.accept(this), Collections.emptySet());
+		ImmutableList<RexFieldCollation> orderKeys = ImmutableList.of(orderKey);
+
+		// assemble partition by keys
+		List<RexNode> partitionKeys = call.getChildren()
+			.subList(4, call.getChildren().size())
+			.stream()
+			.map(expr -> expr.accept(this))
+			.collect(Collectors.toList());
+
+		// assemble bounds
+		ResolvedExpression preceding = call.getResolvedChildren().get(2);
+		boolean isPhysical = hasRoot(
+			preceding.getOutputDataType().getLogicalType(),
+			LogicalTypeRoot.BIGINT);
+
+		ResolvedExpression following = call.getResolvedChildren().get(3);
+		RexWindowBound lowerBound = createBound(preceding, SqlKind.PRECEDING);
+		RexWindowBound upperBound = createBound(following, SqlKind.FOLLOWING);
+
+		// build RexOver
+		return rexBuilder.makeOver(
+			aggResultType,
+			operator,
+			aggExprs,
+			partitionKeys,
+			orderKeys,
+			lowerBound,
+			upperBound,
+			isPhysical,
+			true,
+			false,
+			false);
+	}
+
+	private RexWindowBound createBound(ResolvedExpression bound, SqlKind sqlKind){
+		if (isFunction(bound, BuiltInFunctionDefinitions.UNBOUNDED_ROW) ||
+			isFunction(bound, BuiltInFunctionDefinitions.UNBOUNDED_RANGE)) {
+			SqlNode unboundedPreceding = SqlWindow.createUnboundedPreceding(SqlParserPos.ZERO);
+			return RexWindowBound.create(unboundedPreceding, null);
+		} else if (isFunction(bound, BuiltInFunctionDefinitions.CURRENT_RANGE) ||
+			isFunction(bound, BuiltInFunctionDefinitions.CURRENT_ROW)) {
+			SqlNode currentRow = SqlWindow.createCurrentRow(SqlParserPos.ZERO);
+			return RexWindowBound.create(currentRow, null);
+		} else if (bound instanceof ValueLiteralExpression) {
+			RelDataType relDataType = relBuilder.getTypeFactory()
+				.createTypeFromTypeInfo(Types.BIG_DEC, bound.getOutputDataType().getLogicalType().isNullable());
+			SqlPostfixOperator sqlOperator = new SqlPostfixOperator(
+				sqlKind.name(),
+				sqlKind,
+				2,
+				new OrdinalReturnTypeInference(0),
+				null,
+				null);
+			SqlNode[] operands = new SqlNode[]{SqlLiteral.createExactNumeric("1", SqlParserPos.ZERO)};
+			SqlBasicCall node = new SqlBasicCall(sqlOperator, operands, SqlParserPos.ZERO);
+
+			RexNode rexNode = relBuilder.getRexBuilder()
+				.makeCall(relDataType, sqlOperator, Arrays.asList(bound.accept(this)));
+			return RexWindowBound.create(node, rexNode);
+		}
+		return null;
+	}
+
+	private boolean isFunction(ResolvedExpression expression, BuiltInFunctionDefinition functionDefinition) {
+		return expression instanceof CallExpression &&
+			((CallExpression) expression).getFunctionDefinition() == functionDefinition;
+	}
+
 	@Override
 	public RexNode visit(ValueLiteralExpression valueLiteral) {
 		DataType dataType = valueLiteral.getOutputDataType();
+
+		if (hasRoot(dataType.getLogicalType(), SYMBOL)) {
+			return relBuilder.getRexBuilder()
+				.makeFlag(convertTableSymbol(valueLiteral.getValueAs(TableSymbol.class).get()));
+		}
+
+		RelDataType literalType = relBuilder.getTypeFactory().createTypeFromTypeInfo(
+			getLiteralTypeInfo(valueLiteral),
+			dataType.getLogicalType().isNullable());
+
+		if (valueLiteral.isNull()) {
+			return relBuilder.getRexBuilder().makeNullLiteral(literalType);
+		}
 
 		switch (dataType.getLogicalType().getTypeRoot()) {
 
@@ -178,144 +299,213 @@ public class ExpressionConverter extends ResolvedExpressionVisitor<RexNode> {
 					.map(p -> BigDecimal.valueOf(p.toTotalMonths()))
 					.orElse(null);
 				YearMonthIntervalType intervalYearType = (YearMonthIntervalType) dataType.getLogicalType();
-				SqlIntervalQualifier sqlYearQualifier = null;
-				switch (intervalYearType.getResolution()) {
-					case YEAR:
-						sqlYearQualifier = new SqlIntervalQualifier(
-							TimeUnit.YEAR,
-							intervalYearType.getYearPrecision(),
-							TimeUnit.YEAR,
-							0,
-							SqlParserPos.ZERO
-						);
-						break;
-					case MONTH:
-						sqlYearQualifier = new SqlIntervalQualifier(
-							TimeUnit.MONTH,
-							0,
-							TimeUnit.MONTH,
-							0,
-							SqlParserPos.ZERO
-						);
-						break;
-					case YEAR_TO_MONTH:
-						sqlYearQualifier = new SqlIntervalQualifier(
-							TimeUnit.YEAR,
-							intervalYearType.getYearPrecision(),
-							TimeUnit.MONTH,
-							0,
-							SqlParserPos.ZERO
-						);
-						break;
-				}
+				SqlIntervalQualifier sqlYearQualifier = getSqlYearIntervalQualifier(intervalYearType);
 				return relBuilder.getRexBuilder().makeIntervalLiteral(intervalYear, sqlYearQualifier);
 			case INTERVAL_DAY_TIME:
 				BigDecimal interval = valueLiteral.getValueAs(Duration.class)
 					.map(p -> BigDecimal.valueOf(p.toMillis()))
 					.orElse(null);
 				DayTimeIntervalType intervalType = (DayTimeIntervalType) dataType.getLogicalType();
-				SqlIntervalQualifier sqlDayQualifier = null;
-				switch (intervalType.getResolution()) {
-					case DAY:
-						sqlDayQualifier = new SqlIntervalQualifier(
-							TimeUnit.DAY,
-							intervalType.getDayPrecision(),
-							TimeUnit.DAY,
-							0,
-							SqlParserPos.ZERO
-						);
-						break;
-					case DAY_TO_HOUR:
-						sqlDayQualifier = new SqlIntervalQualifier(
-							TimeUnit.DAY,
-							intervalType.getDayPrecision(),
-							TimeUnit.HOUR,
-							0,
-							SqlParserPos.ZERO
-						);
-						break;
-					case DAY_TO_MINUTE:
-						sqlDayQualifier = new SqlIntervalQualifier(
-							TimeUnit.DAY,
-							intervalType.getDayPrecision(),
-							TimeUnit.MINUTE,
-							0,
-							SqlParserPos.ZERO
-						);
-						break;
-					case DAY_TO_SECOND:
-						sqlDayQualifier = new SqlIntervalQualifier(
-							TimeUnit.DAY,
-							intervalType.getDayPrecision(),
-							TimeUnit.SECOND,
-							intervalType.getFractionalPrecision(),
-							SqlParserPos.ZERO
-						);
-						break;
-					case HOUR:
-						sqlDayQualifier = new SqlIntervalQualifier(
-							TimeUnit.HOUR,
-							0,
-							TimeUnit.HOUR,
-							0,
-							SqlParserPos.ZERO
-						);
-						break;
-					case HOUR_TO_MINUTE:
-						sqlDayQualifier = new SqlIntervalQualifier(
-							TimeUnit.HOUR,
-							0,
-							TimeUnit.MINUTE,
-							0,
-							SqlParserPos.ZERO
-						);
-						break;
-					case HOUR_TO_SECOND:
-						sqlDayQualifier = new SqlIntervalQualifier(
-							TimeUnit.HOUR,
-							0,
-							TimeUnit.SECOND,
-							intervalType.getFractionalPrecision(),
-							SqlParserPos.ZERO
-						);
-						break;
-					case MINUTE:
-						sqlDayQualifier = new SqlIntervalQualifier(
-							TimeUnit.MINUTE,
-							0,
-							TimeUnit.MINUTE,
-							0,
-							SqlParserPos.ZERO
-						);
-						break;
-					case MINUTE_TO_SECOND:
-						sqlDayQualifier = new SqlIntervalQualifier(
-							TimeUnit.MINUTE,
-							0,
-							TimeUnit.SECOND,
-							intervalType.getFractionalPrecision(),
-							SqlParserPos.ZERO
-						);
-						break;
-					case SECOND:
-						sqlDayQualifier = new SqlIntervalQualifier(
-							TimeUnit.SECOND,
-							intervalType.getFractionalPrecision(),
-							TimeUnit.SECOND,
-							intervalType.getFractionalPrecision(),
-							SqlParserPos.ZERO
-						);
-						break;
-				}
+				SqlIntervalQualifier sqlDayQualifier = getSqlDayIntervalQualifier(intervalType);
 				return relBuilder.getRexBuilder().makeIntervalLiteral(interval, sqlDayQualifier);
 		}
 
-		RelDataType literalType = relBuilder.getTypeFactory().createTypeFromTypeInfo(
-			getLiteralTypeInfo(valueLiteral),
-			dataType.getLogicalType().isNullable());
 		Class<?> conversionClass = dataType.getConversionClass();
 		return relBuilder.getRexBuilder()
 			.makeLiteral(valueLiteral.getValueAs(conversionClass).orElse(null), literalType, false);
+	}
+
+	private static Enum<?> convertTableSymbol(TableSymbol symbol) {
+		if (symbol instanceof TimeIntervalUnit) {
+			switch ((TimeIntervalUnit) symbol) {
+				case YEAR:
+					return TimeUnitRange.YEAR;
+				case YEAR_TO_MONTH:
+					return TimeUnitRange.YEAR_TO_MONTH;
+				case QUARTER:
+					return TimeUnitRange.QUARTER;
+				case MONTH:
+					return TimeUnitRange.MONTH;
+				case WEEK:
+					return TimeUnitRange.WEEK;
+				case DAY:
+					return TimeUnitRange.DAY;
+				case DAY_TO_HOUR:
+					return TimeUnitRange.DAY_TO_HOUR;
+				case DAY_TO_MINUTE:
+					return TimeUnitRange.DAY_TO_MINUTE;
+				case DAY_TO_SECOND:
+					return TimeUnitRange.DAY_TO_SECOND;
+				case HOUR:
+					return TimeUnitRange.HOUR;
+				case SECOND:
+					return TimeUnitRange.SECOND;
+				case HOUR_TO_MINUTE:
+					return TimeUnitRange.HOUR_TO_MINUTE;
+				case HOUR_TO_SECOND:
+					return TimeUnitRange.HOUR_TO_SECOND;
+				case MINUTE:
+					return TimeUnitRange.MINUTE;
+				case MINUTE_TO_SECOND:
+					return TimeUnitRange.MINUTE_TO_SECOND;
+			}
+		} else if (symbol instanceof TimePointUnit) {
+			switch ((TimePointUnit) symbol) {
+				case YEAR:
+					return TimeUnit.YEAR;
+				case MONTH:
+					return TimeUnit.MONTH;
+				case DAY:
+					return TimeUnit.DAY;
+				case HOUR:
+					return TimeUnit.HOUR;
+				case MINUTE:
+					return TimeUnit.MINUTE;
+				case SECOND:
+					return TimeUnit.SECOND;
+				case QUARTER:
+					return TimeUnit.QUARTER;
+				case WEEK:
+					return TimeUnit.WEEK;
+				case MILLISECOND:
+					return TimeUnit.MILLISECOND;
+				case MICROSECOND:
+					return TimeUnit.MICROSECOND;
+			}
+		}
+
+		throw new TableException("Unknown symbol: " + symbol);
+	}
+
+	private SqlIntervalQualifier getSqlYearIntervalQualifier(YearMonthIntervalType intervalYearType) {
+		SqlIntervalQualifier sqlYearQualifier = null;
+		switch (intervalYearType.getResolution()) {
+			case YEAR:
+				sqlYearQualifier = new SqlIntervalQualifier(
+					TimeUnit.YEAR,
+					intervalYearType.getYearPrecision(),
+					TimeUnit.YEAR,
+					0,
+					SqlParserPos.ZERO
+				);
+				break;
+			case MONTH:
+				sqlYearQualifier = new SqlIntervalQualifier(
+					TimeUnit.MONTH,
+					0,
+					TimeUnit.MONTH,
+					0,
+					SqlParserPos.ZERO
+				);
+				break;
+			case YEAR_TO_MONTH:
+				sqlYearQualifier = new SqlIntervalQualifier(
+					TimeUnit.YEAR,
+					intervalYearType.getYearPrecision(),
+					TimeUnit.MONTH,
+					0,
+					SqlParserPos.ZERO
+				);
+				break;
+		}
+		return sqlYearQualifier;
+	}
+
+	private SqlIntervalQualifier getSqlDayIntervalQualifier(DayTimeIntervalType intervalType) {
+		SqlIntervalQualifier sqlDayQualifier = null;
+		switch (intervalType.getResolution()) {
+			case DAY:
+				sqlDayQualifier = new SqlIntervalQualifier(
+					TimeUnit.DAY,
+					intervalType.getDayPrecision(),
+					TimeUnit.DAY,
+					0,
+					SqlParserPos.ZERO
+				);
+				break;
+			case DAY_TO_HOUR:
+				sqlDayQualifier = new SqlIntervalQualifier(
+					TimeUnit.DAY,
+					intervalType.getDayPrecision(),
+					TimeUnit.HOUR,
+					0,
+					SqlParserPos.ZERO
+				);
+				break;
+			case DAY_TO_MINUTE:
+				sqlDayQualifier = new SqlIntervalQualifier(
+					TimeUnit.DAY,
+					intervalType.getDayPrecision(),
+					TimeUnit.MINUTE,
+					0,
+					SqlParserPos.ZERO
+				);
+				break;
+			case DAY_TO_SECOND:
+				sqlDayQualifier = new SqlIntervalQualifier(
+					TimeUnit.DAY,
+					intervalType.getDayPrecision(),
+					TimeUnit.SECOND,
+					intervalType.getFractionalPrecision(),
+					SqlParserPos.ZERO
+				);
+				break;
+			case HOUR:
+				sqlDayQualifier = new SqlIntervalQualifier(
+					TimeUnit.HOUR,
+					0,
+					TimeUnit.HOUR,
+					0,
+					SqlParserPos.ZERO
+				);
+				break;
+			case HOUR_TO_MINUTE:
+				sqlDayQualifier = new SqlIntervalQualifier(
+					TimeUnit.HOUR,
+					0,
+					TimeUnit.MINUTE,
+					0,
+					SqlParserPos.ZERO
+				);
+				break;
+			case HOUR_TO_SECOND:
+				sqlDayQualifier = new SqlIntervalQualifier(
+					TimeUnit.HOUR,
+					0,
+					TimeUnit.SECOND,
+					intervalType.getFractionalPrecision(),
+					SqlParserPos.ZERO
+				);
+				break;
+			case MINUTE:
+				sqlDayQualifier = new SqlIntervalQualifier(
+					TimeUnit.MINUTE,
+					0,
+					TimeUnit.MINUTE,
+					0,
+					SqlParserPos.ZERO
+				);
+				break;
+			case MINUTE_TO_SECOND:
+				sqlDayQualifier = new SqlIntervalQualifier(
+					TimeUnit.MINUTE,
+					0,
+					TimeUnit.SECOND,
+					intervalType.getFractionalPrecision(),
+					SqlParserPos.ZERO
+				);
+				break;
+			case SECOND:
+				sqlDayQualifier = new SqlIntervalQualifier(
+					TimeUnit.SECOND,
+					intervalType.getFractionalPrecision(),
+					TimeUnit.SECOND,
+					intervalType.getFractionalPrecision(),
+					SqlParserPos.ZERO
+				);
+				break;
+		}
+		return sqlDayQualifier;
 	}
 
 	@Override
