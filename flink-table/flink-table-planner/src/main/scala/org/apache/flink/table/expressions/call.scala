@@ -17,24 +17,15 @@
  */
 package org.apache.flink.table.expressions
 
-import java.util
-
-import com.google.common.collect.ImmutableList
-import org.apache.calcite.rex.RexWindowBound._
-import org.apache.calcite.rex.{RexFieldCollation, RexNode, RexWindowBound}
-import org.apache.calcite.sql._
-import org.apache.calcite.sql.`type`.OrdinalReturnTypeInference
-import org.apache.calcite.sql.parser.SqlParserPos
-import org.apache.calcite.tools.RelBuilder
 import org.apache.flink.api.common.typeinfo.{BasicTypeInfo, TypeInformation}
-import org.apache.flink.table.api._
 import org.apache.flink.table.calcite.FlinkTypeFactory
 import org.apache.flink.table.functions._
 import org.apache.flink.table.functions.utils.UserDefinedFunctionUtils._
 import org.apache.flink.table.typeutils.TimeIntervalTypeInfo
 import org.apache.flink.table.validate.{ValidationFailure, ValidationResult, ValidationSuccess}
 
-import _root_.scala.collection.JavaConverters._
+import org.apache.calcite.rex.RexNode
+import org.apache.calcite.tools.RelBuilder
 
 /**
   * Over call with unresolved alias for over window.
@@ -74,86 +65,6 @@ case class OverCall(
     s"ORDER BY $orderBy " +
     s"PRECEDING $preceding " +
     s"FOLLOWING $following)"
-
-  override private[flink] def toRexNode(implicit relBuilder: RelBuilder): RexNode = {
-
-    val rexBuilder = relBuilder.getRexBuilder
-
-    // assemble aggregation
-    val operator: SqlAggFunction = agg.asInstanceOf[Aggregation].getSqlAggFunction()
-    val aggResultType = relBuilder
-      .getTypeFactory.asInstanceOf[FlinkTypeFactory]
-      .createTypeFromTypeInfo(agg.resultType, isNullable = true)
-
-    // assemble exprs by agg children
-    val aggExprs = agg.asInstanceOf[Aggregation].children.map(_.toRexNode(relBuilder)).asJava
-
-    // assemble order by key
-    val orderKey = new RexFieldCollation(orderBy.toRexNode, Set[SqlKind]().asJava)
-    val orderKeys = ImmutableList.of(orderKey)
-
-    // assemble partition by keys
-    val partitionKeys = partitionBy.map(_.toRexNode).asJava
-
-    // assemble bounds
-    val isPhysical: Boolean = preceding.resultType == BasicTypeInfo.LONG_TYPE_INFO
-
-    val lowerBound = createBound(relBuilder, preceding, SqlKind.PRECEDING)
-    val upperBound = createBound(relBuilder, following, SqlKind.FOLLOWING)
-
-    // build RexOver
-    rexBuilder.makeOver(
-      aggResultType,
-      operator,
-      aggExprs,
-      partitionKeys,
-      orderKeys,
-      lowerBound,
-      upperBound,
-      isPhysical,
-      true,
-      false,
-      false)
-  }
-
-  private def createBound(
-    relBuilder: RelBuilder,
-    bound: PlannerExpression,
-    sqlKind: SqlKind): RexWindowBound = {
-
-    bound match {
-      case _: UnboundedRow | _: UnboundedRange =>
-        val unbounded = SqlWindow.createUnboundedPreceding(SqlParserPos.ZERO)
-        create(unbounded, null)
-      case _: CurrentRow | _: CurrentRange =>
-        val currentRow = SqlWindow.createCurrentRow(SqlParserPos.ZERO)
-        create(currentRow, null)
-      case b: Literal =>
-        val returnType = relBuilder
-          .getTypeFactory.asInstanceOf[FlinkTypeFactory]
-          .createTypeFromTypeInfo(Types.DECIMAL, isNullable = true)
-
-        val sqlOperator = new SqlPostfixOperator(
-          sqlKind.name,
-          sqlKind,
-          2,
-          new OrdinalReturnTypeInference(0),
-          null,
-          null)
-
-        val operands: Array[SqlNode] = new Array[SqlNode](1)
-        operands(0) = SqlLiteral.createExactNumeric("1", SqlParserPos.ZERO)
-
-        val node = new SqlBasicCall(sqlOperator, operands, SqlParserPos.ZERO)
-
-        val expressions: util.ArrayList[RexNode] = new util.ArrayList[RexNode]()
-        expressions.add(relBuilder.literal(b.value))
-
-        val rexNode = relBuilder.getRexBuilder.makeCall(returnType, sqlOperator, expressions)
-
-        create(node, rexNode)
-    }
-  }
 
   override private[flink] def children: Seq[PlannerExpression] =
     Seq(agg) ++ Seq(orderBy) ++ partitionBy ++ Seq(preceding) ++ Seq(following)

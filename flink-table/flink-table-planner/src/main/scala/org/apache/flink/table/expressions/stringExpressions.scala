@@ -17,14 +17,15 @@
  */
 package org.apache.flink.table.expressions
 
-import org.apache.calcite.rex.RexNode
-import org.apache.calcite.sql.fun.SqlStdOperatorTable
-import org.apache.calcite.tools.RelBuilder
 import org.apache.flink.api.common.typeinfo.BasicTypeInfo._
 import org.apache.flink.api.common.typeinfo.{BasicTypeInfo, TypeInformation}
 import org.apache.flink.table.expressions.PlannerTrimMode.PlannerTrimMode
 import org.apache.flink.table.functions.sql.ScalarSqlFunctions
 import org.apache.flink.table.validate._
+
+import org.apache.calcite.rex.RexNode
+import org.apache.calcite.sql.fun.SqlStdOperatorTable
+import org.apache.calcite.tools.RelBuilder
 
 import scala.collection.JavaConversions._
 
@@ -197,10 +198,6 @@ case class Trim(
   }
 
   override def toString: String = s"($str).trim($trimMode, $trimString)"
-
-  override private[flink] def toRexNode(implicit relBuilder: RelBuilder): RexNode = {
-    relBuilder.call(SqlStdOperatorTable.TRIM, children.map(_.toRexNode))
-  }
 }
 
 /**

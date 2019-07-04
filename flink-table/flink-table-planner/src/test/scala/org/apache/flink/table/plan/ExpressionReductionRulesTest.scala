@@ -19,11 +19,12 @@
 package org.apache.flink.table.plan
 
 import org.apache.flink.api.scala._
-import org.apache.flink.table.api.Types
+import org.apache.flink.table.api.{DataTypes, Types}
 import org.apache.flink.table.api.scala._
 import org.apache.flink.table.functions.ScalarFunction
 import org.apache.flink.table.utils.TableTestBase
 import org.apache.flink.table.utils.TableTestUtil._
+
 import org.junit.{Ignore, Test}
 
 class ExpressionReductionRulesTest extends TableTestBase {
@@ -151,7 +152,7 @@ class ExpressionReductionRulesTest extends TableTestBase {
               1.isNull,
               "TEST".like("%EST"),
               2.5.toExpr.floor(),
-              true.cast(Types.STRING) + "X")
+              true.cast(DataTypes.STRING().notNull()) + "X")
 
     val expected = unaryNode(
       "DataSetCalc",
@@ -161,7 +162,7 @@ class ExpressionReductionRulesTest extends TableTestBase {
         "'b' AS _c1",
         "'STRING' AS _c2",
         "'teststring' AS _c3",
-        "1990-10-24 23:00:01.123 AS _c4",
+        "CAST(1990-10-24 23:00:01.123) AS _c4",
         "false AS _c5",
         "true AS _c6",
         "2E0 AS _c7",
@@ -187,7 +188,7 @@ class ExpressionReductionRulesTest extends TableTestBase {
               1.isNull,
               "TEST".like("%EST"),
               2.5.toExpr.floor(),
-              true.cast(Types.STRING) + "X")
+              true.cast(DataTypes.STRING().notNull()) + "X")
 
     val expected = unaryNode(
       "DataSetCalc",
@@ -197,7 +198,7 @@ class ExpressionReductionRulesTest extends TableTestBase {
         "'b' AS _c1",
         "'STRING' AS _c2",
         "'teststring' AS _c3",
-        "1990-10-24 23:00:01.123 AS _c4",
+        "CAST(1990-10-24 23:00:01.123) AS _c4",
         "false AS _c5",
         "true AS _c6",
         "2E0 AS _c7",
@@ -349,7 +350,7 @@ class ExpressionReductionRulesTest extends TableTestBase {
               1.isNull,
               "TEST".like("%EST"),
               2.5.toExpr.floor(),
-              true.cast(Types.STRING) + "X")
+              true.cast(DataTypes.STRING().notNull()) + "X")
 
     val expected = unaryNode(
       "DataStreamCalc",
@@ -359,7 +360,7 @@ class ExpressionReductionRulesTest extends TableTestBase {
         "'b' AS _c1",
         "'STRING' AS _c2",
         "'teststring' AS _c3",
-        "1990-10-24 23:00:01.123 AS _c4",
+        "CAST(1990-10-24 23:00:01.123) AS _c4",
         "false AS _c5",
         "true AS _c6",
         "2E0 AS _c7",
@@ -385,7 +386,7 @@ class ExpressionReductionRulesTest extends TableTestBase {
               1.isNull,
               "TEST".like("%EST"),
               2.5.toExpr.floor(),
-              true.cast(Types.STRING) + "X")
+              true.cast(DataTypes.STRING().notNull()) + "X")
 
     val expected = unaryNode(
       "DataStreamCalc",
@@ -395,7 +396,7 @@ class ExpressionReductionRulesTest extends TableTestBase {
         "'b' AS _c1",
         "'STRING' AS _c2",
         "'teststring' AS _c3",
-        "1990-10-24 23:00:01.123 AS _c4",
+        "CAST(1990-10-24 23:00:01.123) AS _c4",
         "false AS _c5",
         "true AS _c6",
         "2E0 AS _c7",

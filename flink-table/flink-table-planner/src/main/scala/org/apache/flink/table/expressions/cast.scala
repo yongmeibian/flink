@@ -29,6 +29,7 @@ case class Cast(child: PlannerExpression, resultType: TypeInformation[_])
 
   override def toString = s"$child.cast($resultType)"
 
+  // Has to remain for now, as it is called in multiple places within other PlannerExpressions
   override private[flink] def toRexNode(implicit relBuilder: RelBuilder): RexNode = {
     val typeFactory = relBuilder.getTypeFactory.asInstanceOf[FlinkTypeFactory]
     val childRexNode = child.toRexNode

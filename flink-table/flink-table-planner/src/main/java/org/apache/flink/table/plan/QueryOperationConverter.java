@@ -33,9 +33,12 @@ import org.apache.flink.table.expressions.Expression;
 import org.apache.flink.table.expressions.ExpressionBridge;
 import org.apache.flink.table.expressions.ExpressionConverter;
 import org.apache.flink.table.expressions.ExpressionDefaultVisitor;
+import org.apache.flink.table.expressions.FieldReferenceExpression;
 import org.apache.flink.table.expressions.PlannerExpression;
 import org.apache.flink.table.expressions.ResolvedExpression;
+import org.apache.flink.table.expressions.RexNodeExpression;
 import org.apache.flink.table.expressions.WindowReference;
+import org.apache.flink.table.functions.BuiltInFunctionDefinitions;
 import org.apache.flink.table.functions.TableFunction;
 import org.apache.flink.table.functions.utils.TableSqlFunction;
 import org.apache.flink.table.operations.AggregateQueryOperation;
@@ -77,6 +80,7 @@ import org.apache.calcite.rel.core.CorrelationId;
 import org.apache.calcite.rel.core.JoinRelType;
 import org.apache.calcite.rel.logical.LogicalTableFunctionScan;
 import org.apache.calcite.rel.type.RelDataType;
+import org.apache.calcite.rex.RexInputRef;
 import org.apache.calcite.rex.RexNode;
 import org.apache.calcite.schema.Schemas;
 import org.apache.calcite.schema.Table;
@@ -84,7 +88,9 @@ import org.apache.calcite.tools.RelBuilder.AggCall;
 import org.apache.calcite.tools.RelBuilder.GroupKey;
 
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 import java.util.stream.IntStream;
 
@@ -142,9 +148,41 @@ public class QueryOperationConverter extends QueryOperationDefaultVisitor<RelNod
 				.map(this::getAggCall)
 				.collect(toList());
 
+			List<ResolvedExpression> sorted = aggregate.getGroupingExpressions().stream().sorted(
+				new Comparator<ResolvedExpression>() {
+					@Override
+					public int compare(ResolvedExpression o1, ResolvedExpression o2) {
+						if (o1 instanceof FieldReferenceExpression && o2 instanceof FieldReferenceExpression) {
+							int field1Index = ((FieldReferenceExpression) o1).getFieldIndex();
+							int field2Index = ((FieldReferenceExpression) o2).getFieldIndex();
+							return Integer.compare(field1Index, field2Index);
+						} else if (o2 instanceof FieldReferenceExpression) {
+							return 1;
+						} else {
+							return -1;
+						}
+					}
+				}
+			).collect(toList());
+
 			List<RexNode> groupings = convertToRexNodes(aggregate.getGroupingExpressions());
 			GroupKey groupKey = relBuilder.groupKey(groupings);
-			return relBuilder.aggregate(groupKey, aggregations).build();
+			relBuilder.aggregate(groupKey, aggregations);
+
+			List<RexInputRef> reorderedGroupings = aggregate.getGroupingExpressions()
+				.stream()
+				.map(expr -> relBuilder.field(1, 0, sorted.indexOf(expr)))
+				.collect(toList());
+			List<RexInputRef> reorderedFields = IntStream.range(0, aggregate.getTableSchema().getFieldCount())
+				.mapToObj(idx -> {
+					if (idx < reorderedGroupings.size()) {
+						return reorderedGroupings.get(idx);
+					} else {
+						return relBuilder.field(1, 0, idx);
+					}
+				}).collect(toList());
+
+			return relBuilder.project(reorderedFields).build();
 		}
 
 		@Override
@@ -415,12 +453,37 @@ public class QueryOperationConverter extends QueryOperationDefaultVisitor<RelNod
 					.orElseThrow(() -> new TableException("Unexpected name."));
 
 				Expression aggregate = unresolvedCall.getChildren().get(0);
-				if (isFunctionOfKind(aggregate, AGGREGATE)) {
-					return ((Aggregation) expressionBridge.bridge(aggregate))
-						.toAggCall(aggregateName, false, relBuilder);
+				if (aggregate instanceof CallExpression &&
+					((CallExpression) aggregate).getFunctionDefinition() == BuiltInFunctionDefinitions.DISTINCT) {
+					return convertAggregate(
+						aggregate.getChildren().get(0),
+						aggregateName,
+						true).orElseThrow(() -> new TableException(
+						"Expected named aggregate. Got: " + unresolvedCall));
+				} else {
+					return convertAggregate(aggregate, aggregateName, false).orElseThrow(() -> new TableException(
+						"Expected named aggregate. Got: " + unresolvedCall));
 				}
 			}
 			throw new TableException("Expected named aggregate. Got: " + unresolvedCall);
+		}
+
+		private Optional<AggCall> convertAggregate(Expression aggregate, String aggregateName, boolean isDistinct) {
+			if (isFunctionOfKind(aggregate, AGGREGATE)) {
+				ExpressionConverter expressionConverter = new ExpressionConverter(relBuilder, 1);
+				CallExpression withSubstitutedChildren = new CallExpression(
+					((CallExpression) aggregate).getFunctionDefinition(),
+					aggregate.getChildren()
+						.stream()
+						.map(expr -> expr.accept(expressionConverter))
+						.map(RexNodeExpression::new)
+						.collect(toList()),
+					((CallExpression) aggregate).getOutputDataType());
+				return Optional.of(((Aggregation) expressionBridge.bridge(withSubstitutedChildren))
+					.toAggCall(aggregateName, isDistinct, relBuilder));
+			}
+
+			return Optional.empty();
 		}
 
 		@Override

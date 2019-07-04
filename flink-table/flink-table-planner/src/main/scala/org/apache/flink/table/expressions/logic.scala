@@ -61,10 +61,6 @@ case class Not(child: PlannerExpression) extends UnaryExpression {
 case class And(left: PlannerExpression, right: PlannerExpression) extends BinaryPredicate {
 
   override def toString = s"$left && $right"
-
-  override private[flink] def toRexNode(implicit relBuilder: RelBuilder): RexNode = {
-    relBuilder.and(left.toRexNode, right.toRexNode)
-  }
 }
 
 case class Or(left: PlannerExpression, right: PlannerExpression) extends BinaryPredicate {

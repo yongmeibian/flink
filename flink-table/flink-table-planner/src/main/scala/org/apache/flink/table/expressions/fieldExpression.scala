@@ -93,10 +93,6 @@ case class Alias(child: PlannerExpression, name: String, extraNames: Seq[String]
 
   override def toString = s"$child as '$name"
 
-  override private[flink] def toRexNode(implicit relBuilder: RelBuilder): RexNode = {
-    relBuilder.alias(child.toRexNode, name)
-  }
-
   override private[flink] def resultType: TypeInformation[_] = child.resultType
 
   override private[flink] def makeCopy(anyRefs: Array[AnyRef]): this.type = {

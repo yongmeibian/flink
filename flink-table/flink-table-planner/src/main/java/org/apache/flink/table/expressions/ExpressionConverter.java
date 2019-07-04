@@ -26,6 +26,7 @@ import org.apache.flink.table.functions.BuiltInFunctionDefinition;
 import org.apache.flink.table.functions.BuiltInFunctionDefinitions;
 import org.apache.flink.table.types.DataType;
 import org.apache.flink.table.types.logical.DayTimeIntervalType;
+import org.apache.flink.table.types.logical.DecimalType;
 import org.apache.flink.table.types.logical.LogicalType;
 import org.apache.flink.table.types.logical.LogicalTypeRoot;
 import org.apache.flink.table.types.logical.TimeType;
@@ -38,6 +39,7 @@ import org.apache.calcite.avatica.util.TimeUnitRange;
 import org.apache.calcite.rel.type.RelDataType;
 import org.apache.calcite.rex.RexBuilder;
 import org.apache.calcite.rex.RexFieldCollation;
+import org.apache.calcite.rex.RexLiteral;
 import org.apache.calcite.rex.RexNode;
 import org.apache.calcite.rex.RexSubQuery;
 import org.apache.calcite.rex.RexWindowBound;
@@ -50,19 +52,23 @@ import org.apache.calcite.sql.SqlNode;
 import org.apache.calcite.sql.SqlPostfixOperator;
 import org.apache.calcite.sql.SqlWindow;
 import org.apache.calcite.sql.fun.SqlStdOperatorTable;
+import org.apache.calcite.sql.fun.SqlTrimFunction;
 import org.apache.calcite.sql.parser.SqlParserPos;
 import org.apache.calcite.sql.type.OrdinalReturnTypeInference;
+import org.apache.calcite.sql.type.SqlTypeName;
 import org.apache.calcite.util.DateString;
 import org.apache.calcite.util.TimeString;
 import org.apache.calcite.util.TimestampString;
 
 import java.math.BigDecimal;
-import java.sql.Time;
 import java.sql.Timestamp;
 import java.time.Duration;
 import java.time.LocalDate;
+import java.time.LocalTime;
 import java.time.Period;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Calendar;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
@@ -142,6 +148,29 @@ public class ExpressionConverter extends ResolvedExpressionVisitor<RexNode> {
 			}
 		} else if (call.getFunctionDefinition() == BuiltInFunctionDefinitions.OVER) {
 			return convertOver(call);
+		} else  if (call.getFunctionDefinition() == BuiltInFunctionDefinitions.TRIM) {
+			List<Expression> children = call.getChildren();
+			boolean removeLeading = ExpressionUtils.extractValue(children.get(0), Boolean.class).get();
+			boolean removeTrailing = ExpressionUtils.extractValue(children.get(1), Boolean.class).get();
+
+			final RexLiteral trimFlag;
+			if (removeLeading && removeTrailing) {
+				trimFlag = relBuilder.getRexBuilder().makeFlag(SqlTrimFunction.Flag.BOTH);
+			} else if (removeLeading) {
+				trimFlag = relBuilder.getRexBuilder().makeFlag(SqlTrimFunction.Flag.LEADING);
+			} else if (removeTrailing) {
+				trimFlag = relBuilder.getRexBuilder().makeFlag(SqlTrimFunction.Flag.TRAILING);
+			} else {
+				throw new TableException("Unsupported trim mode.");
+			}
+
+			List<RexNode> trimChildren = call.getChildren()
+				.subList(2, call.getChildren().size())
+				.stream()
+				.map(expr -> expr.accept(this))
+				.collect(Collectors.toCollection(ArrayList::new));
+			trimChildren.add(0, trimFlag);
+			return relBuilder.call(SqlStdOperatorTable.TRIM, trimChildren);
 		}
 
 		List<RexNode> childrenRexNodes = call.getChildren()
@@ -270,44 +299,66 @@ public class ExpressionConverter extends ResolvedExpressionVisitor<RexNode> {
 		switch (dataType.getLogicalType().getTypeRoot()) {
 
 			case DECIMAL:
+				DecimalType logicalType = (DecimalType) dataType.getLogicalType();
 				BigDecimal bigDecimal = valueLiteral.getValueAs(BigDecimal.class).orElse(null);
-				return relBuilder.getRexBuilder().makeExactLiteral(bigDecimal);
+				RelDataType relType = relBuilder.getTypeFactory().createSqlType(
+					SqlTypeName.DECIMAL,
+					logicalType.getPrecision(),
+					logicalType.getScale());
+				return relBuilder.getRexBuilder().makeLiteral(bigDecimal, relType, false);
 			case BIGINT:
 				BigDecimal value = valueLiteral.getValueAs(BigDecimal.class).orElse(null);
 				return relBuilder.getRexBuilder().makeBigintLiteral(value);
 			case DATE:
 				DateString dateString = valueLiteral.getValueAs(LocalDate.class)
-					.map(l -> (int) l.toEpochDay())
-					.map(DateString::fromDaysSinceEpoch)
+					.map(ld -> new DateString(ld.getYear(), ld.getMonthValue(), ld.getDayOfMonth()))
 					.orElse(null);
 				return relBuilder.getRexBuilder().makeDateLiteral(dateString);
 			case TIME_WITHOUT_TIME_ZONE:
 				int precision = ((TimeType) dataType.getLogicalType()).getPrecision();
-				TimeString timeString = valueLiteral.getValueAs(Integer.class)
-					.map(TimeString::fromMillisOfDay)
+				TimeString timeString = valueLiteral.getValueAs(LocalTime.class)
+					.map(lt -> new TimeString(lt.getHour(), lt.getMinute(), lt.getSecond()).withNanos(lt.getNano()))
 					.orElse(null);
 				return relBuilder.getRexBuilder().makeTimeLiteral(timeString, precision);
 			case TIMESTAMP_WITHOUT_TIME_ZONE:
 				int timestampPrecision = ((TimestampType) dataType.getLogicalType()).getPrecision();
 				TimestampString timestampString = valueLiteral.getValueAs(Timestamp.class)
-					.map(Timestamp::getTime)
-					.map(TimestampString::fromMillisSinceEpoch)
+					.map(t -> {
+						Calendar calendar = Calendar.getInstance();
+						calendar.setTime(t);
+						return calendar;
+					})
+					.map(TimestampString::fromCalendarFields)
 					.orElse(null);
 				return relBuilder.getRexBuilder().makeTimestampLiteral(timestampString, timestampPrecision);
 			case INTERVAL_YEAR_MONTH:
 				BigDecimal intervalYear = valueLiteral.getValueAs(Period.class)
 					.map(p -> BigDecimal.valueOf(p.toTotalMonths()))
 					.orElse(null);
-				YearMonthIntervalType intervalYearType = (YearMonthIntervalType) dataType.getLogicalType();
-				SqlIntervalQualifier sqlYearQualifier = getSqlYearIntervalQualifier(intervalYearType);
+				// This could work with new type system and handle resolution properly. It would break backwards
+				// compatibility though of multiple builtin functions.
+				SqlIntervalQualifier sqlYearQualifier = new SqlIntervalQualifier(
+					TimeUnit.YEAR,
+					TimeUnit.MONTH,
+					SqlParserPos.ZERO
+				);
 				return relBuilder.getRexBuilder().makeIntervalLiteral(intervalYear, sqlYearQualifier);
 			case INTERVAL_DAY_TIME:
 				BigDecimal interval = valueLiteral.getValueAs(Duration.class)
 					.map(p -> BigDecimal.valueOf(p.toMillis()))
 					.orElse(null);
-				DayTimeIntervalType intervalType = (DayTimeIntervalType) dataType.getLogicalType();
-				SqlIntervalQualifier sqlDayQualifier = getSqlDayIntervalQualifier(intervalType);
+				// This could work with new type system and handle resolution properly. It would break backwards
+				// compatibility though of multiple builtin functions.
+				SqlIntervalQualifier sqlDayQualifier = new SqlIntervalQualifier(
+					TimeUnit.DAY,
+					TimeUnit.SECOND,
+					SqlParserPos.ZERO
+				);
 				return relBuilder.getRexBuilder().makeIntervalLiteral(interval, sqlDayQualifier);
+			case DOUBLE:
+				BigDecimal doubleValue = valueLiteral.getValueAs(Double.class).map(BigDecimal::valueOf).get();
+				RelDataType doubleType = relBuilder.getTypeFactory().createSqlType(SqlTypeName.DOUBLE);
+				return relBuilder.getRexBuilder().makeApproxLiteral(doubleValue, doubleType);
 		}
 
 		Class<?> conversionClass = dataType.getConversionClass();

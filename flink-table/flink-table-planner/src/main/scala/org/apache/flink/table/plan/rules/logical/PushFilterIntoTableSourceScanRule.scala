@@ -18,13 +18,14 @@
 
 package org.apache.flink.table.plan.rules.logical
 
-import java.util
+import org.apache.flink.table.calcite.FlinkRelBuilder
 
+import java.util
 import org.apache.calcite.plan.RelOptRule.{none, operand}
 import org.apache.calcite.plan.{RelOptRule, RelOptRuleCall}
 import org.apache.calcite.rex.RexProgram
 import org.apache.flink.table.catalog.FunctionCatalog
-import org.apache.flink.table.expressions.{Expression, PlannerExpression}
+import org.apache.flink.table.expressions.{Expression, ExpressionConverter, PlannerExpression}
 import org.apache.flink.table.plan.nodes.logical.{FlinkLogicalCalc, FlinkLogicalTableSourceScan}
 import org.apache.flink.table.plan.util.RexProgramExtractor
 import org.apache.flink.table.sources.FilterableTableSource
@@ -80,17 +81,18 @@ class PushFilterIntoTableSourceScanRule extends RelOptRule(
     val newTableSource = filterableSource.applyPredicate(remainingPredicates)
 
     // check whether framework still need to do a filter
-    val relBuilder = call.builder()
+    val relBuilder = FlinkRelBuilder.of(scan.getCluster, scan.getTable)
     val remainingCondition = {
       if (!remainingPredicates.isEmpty || unconvertedRexNodes.nonEmpty) {
         relBuilder.push(scan)
 
-        // TODO we cast to planner expressions as a temporary solution to keep the old interfaces
-        val remainingPrecidatesAsExpr = remainingPredicates
-          .asScala
-          .map(_.asInstanceOf[PlannerExpression])
+//        // TODO we cast to planner expressions as a temporary solution to keep the old interfaces
+//        val remainingPrecidatesAsExpr = remainingPredicates
+//          .asScala
+//          .map(_.asInstanceOf[PlannerExpression])
 
-        val remainingConditions = (remainingPrecidatesAsExpr.map(_.toRexNode(relBuilder))
+        val exprConverter = new ExpressionConverter(relBuilder.asInstanceOf[FlinkRelBuilder], 1)
+        val remainingConditions = (remainingPredicates.asScala.map(_.accept(exprConverter))
               ++ unconvertedRexNodes)
         remainingConditions.reduce((l, r) => relBuilder.and(l, r))
       } else {
