@@ -31,8 +31,8 @@ import java.util.Map;
  */
 public class CreateTableOperation implements CreateOperation {
 	private final String[] tablePath;
-	private CatalogTable catalogTable;
-	private boolean ignoreIfExists;
+	private final CatalogTable catalogTable;
+	private final boolean ignoreIfExists;
 
 	public CreateTableOperation(String[] tablePath,
 			CatalogTable catalogTable,

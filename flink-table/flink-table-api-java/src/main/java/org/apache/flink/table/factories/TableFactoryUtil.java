@@ -21,7 +21,6 @@ package org.apache.flink.table.factories;
 import org.apache.flink.table.api.TableException;
 import org.apache.flink.table.catalog.Catalog;
 import org.apache.flink.table.catalog.CatalogTable;
-import org.apache.flink.table.catalog.ExternalCatalog;
 import org.apache.flink.table.catalog.ObjectPath;
 import org.apache.flink.table.descriptors.Descriptor;
 import org.apache.flink.table.sinks.TableSink;
@@ -34,17 +33,6 @@ import java.util.Optional;
  * Utility for dealing with {@link TableFactory} using the {@link TableFactoryService}.
  */
 public class TableFactoryUtil {
-
-	/**
-	 * Returns an external catalog.
-	 */
-	@Deprecated
-	public static ExternalCatalog findAndCreateExternalCatalog(Descriptor descriptor) {
-		Map<String, String> properties = descriptor.toProperties();
-		return TableFactoryService
-			.find(ExternalCatalogFactory.class, properties)
-			.createExternalCatalog(properties);
-	}
 
 	/**
 	 * Returns a table source matching the descriptor.
@@ -71,12 +59,12 @@ public class TableFactoryUtil {
 	/**
 	 * Returns a table sink matching the descriptor.
 	 */
-	@SuppressWarnings("unchecked")
 	public static <T> TableSink<T> findAndCreateTableSink(Descriptor descriptor) {
 		Map<String, String> properties = descriptor.toProperties();
 		return findAndCreateTableSink(properties);
 	}
 
+	@SuppressWarnings("unchecked")
 	private static <T> TableSink<T> findAndCreateTableSink(Map<String, String> properties) {
 		TableSink tableSink;
 		try {
@@ -107,12 +95,17 @@ public class TableFactoryUtil {
 	/**
 	 * Creates a table sink for a {@link CatalogTable} using table factory associated with the catalog.
 	 */
-	public static Optional<TableSink> createTableSinkForCatalogTable(Catalog catalog, CatalogTable catalogTable, ObjectPath tablePath) {
-		TableFactory tableFactory = catalog.getTableFactory().orElse(null);
-		if (tableFactory instanceof TableSinkFactory) {
-			return Optional.ofNullable(((TableSinkFactory) tableFactory).createTableSink(tablePath, catalogTable));
-		}
-		return Optional.empty();
+	public static Optional<TableSink> createTableSinkForCatalogTable(
+			Catalog catalog,
+			CatalogTable catalogTable,
+			ObjectPath tablePath) {
+		return catalog.getTableFactory().flatMap(tableFactory -> {
+			if (tableFactory instanceof TableSinkFactory) {
+				return Optional.ofNullable(((TableSinkFactory) tableFactory).createTableSink(tablePath, catalogTable));
+			} else {
+				return Optional.empty();
+			}
+		});
 	}
 
 }

@@ -157,8 +157,7 @@ public class SqlToOperationConverter {
 		List<String> targetTablePath = ((SqlIdentifier) insert.getTargetTable()).names;
 		return new CatalogSinkModifyOperation(
 			targetTablePath,
-			(PlannerQueryOperation) SqlToOperationConverter.convert(flinkPlanner,
-				insert.getSource()),
+			(PlannerQueryOperation) SqlToOperationConverter.convert(flinkPlanner, insert.getSource()),
 			insert.getStaticPartitionKVs());
 	}
 
