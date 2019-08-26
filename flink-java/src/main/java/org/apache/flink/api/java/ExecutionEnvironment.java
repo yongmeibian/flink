@@ -1023,9 +1023,6 @@ public abstract class ExecutionEnvironment {
 			LOG.debug("Registered Kryo default Serializers: {}", config.getDefaultKryoSerializers().entrySet().toString());
 			LOG.debug("Registered Kryo default Serializers Classes {}", config.getDefaultKryoSerializerClasses().entrySet().toString());
 			LOG.debug("Registered POJO types: {}", config.getRegisteredPojoTypes().toString());
-
-			// print information about static code analysis
-			LOG.debug("Static code analysis mode: {}", config.getCodeAnalysisMode());
 		}
 
 		return plan;

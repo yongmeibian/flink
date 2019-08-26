@@ -120,8 +120,6 @@ public class ExecutionConfig implements Serializable, Archiveable<ArchivedExecut
 
 	private boolean forceAvro = false;
 
-	private CodeAnalysisMode codeAnalysisMode = CodeAnalysisMode.DISABLE;
-
 	/** If set to true, progress updates are printed to System.out during execution */
 	private boolean printProgressDuringExecution = true;
 
@@ -713,23 +711,6 @@ public class ExecutionConfig implements Serializable, Archiveable<ArchivedExecut
 	public boolean isObjectReuseEnabled() {
 		return objectReuse;
 	}
-	
-	/**
-	 * @deprecated The code analysis code has been removed and this method has no effect.
-	 */
-	@PublicEvolving
-	@Deprecated
-	public void setCodeAnalysisMode(CodeAnalysisMode codeAnalysisMode) {
-	}
-	
-	/**
-	 * @deprecated The code analysis code has been removed and this method does not return anything interesting.
-	 */
-	@PublicEvolving
-	@Deprecated
-	public CodeAnalysisMode getCodeAnalysisMode() {
-		return codeAnalysisMode;
-	}
 
 	/**
 	 * Enables the printing of progress update messages to {@code System.out}
@@ -988,7 +969,6 @@ public class ExecutionConfig implements Serializable, Archiveable<ArchivedExecut
 				objectReuse == other.objectReuse &&
 				autoTypeRegistrationEnabled == other.autoTypeRegistrationEnabled &&
 				forceAvro == other.forceAvro &&
-				Objects.equals(codeAnalysisMode, other.codeAnalysisMode) &&
 				printProgressDuringExecution == other.printProgressDuringExecution &&
 				Objects.equals(globalJobParameters, other.globalJobParameters) &&
 				autoWatermarkInterval == other.autoWatermarkInterval &&
@@ -1017,7 +997,6 @@ public class ExecutionConfig implements Serializable, Archiveable<ArchivedExecut
 			objectReuse,
 			autoTypeRegistrationEnabled,
 			forceAvro,
-			codeAnalysisMode,
 			printProgressDuringExecution,
 			globalJobParameters,
 			autoWatermarkInterval,
