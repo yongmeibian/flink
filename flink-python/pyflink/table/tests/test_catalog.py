@@ -158,6 +158,7 @@ class CatalogTestBase(PyFlinkTestCase):
         j_view = gateway.jvm.CatalogViewImpl(
             "select * from t1",
             "select * from test-catalog.db1.t1",
+            gateway.jvm.org.apache.flink.table.api.SqlDialect.DEFAULT,
             table_schema._j_table_schema,
             {},
             "This is a view")
@@ -170,6 +171,7 @@ class CatalogTestBase(PyFlinkTestCase):
         j_view = gateway.jvm.CatalogViewImpl(
             "select * from t2",
             "select * from test-catalog.db2.t2",
+            gateway.jvm.org.apache.flink.table.api.SqlDialect.DEFAULT,
             table_schema._j_table_schema,
             {},
             "This is another view")
