@@ -28,6 +28,7 @@ import org.apache.flink.table.api.TableConfig;
 import org.apache.flink.table.catalog.CatalogManager;
 import org.apache.flink.table.catalog.FunctionCatalog;
 import org.apache.flink.table.catalog.GenericInMemoryCatalog;
+import org.apache.flink.table.catalog.UnresolvedIdentifier;
 import org.apache.flink.table.delegation.Executor;
 import org.apache.flink.table.delegation.Planner;
 import org.apache.flink.table.operations.ModifyOperation;
@@ -112,6 +113,11 @@ public class StreamTableEnvironmentImplTest {
 
 		@Override
 		public List<Operation> parse(String statement) {
+			throw new AssertionError("Should not be called");
+		}
+
+		@Override
+		public UnresolvedIdentifier parseIdentifier(String identifier) {
 			throw new AssertionError("Should not be called");
 		}
 

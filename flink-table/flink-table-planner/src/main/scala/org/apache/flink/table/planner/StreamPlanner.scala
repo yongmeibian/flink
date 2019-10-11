@@ -101,8 +101,9 @@ class StreamPlanner(
 
   override def parse(stmt: String): JList[Operation] = {
     val planner = getFlinkPlanner
+    val parser = planningConfigurationBuilder.createParser()
     // parse the sql query
-    val parsed = planner.parse(stmt)
+    val parsed = parser.parse(stmt)
 
     parsed match {
       case insert: RichSqlInsert =>
@@ -110,9 +111,9 @@ class StreamPlanner(
         if (targetColumnList != null && insert.getTargetColumnList.size() != 0) {
           throw new ValidationException("Partial inserts are not supported")
         }
-        List(SqlToOperationConverter.convert(planner, insert))
+        List(SqlToOperationConverter.convert(planner, catalogManager, insert))
       case node if node.getKind.belongsTo(SqlKind.QUERY) || node.getKind.belongsTo(SqlKind.DDL) =>
-        List(SqlToOperationConverter.convert(planner, parsed)).asJava
+        List(SqlToOperationConverter.convert(planner, catalogManager, parsed)).asJava
       case _ =>
         throw new TableException(
           "Unsupported SQL query! parse() only accepts SQL queries of type " +
@@ -120,6 +121,11 @@ class StreamPlanner(
             "and SQL DDLs of type " +
             "CREATE TABLE")
     }
+  }
+
+  override def parseIdentifier(identifier: String): UnresolvedIdentifier = {
+    val parser = planningConfigurationBuilder.createParser()
+    UnresolvedIdentifier.of(parser.parseIdentifier(identifier).names: _*)
   }
 
   override def translate(tableOperations: util.List[ModifyOperation])
@@ -151,7 +157,8 @@ class StreamPlanner(
         writeToSink(s.getChild, s.getSink, unwrapQueryConfig)
 
       case catalogSink: CatalogSinkModifyOperation =>
-        val identifier = catalogManager.qualifyIdentifier(catalogSink.getTablePath: _*)
+        val identifier = catalogManager.qualifyIdentifier(
+          UnresolvedIdentifier.of(catalogSink.getIdentifier: _*))
         getTableSink(identifier)
           .map(sink => {
             TableSinkUtils.validateSink(
@@ -179,7 +186,7 @@ class StreamPlanner(
             writeToSink(catalogSink.getChild, sink, unwrapQueryConfig)
           }) match {
           case Some(t) => t
-          case None => throw new TableException(s"Sink ${catalogSink.getTablePath} does not exists")
+          case None => throw new TableException(s"Sink ${catalogSink.getIdentifier} does not exists")
         }
 
       case outputConversion: OutputConversionModifyOperation =>

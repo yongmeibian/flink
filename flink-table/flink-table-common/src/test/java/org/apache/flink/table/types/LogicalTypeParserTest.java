@@ -412,6 +412,14 @@ public class LogicalTypeParserTest {
 				.expectType(new ArrayType(new UnresolvedUserDefinedType(null, null, "MyType"))),
 
 			TestSpec
+				.forString("ROW<f0 MyType, f1 c`.d`.`t`>")
+				.expectType(
+					RowType.of(
+						new UnresolvedUserDefinedType(null, null, "MyType"),
+						new UnresolvedUserDefinedType("c", "d", "t"))
+				),
+
+			TestSpec
 				.forString("ROW<f0 MyType, f1 `c`.`d`.`t`>")
 				.expectType(
 					RowType.of(

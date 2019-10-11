@@ -669,6 +669,21 @@ public class FlinkSqlParserImplTest extends SqlParserTest {
 		check(sql, "DROP VIEW IF EXISTS `VIEW_NAME`");
 	}
 
+	@Test
+	public void testIdentifierParsing() throws SqlParseException {
+		final String sql = "`a.b`.c";
+		SqlNode sqlNode = SqlParser.create(
+			sql,
+			SqlParser.configBuilder()
+				.setParserFactory(this.parserImplFactory())
+				.setQuoting(Quoting.BACK_TICK)
+				.setUnquotedCasing(Casing.TO_UPPER)
+				.setQuotedCasing(Casing.UNCHANGED)
+				.build()).parseExpression();
+
+		System.out.println(sqlNode);
+	}
+
 	// Override the test because our ROW field type default is nullable,
 	// which is different with Calcite.
 	@Override

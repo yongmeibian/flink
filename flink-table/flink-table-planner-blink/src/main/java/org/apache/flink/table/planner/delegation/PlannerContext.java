@@ -28,6 +28,7 @@ import org.apache.flink.table.catalog.FunctionCatalog;
 import org.apache.flink.table.planner.calcite.CalciteConfig;
 import org.apache.flink.table.planner.calcite.CalciteConfig$;
 import org.apache.flink.table.planner.calcite.FlinkContextImpl;
+import org.apache.flink.table.planner.calcite.FlinkParser;
 import org.apache.flink.table.planner.calcite.FlinkPlannerImpl;
 import org.apache.flink.table.planner.calcite.FlinkRelBuilder;
 import org.apache.flink.table.planner.calcite.FlinkRelOptClusterFactory;
@@ -148,6 +149,10 @@ public class PlannerContext {
 				isLenient -> createCatalogReader(isLenient, currentCatalog, currentDatabase),
 				typeFactory,
 				cluster);
+	}
+
+	public FlinkParser createParser() {
+		return new FlinkParser(getSqlParserConfig());
 	}
 
 	private FlinkCalciteCatalogReader createCatalogReader(

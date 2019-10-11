@@ -20,6 +20,7 @@ package org.apache.flink.table.delegation;
 
 import org.apache.flink.annotation.Internal;
 import org.apache.flink.api.dag.Transformation;
+import org.apache.flink.table.catalog.UnresolvedIdentifier;
 import org.apache.flink.table.operations.ModifyOperation;
 import org.apache.flink.table.operations.Operation;
 import org.apache.flink.table.operations.QueryOperation;
@@ -64,6 +65,20 @@ public interface Planner {
 	 * @return parsed queries as trees of relational {@link Operation}s
 	 */
 	List<Operation> parse(String statement);
+
+	/**
+	 * Entry point for parsing sql queries expressed as a String.
+	 *
+	 * <p><b>Note:</b>If the created {@link Operation} is a {@link QueryOperation}
+	 * it must be in a form that will be understood by the
+	 * {@link Planner#translate(List)} method.
+	 *
+	 * <p>The produced Operation trees should already be validated.
+	 *
+	 * @param identifier the sql statement to evaluate
+	 * @return parsed queries as trees of relational {@link Operation}s
+	 */
+	UnresolvedIdentifier parseIdentifier(String identifier);
 
 	/**
 	 * Converts a relational tree of {@link ModifyOperation}s into a set of runnable

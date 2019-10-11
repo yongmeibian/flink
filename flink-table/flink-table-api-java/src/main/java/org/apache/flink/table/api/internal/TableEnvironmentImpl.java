@@ -37,6 +37,7 @@ import org.apache.flink.table.catalog.FunctionCatalog;
 import org.apache.flink.table.catalog.GenericInMemoryCatalog;
 import org.apache.flink.table.catalog.ObjectIdentifier;
 import org.apache.flink.table.catalog.QueryOperationCatalogView;
+import org.apache.flink.table.catalog.UnresolvedIdentifier;
 import org.apache.flink.table.catalog.exceptions.DatabaseNotExistException;
 import org.apache.flink.table.delegation.Executor;
 import org.apache.flink.table.delegation.ExecutorFactory;
@@ -214,7 +215,9 @@ public class TableEnvironmentImpl implements TableEnvironment {
 	}
 
 	private Optional<CatalogQueryOperation> scanInternal(String... tablePath) {
-		ObjectIdentifier objectIdentifier = catalogManager.qualifyIdentifier(tablePath);
+		ObjectIdentifier objectIdentifier = catalogManager.qualifyIdentifier(
+			UnresolvedIdentifier.of(tablePath)
+		);
 		return catalogManager.getTable(objectIdentifier)
 			.map(t -> new CatalogQueryOperation(objectIdentifier, t.getSchema()));
 	}
@@ -308,10 +311,12 @@ public class TableEnvironmentImpl implements TableEnvironment {
 	public void insertInto(Table table, String path, String... pathContinued) {
 		List<String> fullPath = new ArrayList<>(Arrays.asList(pathContinued));
 		fullPath.add(0, path);
+		UnresolvedIdentifier unresolvedIdentifier = UnresolvedIdentifier.of(fullPath.toArray(new String[0]));
+		ObjectIdentifier objectIdentifier = catalogManager.qualifyIdentifier(unresolvedIdentifier);
 
 		List<ModifyOperation> modifyOperations = Collections.singletonList(
 			new CatalogSinkModifyOperation(
-				fullPath,
+				objectIdentifier,
 				table.getQueryOperation()));
 
 		if (isEagerOperationTranslation()) {
@@ -342,15 +347,13 @@ public class TableEnvironmentImpl implements TableEnvironment {
 			}
 		} else if (operation instanceof CreateTableOperation) {
 			CreateTableOperation createTableOperation = (CreateTableOperation) operation;
-			ObjectIdentifier objectIdentifier = catalogManager.qualifyIdentifier(createTableOperation.getTablePath());
 			catalogManager.createTable(
 				createTableOperation.getCatalogTable(),
-				objectIdentifier,
+				createTableOperation.getIdentifier(),
 				createTableOperation.isIgnoreIfExists());
 		} else if (operation instanceof DropTableOperation) {
 			DropTableOperation dropTableOperation = (DropTableOperation) operation;
-			ObjectIdentifier objectIdentifier = catalogManager.qualifyIdentifier(dropTableOperation.getTableName());
-			catalogManager.dropTable(objectIdentifier, dropTableOperation.isIfExists());
+			catalogManager.dropTable(dropTableOperation.getIdentifier(), dropTableOperation.isIfExists());
 		} else {
 			throw new TableException(
 				"Unsupported SQL query! sqlUpdate() only accepts a single SQL statements of " +
@@ -427,9 +430,10 @@ public class TableEnvironmentImpl implements TableEnvironment {
 
 	private ObjectIdentifier getTemporaryObjectIdentifier(String name) {
 		return catalogManager.qualifyIdentifier(
-			catalogManager.getBuiltInCatalogName(),
-			catalogManager.getBuiltInDatabaseName(),
-			name);
+			UnresolvedIdentifier.of(
+				catalogManager.getBuiltInCatalogName(),
+				catalogManager.getBuiltInDatabaseName(),
+				name));
 	}
 
 	private void registerTableSourceInternal(String name, TableSource<?> tableSource) {
@@ -492,7 +496,7 @@ public class TableEnvironmentImpl implements TableEnvironment {
 	}
 
 	private Optional<CatalogBaseTable> getCatalogTable(String... name) {
-		return catalogManager.getTable(catalogManager.qualifyIdentifier(name));
+		return catalogManager.getTable(catalogManager.qualifyIdentifier(UnresolvedIdentifier.of(name)));
 	}
 
 	protected TableImpl createTable(QueryOperation tableOperation) {

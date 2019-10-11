@@ -16,43 +16,25 @@
  * limitations under the License.
  */
 
-package org.apache.flink.table.utils;
+package org.apache.flink.table.delegation;
 
-import org.apache.flink.api.dag.Transformation;
-import org.apache.flink.table.catalog.UnresolvedIdentifier;
-import org.apache.flink.table.delegation.Planner;
-import org.apache.flink.table.operations.ModifyOperation;
 import org.apache.flink.table.operations.Operation;
+import org.apache.flink.table.operations.QueryOperation;
 
 import java.util.List;
 
-/**
- * Mocking {@link Planner} for tests.
- */
-public class PlannerMock implements Planner {
-
-	@Override
-	public List<Operation> parse(String statement) {
-		return null;
-	}
-
-	@Override
-	public UnresolvedIdentifier parseIdentifier(String identifier) {
-		return null;
-	}
-
-	@Override
-	public List<Transformation<?>> translate(List<ModifyOperation> modifyOperations) {
-		return null;
-	}
-
-	@Override
-	public String explain(List<Operation> operations, boolean extended) {
-		return null;
-	}
-
-	@Override
-	public String[] getCompletionHints(String statement, int position) {
-		return new String[0];
-	}
+public interface Parser {
+	/**
+	 * Entry point for parsing sql queries expressed as a String.
+	 *
+	 * <p><b>Note:</b>If the created {@link Operation} is a {@link QueryOperation}
+	 * it must be in a form that will be understood by the
+	 * {@link Planner#translate(List)} method.
+	 *
+	 * <p>The produced Operation trees should already be validated.
+	 *
+	 * @param statement the sql statement to evaluate
+	 * @return parsed queries as trees of relational {@link Operation}s
+	 */
+	List<Operation> parse(String statement);
 }

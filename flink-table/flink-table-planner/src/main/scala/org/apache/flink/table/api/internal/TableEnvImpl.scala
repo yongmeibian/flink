@@ -309,9 +309,10 @@ abstract class TableEnvImpl(
 
   private def getTemporaryObjectIdentifier(name: String): ObjectIdentifier = {
     catalogManager.qualifyIdentifier(
-      catalogManager.getBuiltInCatalogName,
-      catalogManager.getBuiltInDatabaseName,
-      name
+      UnresolvedIdentifier.of(
+        catalogManager.getBuiltInCatalogName,
+        catalogManager.getBuiltInDatabaseName,
+        name)
     )
   }
 
@@ -324,7 +325,7 @@ abstract class TableEnvImpl(
   }
 
   private[flink] def scanInternal(tablePath: Array[String]): Option[CatalogQueryOperation] = {
-    val objectIdentifier = catalogManager.qualifyIdentifier(tablePath: _*)
+    val objectIdentifier = catalogManager.qualifyIdentifier(UnresolvedIdentifier.of(tablePath: _*))
     JavaScalaConversionUtil.toScala(catalogManager.getTable(objectIdentifier))
       .map(t => new CatalogQueryOperation(objectIdentifier, t.getSchema))
   }
@@ -362,9 +363,10 @@ abstract class TableEnvImpl(
   }
 
   override def sqlQuery(query: String): Table = {
+    val parser = planningConfigurationBuilder.createParser()
     val planner = getFlinkPlanner
     // parse the sql query
-    val parsed = planner.parse(query)
+    val parsed = parser.parse(query)
     if (null != parsed && parsed.getKind.belongsTo(SqlKind.QUERY)) {
       // validate the sql query
       val validated = planner.validate(parsed)
@@ -379,9 +381,10 @@ abstract class TableEnvImpl(
   }
 
   override def sqlUpdate(stmt: String): Unit = {
+    val parser = planningConfigurationBuilder.createParser()
     val planner = getFlinkPlanner
     // parse the sql query
-    val parsed = planner.parse(stmt)
+    val parsed = parser.parse(stmt)
     parsed match {
       case insert: RichSqlInsert =>
         // validate the insert
@@ -404,13 +407,13 @@ abstract class TableEnvImpl(
         val operation = SqlToOperationConverter
           .convert(planner, createTable)
           .asInstanceOf[CreateTableOperation]
-        val objectIdentifier = catalogManager.qualifyIdentifier(operation.getTablePath: _*)
+        val objectIdentifier = catalogManager.qualifyIdentifier(UnresolvedIdentifier.of(operation.getIdentifier: _*))
         catalogManager.createTable(
           operation.getCatalogTable,
           objectIdentifier,
           operation.isIgnoreIfExists)
       case dropTable: SqlDropTable =>
-        val objectIdentifier = catalogManager.qualifyIdentifier(dropTable.fullTableName(): _*)
+        val objectIdentifier = catalogManager.qualifyIdentifier(UnresolvedIdentifier.of(dropTable.fullTableName(): _*))
         catalogManager.dropTable(objectIdentifier, dropTable.getIfExists)
       case _ =>
         throw new TableException(
@@ -459,7 +462,8 @@ abstract class TableEnvImpl(
       insertOptions: InsertOptions,
       sinkTablePath: String*): Unit = {
 
-    val objectIdentifier = catalogManager.qualifyIdentifier(sinkTablePath: _*)
+    val objectIdentifier = catalogManager.qualifyIdentifier(
+      UnresolvedIdentifier.of(sinkTablePath: _*))
 
     getTableSink(objectIdentifier) match {
 
@@ -524,7 +528,7 @@ abstract class TableEnvImpl(
   }
 
   protected def getCatalogTable(name: String*): Option[CatalogBaseTable] = {
-    val objectIdentifier = catalogManager.qualifyIdentifier(name: _*)
+    val objectIdentifier = catalogManager.qualifyIdentifier(UnresolvedIdentifier.of(name: _*))
     JavaScalaConversionUtil.toScala(catalogManager.getTable(objectIdentifier))
   }
 
