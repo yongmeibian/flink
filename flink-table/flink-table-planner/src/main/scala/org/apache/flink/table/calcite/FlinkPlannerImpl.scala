@@ -29,7 +29,6 @@ import org.apache.calcite.rel.RelRoot
 import org.apache.calcite.rel.`type`.RelDataType
 import org.apache.calcite.rel.core.RelFactories
 import org.apache.calcite.rex.RexBuilder
-import org.apache.calcite.schema.SchemaPlus
 import org.apache.calcite.sql.advise.{SqlAdvisor, SqlAdvisorValidator}
 import org.apache.calcite.sql.validate.SqlValidator
 import org.apache.calcite.sql.{SqlKind, SqlNode, SqlOperatorTable}
@@ -55,9 +54,9 @@ class FlinkPlannerImpl(
     val typeFactory: FlinkTypeFactory) {
 
   val operatorTable: SqlOperatorTable = config.getOperatorTable
-  val parser: FlinkParser = new FlinkParser(config.getParserConfig)
   val convertletTable: SqlRexConvertletTable = config.getConvertletTable
   val sqlToRelConverterConfig: SqlToRelConverter.Config = config.getSqlToRelConverterConfig
+  val parser = new FlinkParser(config.getParserConfig)
 
   var validator: FlinkCalciteSqlValidator = _
   var root: RelRoot = _
@@ -192,16 +191,5 @@ class FlinkPlannerImpl(
       relOptCluster: RelOptCluster,
       relOptSchema: RelOptSchema): RelBuilder = {
     RelFactories.LOGICAL_BUILDER.create(relOptCluster, relOptSchema)
-  }
-}
-
-object FlinkPlannerImpl {
-  private def rootSchema(schema: SchemaPlus): SchemaPlus = {
-    if (schema.getParentSchema == null) {
-      schema
-    }
-    else {
-      rootSchema(schema.getParentSchema)
-    }
   }
 }

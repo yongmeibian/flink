@@ -115,8 +115,19 @@ public interface TableEnvironment {
 	 *
 	 * @param name The name under which the table will be registered.
 	 * @param table The table to register.
+	 * @deprecated use {@link #createTemporaryView(String, Table)}
 	 */
+	@Deprecated
 	void registerTable(String name, Table table);
+
+	/**
+	 * Registers a {@link Table}, which is actually a view in a SQL terms as a Temporary View. Registered views can
+	 * be referenced in SQL queries.
+	 *
+	 * @param path The path under which the view will be registered.
+	 * @param view The view to register.
+	 */
+	void createTemporaryView(String path, Table view);
 
 	/**
 	 * Registers an external {@link TableSource} in this {@link TableEnvironment}'s catalog.

@@ -29,8 +29,8 @@ class SetOperatorsTest extends TableTestBase {
   @Test
   def testFilterUnionTranspose(): Unit = {
     val util = streamTestUtil()
-    val left = util.addTable[(Int, Long, String)]("left", 'a, 'b, 'c)
-    val right = util.addTable[(Int, Long, String)]("right", 'a, 'b, 'c)
+    val left = util.addTable[(Int, Long, String)]("`left`", 'a, 'b, 'c)
+    val right = util.addTable[(Int, Long, String)]("`right`", 'a, 'b, 'c)
 
     val result = left.unionAll(right)
       .where('a > 0)
@@ -70,8 +70,8 @@ class SetOperatorsTest extends TableTestBase {
   @Test
   def testProjectUnionTranspose(): Unit = {
     val util = streamTestUtil()
-    val left = util.addTable[(Int, Long, String)]("left", 'a, 'b, 'c)
-    val right = util.addTable[(Int, Long, String)]("right", 'a, 'b, 'c)
+    val left = util.addTable[(Int, Long, String)]("`left`", 'a, 'b, 'c)
+    val right = util.addTable[(Int, Long, String)]("`right`", 'a, 'b, 'c)
 
     val result = left.select('a, 'b, 'c)
       .unionAll(right.select('a, 'b, 'c))

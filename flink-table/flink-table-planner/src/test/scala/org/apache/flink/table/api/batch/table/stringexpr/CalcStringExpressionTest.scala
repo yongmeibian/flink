@@ -285,7 +285,7 @@ class CalcStringExpressionTest extends TableTestBase {
   def testNumericAutoCastInArithmetic() {
     val util = batchTestUtil()
     val table = util.addTable[(Byte, Short, Int, Long, Float, Double, Long, Double)](
-      "Table",
+      "`Table`",
       '_1, '_2, '_3, '_4, '_5, '_6, '_7, '_8)
 
     val t1 = table.select('_1 + 1, '_2 + 1, '_3 + 1L, '_4 + 1.0f,
@@ -301,7 +301,7 @@ class CalcStringExpressionTest extends TableTestBase {
   def testNumericAutoCastInComparison() {
     val util = batchTestUtil()
     val table = util.addTable[(Byte, Short, Int, Long, Float, Double)](
-      "Table",
+      "`Table`",
       'a, 'b, 'c, 'd, 'e, 'f)
 
     val t1 = table.filter('a > 1 && 'b > 1 && 'c > 1L &&
@@ -317,7 +317,7 @@ class CalcStringExpressionTest extends TableTestBase {
   def testCasting() {
     val util = batchTestUtil()
     val table = util.addTable[(Int, Double, Long, Boolean)](
-      "Table",
+      "`Table`",
       '_1, '_2, '_3, '_4)
 
     val t1 = table .select(
@@ -350,7 +350,7 @@ class CalcStringExpressionTest extends TableTestBase {
   def testCastFromString() {
     val util = batchTestUtil()
     val table = util.addTable[(String, String, String)](
-      "Table",
+      "`Table`",
       '_1, '_2, '_3)
 
     val t1 = table .select('_1.cast(BYTE), '_1.cast(SHORT), '_1.cast(INT), '_1.cast(LONG),

@@ -141,8 +141,8 @@ class SetOperatorsTest extends TableTestBase {
   @Test
   def testFilterUnionTranspose(): Unit = {
     val util = batchTestUtil()
-    val left = util.addTable[(Int, Long, String)]("left", 'a, 'b, 'c)
-    val right = util.addTable[(Int, Long, String)]("right", 'a, 'b, 'c)
+    val left = util.addTable[(Int, Long, String)]("`left`", 'a, 'b, 'c)
+    val right = util.addTable[(Int, Long, String)]("`right`", 'a, 'b, 'c)
 
     val result = left.unionAll(right)
       .where('a > 0)
@@ -182,8 +182,8 @@ class SetOperatorsTest extends TableTestBase {
   @Test
   def testFilterMinusTranspose(): Unit = {
     val util = batchTestUtil()
-    val left = util.addTable[(Int, Long, String)]("left", 'a, 'b, 'c)
-    val right = util.addTable[(Int, Long, String)]("right", 'a, 'b, 'c)
+    val left = util.addTable[(Int, Long, String)]("`left`", 'a, 'b, 'c)
+    val right = util.addTable[(Int, Long, String)]("`right`", 'a, 'b, 'c)
 
     val result = left.minusAll(right)
       .where('a > 0)
@@ -222,8 +222,8 @@ class SetOperatorsTest extends TableTestBase {
   @Test
   def testProjectUnionTranspose(): Unit = {
     val util = batchTestUtil()
-    val left = util.addTable[(Int, Long, String)]("left", 'a, 'b, 'c)
-    val right = util.addTable[(Int, Long, String)]("right", 'a, 'b, 'c)
+    val left = util.addTable[(Int, Long, String)]("`left`", 'a, 'b, 'c)
+    val right = util.addTable[(Int, Long, String)]("`right`", 'a, 'b, 'c)
 
     val result = left.select('a, 'b, 'c)
                  .unionAll(right.select('a, 'b, 'c))
@@ -252,8 +252,8 @@ class SetOperatorsTest extends TableTestBase {
   @Test
   def testProjectMinusTranspose(): Unit = {
     val util = batchTestUtil()
-    val left = util.addTable[(Int, Long, String)]("left", 'a, 'b, 'c)
-    val right = util.addTable[(Int, Long, String)]("right", 'a, 'b, 'c)
+    val left = util.addTable[(Int, Long, String)]("`left`", 'a, 'b, 'c)
+    val right = util.addTable[(Int, Long, String)]("`right`", 'a, 'b, 'c)
 
     val result = left.select('a, 'b, 'c)
                  .minusAll(right.select('a, 'b, 'c))

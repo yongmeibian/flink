@@ -173,15 +173,26 @@ abstract class TableEnvImpl(
   }
 
   override def registerTable(name: String, table: Table): Unit = {
+    createTemporaryView(name, table)
+  }
 
+  private def parseIdentifier(identifier: String): UnresolvedIdentifier = {
+    val parser = planningConfigurationBuilder.createParser()
+    UnresolvedIdentifier.of(parser.parseIdentifier(identifier).names: _*)
+  }
+
+  override def createTemporaryView(path: String, view: Table): Unit = {
     // check that table belongs to this table environment
-    if (table.asInstanceOf[TableImpl].getTableEnvironment != this) {
+    if (view.asInstanceOf[TableImpl].getTableEnvironment != this) {
       throw new TableException(
         "Only tables that belong to this TableEnvironment can be registered.")
     }
 
-    val view = new QueryOperationCatalogView(table.getQueryOperation)
-    catalogManager.createTable(view, getTemporaryObjectIdentifier(name), false)
+    val identifier = parseIdentifier(path)
+    val objectIdentifier = catalogManager.qualifyIdentifier(identifier)
+
+    val viewOperation = new QueryOperationCatalogView(view.getQueryOperation)
+    catalogManager.createTable(viewOperation, objectIdentifier, false)
   }
 
   override def registerTableSource(name: String, tableSource: TableSource[_]): Unit = {
@@ -405,12 +416,11 @@ abstract class TableEnvImpl(
           targetTablePath.asScala:_*)
       case createTable: SqlCreateTable =>
         val operation = SqlToOperationConverter
-          .convert(planner, createTable)
+          .convert(planner, catalogManager, createTable)
           .asInstanceOf[CreateTableOperation]
-        val objectIdentifier = catalogManager.qualifyIdentifier(UnresolvedIdentifier.of(operation.getIdentifier: _*))
         catalogManager.createTable(
           operation.getCatalogTable,
-          objectIdentifier,
+          operation.getIdentifier,
           operation.isIgnoreIfExists)
       case dropTable: SqlDropTable =>
         val objectIdentifier = catalogManager.qualifyIdentifier(UnresolvedIdentifier.of(dropTable.fullTableName(): _*))

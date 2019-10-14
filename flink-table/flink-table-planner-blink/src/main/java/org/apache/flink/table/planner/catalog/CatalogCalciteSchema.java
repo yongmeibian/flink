@@ -20,6 +20,8 @@ package org.apache.flink.table.planner.catalog;
 
 import org.apache.flink.annotation.Internal;
 import org.apache.flink.table.catalog.Catalog;
+import org.apache.flink.table.catalog.CatalogManager;
+import org.apache.flink.table.catalog.ObjectIdentifier;
 
 import org.apache.calcite.linq4j.tree.Expression;
 import org.apache.calcite.schema.Schema;
@@ -27,8 +29,11 @@ import org.apache.calcite.schema.SchemaPlus;
 import org.apache.calcite.schema.Schemas;
 import org.apache.calcite.schema.Table;
 
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /**
  * A mapping between Flink's catalog and Calcite's schema. This enables to look up and access objects(tables, views,
@@ -39,13 +44,13 @@ import java.util.Set;
 public class CatalogCalciteSchema extends FlinkSchema {
 
 	private final String catalogName;
-	private final Catalog catalog;
+	private final CatalogManager catalogManager;
 	// Flag that tells if the current planner should work in a batch or streaming mode.
 	private final boolean isStreamingMode;
 
-	public CatalogCalciteSchema(String catalogName, Catalog catalog, boolean isStreamingMode) {
+	public CatalogCalciteSchema(String catalogName, CatalogManager catalog, boolean isStreamingMode) {
 		this.catalogName = catalogName;
-		this.catalog = catalog;
+		this.catalogManager = catalog;
 		this.isStreamingMode = isStreamingMode;
 	}
 
@@ -57,16 +62,34 @@ public class CatalogCalciteSchema extends FlinkSchema {
 	 */
 	@Override
 	public Schema getSubSchema(String schemaName) {
-		if (catalog.databaseExists(schemaName)) {
-			return new DatabaseCalciteSchema(schemaName, catalogName, catalog, isStreamingMode);
+		if (temporaryDatabaseExists(schemaName) || permanentDatabaseExists(schemaName)) {
+			return new DatabaseCalciteSchema(schemaName, catalogName, catalogManager, isStreamingMode);
 		} else {
 			return null;
 		}
 	}
 
+	private boolean temporaryDatabaseExists(String schemaName) {
+		return catalogManager.getTemporaryTables()
+			.keySet()
+			.stream()
+			.anyMatch(i -> i.getDatabaseName().equals(schemaName));
+	}
+
+	private Boolean permanentDatabaseExists(String schemaName) {
+		return catalogManager.getCatalog(catalogName).map(c -> c.databaseExists(schemaName)).orElse(false);
+	}
+
 	@Override
 	public Set<String> getSubSchemaNames() {
-		return new HashSet<>(catalog.listDatabases());
+		return Stream.concat(
+			catalogManager.getCatalog(catalogName).map(Catalog::listDatabases).orElse(Collections.emptyList()).stream(),
+			catalogManager.getTemporaryTables()
+				.keySet()
+				.stream()
+				.filter(i -> i.getCatalogName().equals(catalogName))
+				.map(ObjectIdentifier::getDatabaseName)
+		).collect(Collectors.toSet());
 	}
 
 	@Override

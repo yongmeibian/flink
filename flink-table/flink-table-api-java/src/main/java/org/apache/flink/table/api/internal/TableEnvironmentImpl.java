@@ -171,13 +171,21 @@ public class TableEnvironmentImpl implements TableEnvironment {
 
 	@Override
 	public void registerTable(String name, Table table) {
-		if (((TableImpl) table).getTableEnvironment() != this) {
+		createTemporaryView(name, table);
+	}
+
+	@Override
+	public void createTemporaryView(String path, Table view) {
+		if (((TableImpl) view).getTableEnvironment() != this) {
 			throw new TableException(
 				"Only tables that belong to this TableEnvironment can be registered.");
 		}
 
-		CatalogBaseTable tableTable = new QueryOperationCatalogView(table.getQueryOperation());
-		catalogManager.createTable(tableTable, getTemporaryObjectIdentifier(name), false);
+		CatalogBaseTable tableTable = new QueryOperationCatalogView(view.getQueryOperation());
+
+		UnresolvedIdentifier identifier = planner.parseIdentifier(path);
+		ObjectIdentifier objectIdentifier = catalogManager.qualifyIdentifier(identifier);
+		catalogManager.createTemporaryTable(tableTable, objectIdentifier, false);
 	}
 
 	@Override

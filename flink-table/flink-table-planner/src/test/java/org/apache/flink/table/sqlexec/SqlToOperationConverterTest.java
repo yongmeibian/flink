@@ -127,7 +127,7 @@ public class SqlToOperationConverterTest {
 		final FlinkPlannerImpl planner = getPlannerBySqlDialect(SqlDialect.DEFAULT);
 		SqlNode node = getParserBySqlDialect(SqlDialect.DEFAULT).parse(sql);
 		assert node instanceof SqlCreateTable;
-		Operation operation = SqlToOperationConverter.convert(planner, node);
+		Operation operation = SqlToOperationConverter.convert(planner, catalogManager, node);
 		assert operation instanceof CreateTableOperation;
 		CreateTableOperation op = (CreateTableOperation) operation;
 		CatalogTable catalogTable = op.getCatalogTable();
@@ -156,7 +156,7 @@ public class SqlToOperationConverterTest {
 		final FlinkPlannerImpl planner = getPlannerBySqlDialect(SqlDialect.DEFAULT);
 		SqlNode node = getParserBySqlDialect(SqlDialect.DEFAULT).parse(sql);
 		assert node instanceof SqlCreateTable;
-		Operation operation = SqlToOperationConverter.convert(planner, node);
+		Operation operation = SqlToOperationConverter.convert(planner, catalogManager, node);
 		assert operation instanceof CreateTableOperation;
 		CreateTableOperation op = (CreateTableOperation) operation;
 		CatalogTable catalogTable = op.getCatalogTable();
@@ -190,7 +190,7 @@ public class SqlToOperationConverterTest {
 		final FlinkPlannerImpl planner = getPlannerBySqlDialect(SqlDialect.DEFAULT);
 		SqlNode node = getParserBySqlDialect(SqlDialect.DEFAULT).parse(sql);
 		assert node instanceof SqlCreateTable;
-		SqlToOperationConverter.convert(planner, node);
+		SqlToOperationConverter.convert(planner, catalogManager, node);
 	}
 
 	@Test
@@ -199,7 +199,7 @@ public class SqlToOperationConverterTest {
 		FlinkPlannerImpl planner = getPlannerBySqlDialect(SqlDialect.HIVE);
 		SqlNode node = getParserBySqlDialect(SqlDialect.HIVE).parse(sql);
 		assert node instanceof RichSqlInsert;
-		Operation operation = SqlToOperationConverter.convert(planner, node);
+		Operation operation = SqlToOperationConverter.convert(planner, catalogManager, node);
 		assert operation instanceof CatalogSinkModifyOperation;
 		CatalogSinkModifyOperation sinkModifyOperation = (CatalogSinkModifyOperation) operation;
 		final Map<String, String> expectedStaticPartitions = new HashMap<>();
@@ -370,7 +370,7 @@ public class SqlToOperationConverterTest {
 		final FlinkPlannerImpl planner = getPlannerBySqlDialect(SqlDialect.DEFAULT);
 		SqlNode node = getParserBySqlDialect(SqlDialect.DEFAULT).parse(sql);
 		assert node instanceof SqlCreateTable;
-		Operation operation = SqlToOperationConverter.convert(planner, node);
+		Operation operation = SqlToOperationConverter.convert(planner, catalogManager, node);
 		TableSchema schema = ((CreateTableOperation) operation).getCatalogTable().getSchema();
 		Object[] expectedDataTypes = testItems.stream().map(item -> item.expectedType).toArray();
 		assertArrayEquals(expectedDataTypes, schema.getFieldDataTypes());
@@ -400,7 +400,7 @@ public class SqlToOperationConverterTest {
 			assert node instanceof SqlCreateTable;
 			expectedEx.expect(TableException.class);
 			expectedEx.expectMessage(item.expectedError);
-			SqlToOperationConverter.convert(planner, node);
+			SqlToOperationConverter.convert(planner, catalogManager, node);
 		}
 	}
 

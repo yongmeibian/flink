@@ -21,7 +21,9 @@ package org.apache.flink.table.calcite
 import org.apache.flink.table.api.SqlParserException
 
 import org.apache.calcite.sql.parser.{SqlParser, SqlParseException => CSqlParseException}
-import org.apache.calcite.sql.{SqlIdentifier, SqlNode}
+import org.apache.calcite.sql.{SqlDescribeTable, SqlIdentifier, SqlNode}
+
+import scala.util.{Failure, Success, Try}
 
 class FlinkParser(config: SqlParser.Config) {
 
@@ -37,13 +39,19 @@ class FlinkParser(config: SqlParser.Config) {
   }
 
   def parseIdentifier(identifier: String): SqlIdentifier = {
-    try {
-      val parser: SqlParser = SqlParser.create(identifier, config)
-      val sqlNode: SqlNode = parser.parseExpression()
-      sqlNode.asInstanceOf[SqlIdentifier]
-    } catch {
-      case e: CSqlParseException =>
-        throw new SqlParserException(s"SQL parse failed. ${e.getMessage}", e)
+    val quoting = config.quoting().string
+    Try(doParseIdentifier(identifier))
+      .recoverWith  {
+      case _ => Try(doParseIdentifier(s"$quoting$identifier$quoting"))
+    } match {
+      case Success(value) => value
+      case Failure(e) => throw new SqlParserException(s"SQL parse failed. ${e.getMessage}", e)
     }
+  }
+
+  private def doParseIdentifier(identifier: String): SqlIdentifier = {
+    val parser: SqlParser = SqlParser.create(identifier, config)
+    val sqlNode: SqlNode = parser.parseExpression()
+    sqlNode.asInstanceOf[SqlIdentifier]
   }
 }

@@ -220,8 +220,12 @@ public interface StreamTableEnvironment extends TableEnvironment {
 	 * @param name The name under which the {@link DataStream} is registered in the catalog.
 	 * @param dataStream The {@link DataStream} to register.
 	 * @param <T> The type of the {@link DataStream} to register.
+	 * @deprecated use {@link #createTemporaryView(String, DataStream)}
 	 */
+	@Deprecated
 	<T> void registerDataStream(String name, DataStream<T> dataStream);
+
+	<T> void createTemporaryView(String name, DataStream<T> dataStream);
 
 	/**
 	 * Registers the given {@link DataStream} as table with specified field names in the
@@ -241,8 +245,12 @@ public interface StreamTableEnvironment extends TableEnvironment {
 	 * @param dataStream The {@link DataStream} to register.
 	 * @param fields The field names of the registered table.
 	 * @param <T> The type of the {@link DataStream} to register.
+	 * @deprecated use {@link #createTemporaryView(String, DataStream, String)}
 	 */
+	@Deprecated
 	<T> void registerDataStream(String name, DataStream<T> dataStream, String fields);
+
+	<T> void createTemporaryView(String name, DataStream<T> dataStream, String fields);
 
 	/**
 	 * Converts the given {@link Table} into an append {@link DataStream} of a specified type.

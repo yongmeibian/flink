@@ -82,9 +82,12 @@ public class CatalogManagerCalciteSchema implements Schema {
 
 	@Override
 	public Schema getSubSchema(String name) {
-		return catalogManager.getCatalog(name)
-			.map(catalog -> new CatalogCalciteSchema(isStreamingMode, name, catalog))
-			.orElse(null);
+		if (catalogManager.getCatalog(name).isPresent() ||
+			catalogManager.getTemporaryTables().keySet().stream().anyMatch(i -> i.getCatalogName().equals(name))) {
+			return new CatalogCalciteSchema(isStreamingMode, name, catalogManager);
+		} else {
+			return null;
+		}
 	}
 
 	@Override

@@ -123,8 +123,12 @@ trait StreamTableEnvironment extends TableEnvironment {
     * @param name The name under which the [[DataStream]] is registered in the catalog.
     * @param dataStream The [[DataStream]] to register.
     * @tparam T The type of the [[DataStream]] to register.
+    * @deprecated use [[createTemporaryView]]
     */
+  @deprecated
   def registerDataStream[T](name: String, dataStream: DataStream[T]): Unit
+
+  def createTemporaryView[T](path: String, dataStream: DataStream[T]): Unit
 
   /**
     * Registers the given [[DataStream]] as table with specified field names in the
@@ -142,8 +146,12 @@ trait StreamTableEnvironment extends TableEnvironment {
     * @param dataStream The [[DataStream]] to register.
     * @param fields The field names of the registered table.
     * @tparam T The type of the [[DataStream]] to register.
+    * @deprecated use [[createTemporaryView]]
     */
+  @deprecated
   def registerDataStream[T](name: String, dataStream: DataStream[T], fields: Expression*): Unit
+
+  def createTemporaryView[T](path: String, dataStream: DataStream[T], fields: Expression*): Unit
 
   /**
     * Converts the given [[Table]] into an append [[DataStream]] of a specified type.

@@ -157,14 +157,12 @@ class StreamPlanner(
         writeToSink(s.getChild, s.getSink, unwrapQueryConfig)
 
       case catalogSink: CatalogSinkModifyOperation =>
-        val identifier = catalogManager.qualifyIdentifier(
-          UnresolvedIdentifier.of(catalogSink.getIdentifier: _*))
-        getTableSink(identifier)
+        getTableSink(catalogSink.getIdentifier)
           .map(sink => {
             TableSinkUtils.validateSink(
               catalogSink.getStaticPartitions,
               catalogSink.getChild,
-              identifier,
+              catalogSink.getIdentifier,
               sink)
             // set static partitions if it is a partitioned sink
             sink match {
