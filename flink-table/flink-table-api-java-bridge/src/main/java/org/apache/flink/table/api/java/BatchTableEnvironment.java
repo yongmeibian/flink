@@ -112,20 +112,31 @@ public interface BatchTableEnvironment extends TableEnvironment {
 	 * {@link TableEnvironment}'s catalog.
 	 * Registered tables can be referenced in SQL queries.
 	 *
-	 * The field names of the {@link Table} are automatically derived from the type of the{@link DataSet}.
+	 * <p>The field names of the {@link Table} are automatically derived from the type of the{@link DataSet}.
 	 *
 	 * @param name The name under which the {@link DataSet} is registered in the catalog.
 	 * @param dataSet The {@link DataSet} to register.
 	 * @param <T> The type of the {@link DataSet} to register.
 	 */
+	@Deprecated
 	<T> void registerDataSet(String name, DataSet<T> dataSet);
 
 	/**
-	 * Registers the given {@link DataSet} as table with specified field names in the
-	 * {@link TableEnvironment}'s catalog.
-	 * Registered tables can be referenced in SQL queries.
+	 * Registers the given {@link DataSet} as a temporary view with specified field names in the
+	 * {@link TableEnvironment}. Registered views can be referenced in SQL queries.
 	 *
-	 * Example:
+	 * @param path The path under which the {@link DataSet} is registered. See {@link #useCatalog(String)} or
+	 * {@link #useDatabase(String)} for path resolution.
+	 * @param dataSet The {@link DataSet} to register.
+	 * @param <T> The type of the {@link DataSet} to register.
+	 */
+	<T> void createTemporaryView(String path, DataSet<T> dataSet);
+
+	/**
+	 * Registers the given {@link DataSet} as table with specified field names in the
+	 * {@link TableEnvironment}'s catalog. Registered tables can be referenced in SQL queries.
+	 *
+	 * <p>Example:
 	 *
 	 * <pre>
 	 * {@code
@@ -139,7 +150,30 @@ public interface BatchTableEnvironment extends TableEnvironment {
 	 * @param fields The field names of the registered table.
 	 * @param <T> The type of the {@link DataSet} to register.
 	 */
+	@Deprecated
 	<T> void registerDataSet(String name, DataSet<T> dataSet, String fields);
+
+	/**
+	 * Registers the given {@link DataSet} as a temporary view with specified field names in the
+	 * {@link TableEnvironment}.
+	 * Registered views can be referenced in SQL queries.
+	 * <p>
+	 * Example:
+	 *
+	 * <pre>
+	 * {@code
+	 *   DataSet<Tuple2<String, Long>> set = ...
+	 *   tableEnv.createTemporaryView("myTable", set, "a, b");
+	 * }
+	 * </pre>
+	 *
+	 * @param path The path under which the {@link DataSet} is registered. See {@link #useCatalog(String)} or
+	 * {@link #useDatabase(String)} for path resolution.
+	 * @param dataSet The {@link DataSet} to register.
+	 * @param fields The field names of the registered table.
+	 * @param <T> The type of the {@link DataSet} to register.
+	 */
+	<T> void createTemporaryView(String path, DataSet<T> dataSet, String fields);
 
 	/**
 	 * Converts the given {@link Table} into a {@link DataSet} of a specified type.
@@ -244,12 +278,10 @@ public interface BatchTableEnvironment extends TableEnvironment {
 	 *
 	 * @param table The Table to write to the sink.
 	 * @param queryConfig The {@link BatchQueryConfig} to use.
-	 * @param sinkPath The first part of the path of the registered {@link TableSink} to which the {@link Table} is
-	 *        written. This is to ensure at least the name of the {@link TableSink} is provided.
-	 * @param sinkPathContinued The remaining part of the path of the registered {@link TableSink} to which the
-	 *        {@link Table} is written.
+	 * @param sinkPath The path of the registered {@link TableSink} to which the {@link Table} is
+	 *        written.
 	 */
-	void insertInto(Table table, BatchQueryConfig queryConfig, String sinkPath, String... sinkPathContinued);
+	void insertInto(Table table, BatchQueryConfig queryConfig, String sinkPath);
 
 	/**
 	 * Creates a table source and/or table sink from a descriptor.

@@ -90,12 +90,21 @@ class MockTableEnvironment extends TableEnvironment {
 
   override def insertInto(
     table: Table,
-    sinkPath: String,
-    sinkPathContinued: String*): Unit = ???
+    sinkPath: String): Unit = ???
 
   override def execute(jobName: String): JobExecutionResult = ???
 
   override def createTemporaryView(
     path: String,
     view: Table): Unit = ???
+
+  override def from(path: String): Table = ???
+
+  override def listTemporaryTables(): Array[String] = ???
+
+  override def listTemporaryViews(): Array[String] = ???
+
+  override def dropTemporaryTable(path: String): Boolean = ???
+
+  override def dropTemporaryView(path: String): Boolean = ???
 }

@@ -310,11 +310,11 @@ public final class StreamTableEnvironmentImpl extends TableEnvironmentImpl imple
 	}
 
 	@Override
-	public void insertInto(Table table, StreamQueryConfig queryConfig, String sinkPath, String... sinkPathContinued) {
+	public void insertInto(Table table, StreamQueryConfig queryConfig, String sinkPath) {
 		tableConfig.setIdleStateRetentionTime(
 			Time.milliseconds(queryConfig.getMinIdleStateRetentionTime()),
 			Time.milliseconds(queryConfig.getMaxIdleStateRetentionTime()));
-		insertInto(table, sinkPath, sinkPathContinued);
+		insertInto(table, sinkPath);
 	}
 
 	/**

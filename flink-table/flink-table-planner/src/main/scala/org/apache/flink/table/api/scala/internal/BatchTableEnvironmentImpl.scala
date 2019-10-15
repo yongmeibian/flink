@@ -87,7 +87,6 @@ class BatchTableEnvironmentImpl(
   override def insertInto(
     table: Table,
     queryConfig: BatchQueryConfig,
-    sinkPath: String,
-    sinkPathContinued: String*): Unit = insertInto(table, sinkPath, sinkPathContinued: _*)
+    sinkPath: String): Unit = insertInto(table, sinkPath)
 }
 

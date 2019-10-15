@@ -135,7 +135,9 @@ public interface TableEnvironment {
 	 *
 	 * @param name        The name under which the {@link TableSource} is registered.
 	 * @param tableSource The {@link TableSource} to register.
+	 * @deprecated Use {@link #connect(ConnectorDescriptor)} instead.
 	 */
+	@Deprecated
 	void registerTableSource(String name, TableSource<?> tableSource);
 
 	/**
@@ -147,7 +149,7 @@ public interface TableEnvironment {
 	 * @param fieldNames The field names to register with the {@link TableSink}.
 	 * @param fieldTypes The field types to register with the {@link TableSink}.
 	 * @param tableSink The {@link TableSink} to register.
-	 * @deprecated Use {@link #registerTableSink(String, TableSink)} instead.
+	 * @deprecated Use {@link #connect(ConnectorDescriptor)} instead.
 	 */
 	@Deprecated
 	void registerTableSink(String name, String[] fieldNames, TypeInformation<?>[] fieldTypes, TableSink<?> tableSink);
@@ -159,7 +161,9 @@ public interface TableEnvironment {
 	 *
 	 * @param name The name under which the {@link TableSink} is registered.
 	 * @param configuredSink The configured {@link TableSink} to register.
+	 * @deprecated Use {@link #connect(ConnectorDescriptor)} instead.
 	 */
+	@Deprecated
 	void registerTableSink(String name, TableSink<?> configuredSink);
 
 	/**
@@ -195,18 +199,46 @@ public interface TableEnvironment {
 	Table scan(String... tablePath);
 
 	/**
+	 * Reads a registered table and returns the resulting {@link Table}.
+	 *
+	 * <p>A table to scan must be registered in the {@link TableEnvironment}.
+	 *
+	 * <p>See the documentation of {@link TableEnvironment#useDatabase(String)} or
+	 * {@link TableEnvironment#useCatalog(String)} for the rules on the path resolution.
+	 *
+	 * <p>Examples:
+	 *
+	 * <p>Reading a table from default catalog & database.
+	 * <pre>
+	 * {@code
+	 *   Table tab = tableEnv.scan("tableName");
+	 * }
+	 * </pre>
+	 *
+	 * <p>Reading a table from a registered catalog.
+	 * <pre>
+	 * {@code
+	 *   Table tab = tableEnv.from("catalogName.dbName.tableName");
+	 * }
+	 * </pre>
+	 *
+	 * @param path The path of the table to scan.
+	 * @return The resulting {@link Table}.
+	 * @see TableEnvironment#useCatalog(String)
+	 * @see TableEnvironment#useDatabase(String)
+	 */
+	Table from(String path);
+
+	/**
 	 * Writes the {@link Table} to a {@link TableSink} that was registered under the specified name.
 	 *
 	 * <p>See the documentation of {@link TableEnvironment#useDatabase(String)} or
 	 * {@link TableEnvironment#useCatalog(String)} for the rules on the path resolution.
 	 *
 	 * @param table The Table to write to the sink.
-	 * @param sinkPath The first part of the path of the registered {@link TableSink} to which the {@link Table} is
-	 *        written. This is to ensure at least the name of the {@link TableSink} is provided.
-	 * @param sinkPathContinued The remaining part of the path of the registered {@link TableSink} to which the
-	 *        {@link Table} is written.
+	 * @param sinkPath The path of the registered {@link TableSink} to which the {@link Table} is written.
 	 */
-	void insertInto(Table table, String sinkPath, String... sinkPathContinued);
+	void insertInto(Table table, String sinkPath);
 
 	/**
 	 * Creates a table source and/or table sink from a descriptor.
@@ -263,14 +295,22 @@ public interface TableEnvironment {
 	String[] listTables();
 
 	/**
-	 * Gets the names of all user defined functions registered in this environment.
+	 * Gets the names of all permanent user defined functions registered in this environment.
 	 */
 	String[] listUserDefinedFunctions();
 
 	/**
-	 * Gets the names of all functions in this environment.
+	 * Gets the names of all permanent functions in this environment.
 	 */
 	String[] listFunctions();
+
+	String[] listTemporaryTables();
+
+	String[] listTemporaryViews();
+
+	boolean dropTemporaryTable(String path);
+
+	boolean dropTemporaryView(String path);
 
 	/**
 	 * Returns the AST of the specified Table API and SQL queries and the execution plan to compute

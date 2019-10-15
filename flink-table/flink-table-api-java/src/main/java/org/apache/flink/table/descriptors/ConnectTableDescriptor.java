@@ -62,6 +62,7 @@ public abstract class ConnectTableDescriptor
 	 *
 	 * @param name table name to be registered in the table environment
 	 */
+	@Deprecated
 	public void registerTableSource(String name) {
 		Preconditions.checkNotNull(name);
 		TableSource<?> tableSource = TableFactoryUtil.findAndCreateTableSource(this);
@@ -74,6 +75,7 @@ public abstract class ConnectTableDescriptor
 	 *
 	 * @param name table name to be registered in the table environment
 	 */
+	@Deprecated
 	public void registerTableSink(String name) {
 		Preconditions.checkNotNull(name);
 		TableSink<?> tableSink = TableFactoryUtil.findAndCreateTableSink(this);
@@ -86,6 +88,7 @@ public abstract class ConnectTableDescriptor
 	 *
 	 * @param name table name to be registered in the table environment
 	 */
+	@Deprecated
 	public void registerTableSourceAndSink(String name) {
 		registerTableSource(name);
 		registerTableSink(name);

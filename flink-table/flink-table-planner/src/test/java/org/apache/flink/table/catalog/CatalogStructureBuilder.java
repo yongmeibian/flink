@@ -73,6 +73,10 @@ public class CatalogStructureBuilder {
 		return new TableBuilder(name);
 	}
 
+	public static CatalogTable temporaryTable(ObjectIdentifier identifier) {
+		return new TestTable(identifier.toString(), true);
+	}
+
 	public CatalogStructureBuilder builtin(DatabaseBuilder defaultDb, DatabaseBuilder... databases) throws Exception {
 		GenericInMemoryCatalog catalog = buildCatalog(BUILTIN_CATALOG_NAME, defaultDb, databases);
 		this.catalogManager = new CatalogManager(BUILTIN_CATALOG_NAME, catalog);
@@ -164,6 +168,7 @@ public class CatalogStructureBuilder {
 
 	private static class TestTable extends ConnectorCatalogTable<Row, Row> {
 		private final String fullyQualifiedPath;
+		private final boolean isTemporary;
 
 		private static final StreamTableSource<Row> tableSource = new StreamTableSource<Row>() {
 			@Override
@@ -183,8 +188,21 @@ public class CatalogStructureBuilder {
 		};
 
 		private TestTable(String fullyQualifiedPath) {
+			this(fullyQualifiedPath, false);
+		}
+
+		private TestTable(String fullyQualifiedPath, boolean isTemporary) {
 			super(tableSource, null, tableSource.getTableSchema(), false);
 			this.fullyQualifiedPath = fullyQualifiedPath;
+			this.isTemporary = isTemporary;
+		}
+
+		@Override
+		public String toString() {
+			return "TestTable{" +
+				"fullyQualifiedPath='" + fullyQualifiedPath + '\'' +
+				", isTemporary=" + isTemporary +
+				'}';
 		}
 
 		@Override
@@ -196,12 +214,13 @@ public class CatalogStructureBuilder {
 				return false;
 			}
 			TestTable testTable = (TestTable) o;
-			return Objects.equals(fullyQualifiedPath, testTable.fullyQualifiedPath);
+			return Objects.equals(fullyQualifiedPath, testTable.fullyQualifiedPath) &&
+				Objects.equals(isTemporary, testTable.isTemporary);
 		}
 
 		@Override
 		public int hashCode() {
-			return Objects.hash(fullyQualifiedPath);
+			return Objects.hash(fullyQualifiedPath, isTemporary);
 		}
 	}
 }

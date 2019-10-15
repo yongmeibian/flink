@@ -952,9 +952,9 @@ class TestingTableEnvironment private(
     )
   }
 
-  override def insertInto(table: Table, path: String, pathContinued: String*): Unit = {
-    val fullPath = List(path) ++ pathContinued.toList
-    val identifier = catalogManager.qualifyIdentifier(UnresolvedIdentifier.of(fullPath: _*))
+  override def insertInto(table: Table, path: String): Unit = {
+    val unresolvedIdentifier = planner.parseIdentifier(path)
+    val identifier = catalogManager.qualifyIdentifier(unresolvedIdentifier)
 
     val modifyOperations = List(new CatalogSinkModifyOperation(identifier, table.getQueryOperation))
     if (isEagerOperationTranslation) {

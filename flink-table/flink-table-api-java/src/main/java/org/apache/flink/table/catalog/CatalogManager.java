@@ -37,6 +37,7 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.Predicate;
 
 import static java.lang.String.format;
 import static org.apache.flink.util.Preconditions.checkArgument;
@@ -295,6 +296,43 @@ public class CatalogManager {
 				return table;
 			}
 		});
+	}
+
+	public boolean dropTemporaryTable(UnresolvedIdentifier identifier) {
+		return doDropTemporaryTable(identifier, (table) -> table instanceof CatalogTable);
+	}
+
+	public boolean dropTemporaryView(UnresolvedIdentifier identifier) {
+		return doDropTemporaryTable(identifier, (table) -> table instanceof CatalogView);
+	}
+
+	private boolean doDropTemporaryTable(UnresolvedIdentifier unresolvedIdentifier, Predicate<CatalogBaseTable> filter) {
+		ObjectIdentifier objectIdentifier = qualifyIdentifier(unresolvedIdentifier);
+		CatalogBaseTable catalogBaseTable = temporaryTables.get(objectIdentifier);
+		if (filter.test(catalogBaseTable)) {
+			temporaryTables.remove(objectIdentifier);
+			return true;
+		} else {
+			return false;
+		}
+	}
+
+	public String[] listTemporaryTables() {
+		return doListTemporaryTables(e -> e.getValue() instanceof CatalogTable);
+	}
+
+	public String[] listTemporaryViews() {
+		return doListTemporaryTables(e -> e.getValue() instanceof CatalogView);
+	}
+
+	private String[] doListTemporaryTables(Predicate<Map.Entry<ObjectIdentifier, CatalogBaseTable>> filter) {
+		return temporaryTables
+			.entrySet()
+			.stream()
+			.filter(filter)
+			.map(e -> e.getKey().toString())
+			.sorted()
+			.toArray(String[]::new);
 	}
 
 	/**

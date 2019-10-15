@@ -32,6 +32,8 @@ import org.apache.flink.table.api.ValidationException;
 import org.apache.flink.table.catalog.Catalog;
 import org.apache.flink.table.catalog.CatalogBaseTable;
 import org.apache.flink.table.catalog.CatalogManager;
+import org.apache.flink.table.catalog.CatalogTable;
+import org.apache.flink.table.catalog.CatalogView;
 import org.apache.flink.table.catalog.ConnectorCatalogTable;
 import org.apache.flink.table.catalog.FunctionCatalog;
 import org.apache.flink.table.catalog.GenericInMemoryCatalog;
@@ -63,11 +65,11 @@ import org.apache.flink.table.sources.TableSource;
 import org.apache.flink.table.sources.TableSourceValidation;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 /**
@@ -216,16 +218,21 @@ public class TableEnvironmentImpl implements TableEnvironment {
 
 	@Override
 	public Table scan(String... tablePath) {
-		return scanInternal(tablePath).map(this::createTable)
-			.orElseThrow(() -> new ValidationException(String.format(
-				"Table '%s' was not found.",
-				String.join(".", tablePath))));
+		String stringIdentifier = String.join(".", tablePath);
+		return from(stringIdentifier);
 	}
 
-	private Optional<CatalogQueryOperation> scanInternal(String... tablePath) {
-		ObjectIdentifier objectIdentifier = catalogManager.qualifyIdentifier(
-			UnresolvedIdentifier.of(tablePath)
-		);
+	@Override
+	public Table from(String path) {
+		return scanInternal(path)
+			.map(this::createTable)
+			.orElseThrow(() -> new ValidationException(String.format("Table '%s' was not found.", path)));
+	}
+
+	private Optional<CatalogQueryOperation> scanInternal(String tablePath) {
+		UnresolvedIdentifier unresolvedIdentifier = planner.parseIdentifier(tablePath);
+		ObjectIdentifier objectIdentifier = catalogManager.qualifyIdentifier(unresolvedIdentifier);
+
 		return catalogManager.getTable(objectIdentifier)
 			.map(t -> new CatalogQueryOperation(objectIdentifier, t.getSchema()));
 	}
@@ -261,6 +268,28 @@ public class TableEnvironmentImpl implements TableEnvironment {
 			}
 		}).orElseThrow(() ->
 			new TableException(String.format("The current catalog %s does not exist.", currentCatalogName)));
+	}
+
+	@Override
+	public String[] listTemporaryTables() {
+		return catalogManager.listTemporaryTables();
+	}
+
+	@Override
+	public String[] listTemporaryViews() {
+		return catalogManager.listTemporaryViews();
+	}
+
+	@Override
+	public boolean dropTemporaryTable(String path) {
+		UnresolvedIdentifier unresolvedIdentifier = planner.parseIdentifier(path);
+		return catalogManager.dropTemporaryTable(unresolvedIdentifier);
+	}
+
+	@Override
+	public boolean dropTemporaryView(String path) {
+		UnresolvedIdentifier unresolvedIdentifier = planner.parseIdentifier(path);
+		return catalogManager.dropTemporaryView(unresolvedIdentifier);
 	}
 
 	@Override
@@ -316,10 +345,8 @@ public class TableEnvironmentImpl implements TableEnvironment {
 	}
 
 	@Override
-	public void insertInto(Table table, String path, String... pathContinued) {
-		List<String> fullPath = new ArrayList<>(Arrays.asList(pathContinued));
-		fullPath.add(0, path);
-		UnresolvedIdentifier unresolvedIdentifier = UnresolvedIdentifier.of(fullPath.toArray(new String[0]));
+	public void insertInto(Table table, String path) {
+		UnresolvedIdentifier unresolvedIdentifier = planner.parseIdentifier(path);
 		ObjectIdentifier objectIdentifier = catalogManager.qualifyIdentifier(unresolvedIdentifier);
 
 		List<ModifyOperation> modifyOperations = Collections.singletonList(
@@ -436,20 +463,11 @@ public class TableEnvironmentImpl implements TableEnvironment {
 		bufferedModifyOperations.addAll(modifyOperations);
 	}
 
-	private ObjectIdentifier getTemporaryObjectIdentifier(String name) {
-		return catalogManager.qualifyIdentifier(
-			UnresolvedIdentifier.of(
-				catalogManager.getBuiltInCatalogName(),
-				catalogManager.getBuiltInDatabaseName(),
-				name));
-	}
-
 	private void registerTableSourceInternal(String name, TableSource<?> tableSource) {
 		validateTableSource(tableSource);
-		Optional<CatalogBaseTable> table = getCatalogTable(
-			catalogManager.getBuiltInCatalogName(),
-			catalogManager.getBuiltInDatabaseName(),
-			name);
+		UnresolvedIdentifier unresolvedIdentifier = planner.parseIdentifier(name);
+		ObjectIdentifier objectIdentifier = catalogManager.qualifyIdentifier(unresolvedIdentifier);
+		Optional<CatalogBaseTable> table = catalogManager.getTable(objectIdentifier);
 
 		if (table.isPresent()) {
 			if (table.get() instanceof ConnectorCatalogTable<?, ?>) {
@@ -463,7 +481,7 @@ public class TableEnvironmentImpl implements TableEnvironment {
 						tableSource,
 						sourceSinkTable.getTableSink().get(),
 						!IS_STREAM_TABLE);
-					catalogManager.alterTable(sourceAndSink, getTemporaryObjectIdentifier(name), false);
+					catalogManager.createTemporaryTable(sourceAndSink, objectIdentifier, true);
 				}
 			} else {
 				throw new ValidationException(String.format(
@@ -471,15 +489,14 @@ public class TableEnvironmentImpl implements TableEnvironment {
 			}
 		} else {
 			ConnectorCatalogTable source = ConnectorCatalogTable.source(tableSource, !IS_STREAM_TABLE);
-			catalogManager.createTable(source, getTemporaryObjectIdentifier(name), false);
+			catalogManager.createTemporaryTable(source, objectIdentifier, false);
 		}
 	}
 
 	private void registerTableSinkInternal(String name, TableSink<?> tableSink) {
-		Optional<CatalogBaseTable> table = getCatalogTable(
-			catalogManager.getBuiltInCatalogName(),
-			catalogManager.getBuiltInDatabaseName(),
-			name);
+		UnresolvedIdentifier unresolvedIdentifier = planner.parseIdentifier(name);
+		ObjectIdentifier objectIdentifier = catalogManager.qualifyIdentifier(unresolvedIdentifier);
+		Optional<CatalogBaseTable> table = catalogManager.getTable(objectIdentifier);
 
 		if (table.isPresent()) {
 			if (table.get() instanceof ConnectorCatalogTable<?, ?>) {
@@ -491,7 +508,7 @@ public class TableEnvironmentImpl implements TableEnvironment {
 					// wrapper contains only sink (not source)
 					ConnectorCatalogTable sourceAndSink = ConnectorCatalogTable
 						.sourceAndSink(sourceSinkTable.getTableSource().get(), tableSink, !IS_STREAM_TABLE);
-					catalogManager.alterTable(sourceAndSink, getTemporaryObjectIdentifier(name), false);
+					catalogManager.createTemporaryTable(sourceAndSink, objectIdentifier, true);
 				}
 			} else {
 				throw new ValidationException(String.format(
@@ -499,12 +516,8 @@ public class TableEnvironmentImpl implements TableEnvironment {
 			}
 		} else {
 			ConnectorCatalogTable sink = ConnectorCatalogTable.sink(tableSink, !IS_STREAM_TABLE);
-			catalogManager.createTable(sink, getTemporaryObjectIdentifier(name), false);
+			catalogManager.createTemporaryTable(sink, objectIdentifier, false);
 		}
-	}
-
-	private Optional<CatalogBaseTable> getCatalogTable(String... name) {
-		return catalogManager.getTable(catalogManager.qualifyIdentifier(UnresolvedIdentifier.of(name)));
 	}
 
 	protected TableImpl createTable(QueryOperation tableOperation) {

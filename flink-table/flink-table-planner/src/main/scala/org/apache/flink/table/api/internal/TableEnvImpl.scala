@@ -72,7 +72,7 @@ abstract class TableEnvImpl(
     new TableReferenceLookup {
       override def lookupTable(name: String): Optional[TableReferenceExpression] = {
         JavaScalaConversionUtil
-          .toJava(scanInternal(Array(name)).map(t => new TableReferenceExpression(name, t)))
+          .toJava(scanInternal(name).map(t => new TableReferenceExpression(name, t)))
       }
     }
   }
@@ -329,16 +329,27 @@ abstract class TableEnvImpl(
 
   @throws[TableException]
   override def scan(tablePath: String*): Table = {
-    scanInternal(tablePath.toArray) match {
+    from(tablePath.mkString("."))
+  }
+
+  override def from(path: String): Table = {
+    scanInternal(path) match {
       case Some(table) => createTable(table)
-      case None => throw new TableException(s"Table '${tablePath.mkString(".")}' was not found.")
+      case None => throw new TableException(s"Table '$path' was not found.")
     }
   }
 
-  private[flink] def scanInternal(tablePath: Array[String]): Option[CatalogQueryOperation] = {
-    val objectIdentifier = catalogManager.qualifyIdentifier(UnresolvedIdentifier.of(tablePath: _*))
+  private[flink] def scanInternal(tablePath: String): Option[CatalogQueryOperation] = {
+    val objectIdentifier: ObjectIdentifier = parseAndQualifyIdentifier(tablePath)
+
     JavaScalaConversionUtil.toScala(catalogManager.getTable(objectIdentifier))
       .map(t => new CatalogQueryOperation(objectIdentifier, t.getSchema))
+  }
+
+  private def parseAndQualifyIdentifier(tablePath: String): ObjectIdentifier = {
+    val parser = planningConfigurationBuilder.createParser()
+    val unresolvedIdentifier = UnresolvedIdentifier.of(parser.parseIdentifier(tablePath).names: _*)
+    catalogManager.qualifyIdentifier(unresolvedIdentifier)
   }
 
   override def listCatalogs(): Array[String] = {
@@ -360,6 +371,26 @@ abstract class TableEnvImpl(
       case None =>
         throw new TableException(s"The current catalog ($currentCatalogName) does not exist.")
     }
+  }
+
+  override def listTemporaryTables(): Array[String] = {
+    catalogManager.listTemporaryTables()
+  }
+
+  override def listTemporaryViews(): Array[String] = {
+    catalogManager.listTemporaryViews()
+  }
+
+  override def dropTemporaryTable(path: String): Boolean = {
+    val parser = planningConfigurationBuilder.createParser()
+    val unresolvedIdentifier = UnresolvedIdentifier.of(parser.parseIdentifier(path).names: _*)
+    catalogManager.dropTemporaryTable(unresolvedIdentifier)
+  }
+
+  override def dropTemporaryView(path: String): Boolean = {
+    val parser = planningConfigurationBuilder.createParser()
+    val unresolvedIdentifier = UnresolvedIdentifier.of(parser.parseIdentifier(path).names: _*)
+    catalogManager.dropTemporaryView(unresolvedIdentifier)
   }
 
   override def listUserDefinedFunctions(): Array[String] = functionCatalog.getUserDefinedFunctions
@@ -410,10 +441,14 @@ abstract class TableEnvImpl(
 
         // get name of sink table
         val targetTablePath = insert.getTargetTable.asInstanceOf[SqlIdentifier].names
+        val unresolvedIdentifier = UnresolvedIdentifier.of(targetTablePath: _*)
+        val objectIdentifier = catalogManager.qualifyIdentifier(unresolvedIdentifier)
 
         // insert query result into sink table
-        insertInto(queryResult, InsertOptions(insert.getStaticPartitionKVs, insert.isOverwrite),
-          targetTablePath.asScala:_*)
+        insertInto(
+          queryResult,
+          InsertOptions(insert.getStaticPartitionKVs, insert.isOverwrite),
+          objectIdentifier)
       case createTable: SqlCreateTable =>
         val operation = SqlToOperationConverter
           .convert(planner, catalogManager, createTable)
@@ -449,14 +484,11 @@ abstract class TableEnvImpl(
     */
   private[flink] def writeToSink[T](table: Table, sink: TableSink[T]): Unit
 
-  override def insertInto(
-      table: Table,
-      path: String,
-      pathContinued: String*): Unit = {
+  override def insertInto(table: Table, path: String): Unit = {
     insertInto(
       table,
-      InsertOptions(new JHashMap[String, String](), false),
-      path +: pathContinued: _*)
+      InsertOptions(new JHashMap[String, String](), overwrite = false),
+      parseAndQualifyIdentifier(path))
   }
 
   /** Insert options for executing sql insert. **/
@@ -466,26 +498,24 @@ abstract class TableEnvImpl(
     * Writes the [[Table]] to a [[TableSink]] that was registered under the specified name.
     *
     * @param table The table to write to the TableSink.
-    * @param sinkTablePath The name of the registered TableSink.
+    * @param sinkIdentifier The name of the registered TableSink.
     */
-  private def insertInto(table: Table,
+  private def insertInto(
+      table: Table,
       insertOptions: InsertOptions,
-      sinkTablePath: String*): Unit = {
+      sinkIdentifier: ObjectIdentifier): Unit = {
 
-    val objectIdentifier = catalogManager.qualifyIdentifier(
-      UnresolvedIdentifier.of(sinkTablePath: _*))
-
-    getTableSink(objectIdentifier) match {
+    getTableSink(sinkIdentifier) match {
 
       case None =>
-        throw new TableException(s"No table was registered under the name $sinkTablePath.")
+        throw new TableException(s"No table was registered under the name $sinkIdentifier.")
 
       case Some(tableSink) =>
         // validate schema of source table and table sink
         TableSinkUtils.validateSink(
           insertOptions.staticPartitions,
           table.getQueryOperation,
-          objectIdentifier,
+          sinkIdentifier,
           tableSink)
         // set static partitions if it is a partitioned table sink
         tableSink match {

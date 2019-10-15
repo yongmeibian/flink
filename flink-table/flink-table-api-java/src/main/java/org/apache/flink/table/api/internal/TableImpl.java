@@ -407,17 +407,12 @@ public class TableImpl implements Table {
 	}
 
 	@Override
-	public void insertInto(String tablePath, String... tablePathContinued) {
-		tableEnvironment.insertInto(this, tablePath, tablePathContinued);
+	public void insertInto(String tablePath) {
+		tableEnvironment.insertInto(this, tablePath);
 	}
 
 	@Override
 	public void insertInto(String tableName, QueryConfig conf) {
-		insertInto(conf, tableName);
-	}
-
-	@Override
-	public void insertInto(QueryConfig conf, String tablePath, String... tablePathContinued) {
 		if (conf instanceof StreamQueryConfig) {
 			StreamQueryConfig streamQueryConfig = (StreamQueryConfig) conf;
 			tableEnvironment.getConfig().setIdleStateRetentionTime(
@@ -425,7 +420,7 @@ public class TableImpl implements Table {
 				Time.milliseconds(streamQueryConfig.getMaxIdleStateRetentionTime())
 			);
 		}
-		tableEnvironment.insertInto(this, tablePath, tablePathContinued);
+		tableEnvironment.insertInto(this, tableName);
 	}
 
 	@Override

@@ -87,7 +87,7 @@ class DatabaseCalciteSchema extends FlinkSchema {
 	@Override
 	public Table getTable(String tableName) {
 		return Optional.ofNullable(catalogManager.getTemporaryTables().get(ObjectIdentifier.of(catalogName, databaseName, tableName)))
-			.map(t -> convertTable(new ObjectPath(databaseName, tableName), t, null))
+			.map(t -> convertTemporaryTable(new ObjectPath(databaseName, tableName), t))
 			.orElseGet(() -> getPermanentTable(tableName));
 	}
 
@@ -102,7 +102,7 @@ class DatabaseCalciteSchema extends FlinkSchema {
 
 			CatalogBaseTable table = catalog.getTable(tablePath);
 
-			return convertTable(tablePath, table, catalog.getTableFactory().orElse(null));
+			return convertPermanentTable(tablePath, table, catalog.getTableFactory().orElse(null));
 		} catch (TableNotExistException | CatalogException e) {
 			// TableNotExistException should never happen, because we are checking it exists
 			// via catalog.tableExists
@@ -114,24 +114,21 @@ class DatabaseCalciteSchema extends FlinkSchema {
 		}
 	}
 
-	private Table convertTable(
+	private Table convertPermanentTable(
 			ObjectPath tablePath,
 			CatalogBaseTable table,
 			@Nullable TableFactory tableFactory) {
 		// TODO supports GenericCatalogView
 		if (table instanceof QueryOperationCatalogView) {
-			QueryOperationCatalogView view = (QueryOperationCatalogView) table;
-			QueryOperation operation = view.getQueryOperation();
-			if (operation instanceof DataStreamQueryOperation) {
-				List<String> qualifiedName = Arrays.asList(catalogName, databaseName, tablePath.getObjectName());
-				((DataStreamQueryOperation) operation).setQualifiedName(qualifiedName);
-			} else if (operation instanceof RichTableSourceQueryOperation) {
-				List<String> qualifiedName = Arrays.asList(catalogName, databaseName, tablePath.getObjectName());
-				((RichTableSourceQueryOperation) operation).setQualifiedName(qualifiedName);
-			}
-			return QueryOperationCatalogViewTable.createCalciteTable(view);
+			return convertQueryOperationView(tablePath, (QueryOperationCatalogView) table);
 		} else if (table instanceof ConnectorCatalogTable) {
-			return convertConnectorTable((ConnectorCatalogTable<?, ?>) table, tablePath);
+			ConnectorCatalogTable<?, ?> connectorTable = (ConnectorCatalogTable<?, ?>) table;
+			if ((connectorTable).getTableSource().isPresent()) {
+				TableStats tableStats = extractTableStats(connectorTable, tablePath);
+				return convertSourceTable(connectorTable, tableStats);
+			} else {
+				return convertSinkTable(connectorTable);
+			}
 		} else if (table instanceof CatalogTable) {
 			return convertCatalogTable(tablePath, (CatalogTable) table, tableFactory);
 		} else {
@@ -139,14 +136,36 @@ class DatabaseCalciteSchema extends FlinkSchema {
 		}
 	}
 
-	private Table convertConnectorTable(
-			ConnectorCatalogTable<?, ?> table,
-			ObjectPath tablePath) {
-		if (table.getTableSource().isPresent()) {
-			return convertSourceTable(table, tablePath);
+	private Table convertTemporaryTable(
+			ObjectPath tablePath,
+			CatalogBaseTable table) {
+		// TODO supports GenericCatalogView
+		if (table instanceof QueryOperationCatalogView) {
+			return convertQueryOperationView(tablePath, (QueryOperationCatalogView) table);
+		} else if (table instanceof ConnectorCatalogTable) {
+			ConnectorCatalogTable<?, ?> connectorTable = (ConnectorCatalogTable<?, ?>) table;
+			if ((connectorTable).getTableSource().isPresent()) {
+				return convertSourceTable(connectorTable, TableStats.UNKNOWN);
+			} else {
+				return convertSinkTable(connectorTable);
+			}
+		} else if (table instanceof CatalogTable) {
+			return convertCatalogTable(tablePath, (CatalogTable) table, null);
 		} else {
-			return convertSinkTable(table);
+			throw new TableException("Unsupported table type: " + table);
 		}
+	}
+
+	private Table convertQueryOperationView(ObjectPath tablePath, QueryOperationCatalogView table) {
+		QueryOperation operation = table.getQueryOperation();
+		if (operation instanceof DataStreamQueryOperation) {
+			List<String> qualifiedName = Arrays.asList(catalogName, databaseName, tablePath.getObjectName());
+			((DataStreamQueryOperation) operation).setQualifiedName(qualifiedName);
+		} else if (operation instanceof RichTableSourceQueryOperation) {
+			List<String> qualifiedName = Arrays.asList(catalogName, databaseName, tablePath.getObjectName());
+			((RichTableSourceQueryOperation) operation).setQualifiedName(qualifiedName);
+		}
+		return QueryOperationCatalogViewTable.createCalciteTable(table);
 	}
 
 	private Table convertSinkTable(ConnectorCatalogTable<?, ?> table) {
@@ -164,7 +183,7 @@ class DatabaseCalciteSchema extends FlinkSchema {
 
 	private Table convertSourceTable(
 			ConnectorCatalogTable<?, ?> table,
-			ObjectPath tablePath) {
+			TableStats tableStats) {
 		TableSource<?> tableSource = table.getTableSource().get();
 		if (!(tableSource instanceof StreamTableSource ||
 				tableSource instanceof LookupableTableSource)) {
@@ -176,7 +195,6 @@ class DatabaseCalciteSchema extends FlinkSchema {
 			throw new TableException("Only bounded StreamTableSource can be used in batch mode.");
 		}
 
-		TableStats tableStats = extractTableStats(table, tablePath);
 		return new TableSourceTable<>(
 			tableSource,
 			isStreamingMode,
@@ -185,8 +203,8 @@ class DatabaseCalciteSchema extends FlinkSchema {
 
 	private TableStats extractTableStats(ConnectorCatalogTable<?, ?> table, ObjectPath tablePath) {
 		TableStats tableStats = TableStats.UNKNOWN;
-		// TODO supports stats for partitionable table
 		try {
+			// TODO supports stats for partitionable table
 			if (!table.isPartitioned()) {
 				Catalog catalog = catalogManager.getCatalog(catalogName).get();
 				CatalogTableStatistics tableStatistics = catalog.getTableStatistics(tablePath);

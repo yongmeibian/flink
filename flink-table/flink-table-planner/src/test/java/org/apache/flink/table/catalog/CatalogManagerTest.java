@@ -18,17 +18,33 @@
 
 package org.apache.flink.table.catalog;
 
+import org.apache.flink.table.api.TableSchema;
+import org.apache.flink.table.api.ValidationException;
 import org.apache.flink.table.catalog.exceptions.CatalogException;
 import org.apache.flink.util.TestLogger;
 
+import org.hamcrest.CoreMatchers;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
 
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
+
+import static org.apache.flink.table.catalog.CatalogStructureBuilder.BUILTIN_CATALOG_NAME;
 import static org.apache.flink.table.catalog.CatalogStructureBuilder.database;
 import static org.apache.flink.table.catalog.CatalogStructureBuilder.root;
+import static org.apache.flink.table.catalog.CatalogStructureBuilder.table;
+import static org.apache.flink.table.catalog.CatalogStructureBuilder.temporaryTable;
+import static org.hamcrest.CoreMatchers.equalTo;
+import static org.hamcrest.CoreMatchers.instanceOf;
+import static org.hamcrest.CoreMatchers.is;
+import static org.hamcrest.CoreMatchers.not;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 
 /**
@@ -92,6 +108,128 @@ public class CatalogManagerTest extends TestLogger {
 	}
 
 	@Test
+	public void testShadowingTemporaryTables() throws Exception {
+		CatalogManager manager = root()
+			.builtin(
+				database(BUILTIN_DEFAULT_DATABASE_NAME))
+			.catalog(TEST_CATALOG_NAME, database(TEST_CATALOG_DEFAULT_DB_NAME, table("test")))
+			.build();
+
+		ObjectIdentifier identifier = ObjectIdentifier.of(TEST_CATALOG_NAME, TEST_CATALOG_DEFAULT_DB_NAME, "test");
+		CatalogTable temporaryTable = temporaryTable(identifier);
+
+		manager.createTemporaryTable(temporaryTable, identifier, false);
+		assertThat(manager.getTable(identifier).get(), equalTo(temporaryTable));
+
+		manager.dropTemporaryTable(UnresolvedIdentifier.of(
+			identifier.getCatalogName(),
+			identifier.getDatabaseName(),
+			identifier.getObjectName()));
+		assertThat(manager.getTable(identifier).get(), not(equalTo(temporaryTable)));
+	}
+
+	@Test
+	public void testThrowExceptionIfTemporaryTableExists() throws Exception {
+		thrown.expect(ValidationException.class);
+		thrown.expectMessage("Temporary table `test`.`test`.`test` already exists");
+
+		CatalogManager manager = root()
+			.builtin(
+				database(BUILTIN_DEFAULT_DATABASE_NAME))
+			.catalog(TEST_CATALOG_NAME, database(TEST_CATALOG_DEFAULT_DB_NAME))
+			.build();
+
+		ObjectIdentifier identifier = ObjectIdentifier.of(TEST_CATALOG_NAME, TEST_CATALOG_DEFAULT_DB_NAME, "test");
+		CatalogTable temporaryTable = temporaryTable(identifier);
+
+		manager.createTemporaryTable(temporaryTable, identifier, false);
+		manager.createTemporaryTable(temporaryTable, identifier, false);
+	}
+
+	@Test
+	public void testReplaceTemporaryTable() throws Exception {
+		CatalogManager manager = root()
+			.builtin(
+				database(BUILTIN_DEFAULT_DATABASE_NAME))
+			.build();
+
+		ObjectIdentifier identifier = ObjectIdentifier.of(TEST_CATALOG_NAME, TEST_CATALOG_DEFAULT_DB_NAME, "test");
+
+		manager.createTemporaryTable(temporaryTable(identifier), identifier, false);
+		manager.createTemporaryTable(view(), identifier, true);
+
+		assertThat(manager.getTable(identifier).get(), instanceOf(CatalogView.class));
+	}
+
+	@Test
+	public void testDropTemporaryNonExistingTable() throws Exception {
+		CatalogManager manager = root()
+			.builtin(
+				database(BUILTIN_DEFAULT_DATABASE_NAME, table("test")))
+			.build();
+
+		boolean dropped = manager.dropTemporaryTable(UnresolvedIdentifier.of("test"));
+
+		assertThat(dropped, is(false));
+	}
+
+	@Test
+	public void testDropTemporaryTable() throws Exception {
+		CatalogManager manager = root()
+			.builtin(
+				database(BUILTIN_DEFAULT_DATABASE_NAME, table("test")))
+			.build();
+
+		ObjectIdentifier identifier = ObjectIdentifier.of(BUILTIN_CATALOG_NAME, BUILTIN_DEFAULT_DATABASE_NAME, "test");
+		manager.createTemporaryTable(temporaryTable(identifier), identifier, false);
+		boolean dropped = manager.dropTemporaryTable(UnresolvedIdentifier.of("test"));
+
+		assertThat(dropped, is(true));
+	}
+
+	@Test
+	public void testListTemporaryTables() throws Exception {
+		CatalogManager manager = root()
+			.builtin(
+				database(BUILTIN_DEFAULT_DATABASE_NAME, table("test_in_builtin")))
+			.catalog(TEST_CATALOG_NAME, database(TEST_CATALOG_DEFAULT_DB_NAME, table("test_in_catalog")))
+			.build();
+
+		ObjectIdentifier identifier1 = ObjectIdentifier.of(TEST_CATALOG_NAME, TEST_CATALOG_DEFAULT_DB_NAME, "test");
+		manager.createTemporaryTable(temporaryTable(identifier1), identifier1, false);
+		ObjectIdentifier identifier2 = ObjectIdentifier.of(BUILTIN_CATALOG_NAME, BUILTIN_DEFAULT_DATABASE_NAME, "test");
+		manager.createTemporaryTable(temporaryTable(identifier2), identifier2, false);
+		ObjectIdentifier viewIdentifier = ObjectIdentifier.of(BUILTIN_CATALOG_NAME, BUILTIN_DEFAULT_DATABASE_NAME, "testView");
+		manager.createTemporaryTable(view(), viewIdentifier, false);
+
+		assertThat(manager.listTemporaryTables(), equalTo(new String[]{
+			identifier2.toString(),
+			identifier1.toString()
+		}));
+	}
+
+	@Test
+	public void testListTemporaryViews() throws Exception {
+		CatalogManager manager = root()
+			.builtin(
+				database(BUILTIN_DEFAULT_DATABASE_NAME, table("test_in_builtin")))
+			.catalog(TEST_CATALOG_NAME, database(TEST_CATALOG_DEFAULT_DB_NAME, table("test_in_catalog")))
+			.build();
+
+		ObjectIdentifier identifier1 = ObjectIdentifier.of(TEST_CATALOG_NAME, TEST_CATALOG_DEFAULT_DB_NAME, "test");
+		manager.createTemporaryTable(view(), identifier1, false);
+		ObjectIdentifier identifier2 = ObjectIdentifier.of(BUILTIN_CATALOG_NAME, BUILTIN_DEFAULT_DATABASE_NAME, "test");
+		manager.createTemporaryTable(view(), identifier2, false);
+		ObjectIdentifier tableIdentifier = ObjectIdentifier.of(BUILTIN_CATALOG_NAME, BUILTIN_DEFAULT_DATABASE_NAME, "table");
+		manager.createTemporaryTable(temporaryTable(tableIdentifier), tableIdentifier, false);
+
+		assertThat(manager.listTemporaryViews(), equalTo(new String[]{
+			identifier2.toString(),
+			identifier1.toString()
+		}));
+	}
+
+	@Test
 	public void testSetNonExistingCurrentCatalog() throws Exception {
 		thrown.expect(CatalogException.class);
 		thrown.expectMessage("A catalog with name [nonexistent] does not exist.");
@@ -108,5 +246,15 @@ public class CatalogManagerTest extends TestLogger {
 		CatalogManager manager = root().build();
 		// This catalog does not exist in the builtin catalog
 		manager.setCurrentDatabase("nonexistent");
+	}
+
+	public CatalogView view() {
+		return new CatalogViewImpl(
+			"SELECT * FROM t",
+			"SELECT * FROM t",
+			TableSchema.builder().build(),
+			new HashMap<>(),
+			""
+		);
 	}
 }

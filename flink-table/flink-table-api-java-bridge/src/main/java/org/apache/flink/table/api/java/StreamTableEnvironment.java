@@ -164,7 +164,7 @@ public interface StreamTableEnvironment extends TableEnvironment {
 	 * @param name The name under which the function is registered.
 	 * @param aggregateFunction The AggregateFunction to register.
 	 * @param <T> The type of the output value.
-	 * @tparam ACC The type of aggregate accumulator.
+	 * @param <ACC> The type of aggregate accumulator.
 	 */
 	<T, ACC> void registerFunction(String name, AggregateFunction<T, ACC> aggregateFunction);
 
@@ -175,7 +175,7 @@ public interface StreamTableEnvironment extends TableEnvironment {
 	 * @param name The name under which the function is registered.
 	 * @param tableAggregateFunction The TableAggregateFunction to register.
 	 * @param <T> The type of the output value.
-	 * @tparam ACC The type of aggregate accumulator.
+	 * @param <ACC> The type of aggregate accumulator.
 	 */
 	<T, ACC> void registerFunction(String name, TableAggregateFunction<T, ACC> tableAggregateFunction);
 
@@ -493,12 +493,10 @@ public interface StreamTableEnvironment extends TableEnvironment {
 	 *
 	 * @param table The Table to write to the sink.
 	 * @param queryConfig The {@link StreamQueryConfig} to use.
-	 * @param sinkPath The first part of the path of the registered {@link TableSink} to which the {@link Table} is
-	 *        written. This is to ensure at least the name of the {@link TableSink} is provided.
-	 * @param sinkPathContinued The remaining part of the path of the registered {@link TableSink} to which the
-	 *        {@link Table} is written.
+	 * @param sinkPath The path of the registered {@link TableSink} to which the {@link Table} is
+	 *        written.
 	 */
-	void insertInto(Table table, StreamQueryConfig queryConfig, String sinkPath, String... sinkPathContinued);
+	void insertInto(Table table, StreamQueryConfig queryConfig, String sinkPath);
 
 	/**
 	 * Triggers the program execution. The environment will execute all parts of
