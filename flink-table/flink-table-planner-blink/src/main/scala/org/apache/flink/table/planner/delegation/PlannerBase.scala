@@ -126,11 +126,11 @@ abstract class PlannerBase(
     val parsed = planner.parse(stmt)
     parsed match {
       case insert: RichSqlInsert =>
-        List(SqlToOperationConverter.convert(planner, insert))
+        List(SqlToOperationConverter.convert(planner, catalogManager, insert))
       case query if query.getKind.belongsTo(SqlKind.QUERY) =>
-        List(SqlToOperationConverter.convert(planner, query))
+        List(SqlToOperationConverter.convert(planner, catalogManager, query))
       case ddl if ddl.getKind.belongsTo(SqlKind.DDL) =>
-        List(SqlToOperationConverter.convert(planner, ddl))
+        List(SqlToOperationConverter.convert(planner, catalogManager, ddl))
       case _ =>
         throw new TableException(s"Unsupported query: $stmt")
     }
@@ -174,7 +174,7 @@ abstract class PlannerBase(
 
       case catalogSink: CatalogSinkModifyOperation =>
         val input = getRelBuilder.queryOperation(modifyOperation.getChild).build()
-        val identifier = catalogManager.qualifyIdentifier(catalogSink.getTablePath: _*)
+        val identifier = catalogSink.getIdentifier
         getTableSink(identifier).map(sink => {
           TableSinkUtils.validateSink(catalogSink, identifier, sink)
           sink match {
@@ -192,10 +192,11 @@ abstract class PlannerBase(
                 s"${classOf[OverwritableTableSink].getSimpleName} but actually got " +
                 sink.getClass.getName)
           }
-          LogicalSink.create(input, sink, catalogSink.getTablePath.mkString("."))
+          LogicalSink.create(input, sink, identifier.toString)
         }) match {
           case Some(sinkRel) => sinkRel
-          case None => throw new TableException(s"Sink ${catalogSink.getTablePath} does not exists")
+          case None =>
+            throw new TableException(s"Sink ${catalogSink.getIdentifier} does not exists")
         }
 
       case outputConversion: OutputConversionModifyOperation =>

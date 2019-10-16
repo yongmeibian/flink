@@ -19,6 +19,7 @@
 package org.apache.flink.table.operations.ddl;
 
 import org.apache.flink.table.catalog.CatalogTable;
+import org.apache.flink.table.catalog.ObjectIdentifier;
 import org.apache.flink.table.operations.Operation;
 import org.apache.flink.table.operations.OperationUtils;
 
@@ -30,14 +31,15 @@ import java.util.Map;
  * Operation to describe a CREATE TABLE statement.
  */
 public class CreateTableOperation implements CreateOperation {
-	private final String[] tablePath;
+	private final ObjectIdentifier identifier;
 	private CatalogTable catalogTable;
 	private boolean ignoreIfExists;
 
-	public CreateTableOperation(String[] tablePath,
+	public CreateTableOperation(
+			ObjectIdentifier identifier,
 			CatalogTable catalogTable,
 			boolean ignoreIfExists) {
-		this.tablePath = tablePath;
+		this.identifier = identifier;
 		this.catalogTable = catalogTable;
 		this.ignoreIfExists = ignoreIfExists;
 	}
@@ -46,8 +48,8 @@ public class CreateTableOperation implements CreateOperation {
 		return catalogTable;
 	}
 
-	public String[] getTablePath() {
-		return tablePath;
+	public ObjectIdentifier getIdentifier() {
+		return identifier;
 	}
 
 	public boolean isIgnoreIfExists() {
@@ -58,7 +60,7 @@ public class CreateTableOperation implements CreateOperation {
 	public String asSummaryString() {
 		Map<String, Object> params = new LinkedHashMap<>();
 		params.put("catalogTable", catalogTable.toProperties());
-		params.put("tablePath", tablePath);
+		params.put("identifier", identifier);
 		params.put("ignoreIfExists", ignoreIfExists);
 
 		return OperationUtils.formatWithChildren(
