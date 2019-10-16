@@ -309,10 +309,11 @@ abstract class TableEnvImpl(
 
   private def getTemporaryObjectIdentifier(name: String): ObjectIdentifier = {
     catalogManager.qualifyIdentifier(
-      catalogManager.getBuiltInCatalogName,
-      catalogManager.getBuiltInDatabaseName,
-      name
-    )
+      UnresolvedIdentifier.of(
+        catalogManager.getBuiltInCatalogName,
+        catalogManager.getBuiltInDatabaseName,
+        name
+      ))
   }
 
   @throws[TableException]
@@ -324,7 +325,8 @@ abstract class TableEnvImpl(
   }
 
   private[flink] def scanInternal(tablePath: Array[String]): Option[CatalogQueryOperation] = {
-    val objectIdentifier = catalogManager.qualifyIdentifier(tablePath: _*)
+    val unresolvedIdentifier = UnresolvedIdentifier.of(tablePath: _*)
+    val objectIdentifier = catalogManager.qualifyIdentifier(unresolvedIdentifier)
     JavaScalaConversionUtil.toScala(catalogManager.getTable(objectIdentifier))
       .map(t => new CatalogQueryOperation(objectIdentifier, t.getSchema))
   }
@@ -462,7 +464,8 @@ abstract class TableEnvImpl(
       insertOptions: InsertOptions,
       sinkTablePath: String*): Unit = {
 
-    val objectIdentifier = catalogManager.qualifyIdentifier(sinkTablePath: _*)
+    val unresolvedIdentifier = UnresolvedIdentifier.of(sinkTablePath: _*)
+    val objectIdentifier = catalogManager.qualifyIdentifier(unresolvedIdentifier)
 
     getTableSink(objectIdentifier) match {
 
@@ -527,7 +530,8 @@ abstract class TableEnvImpl(
   }
 
   protected def getCatalogTable(name: String*): Option[CatalogBaseTable] = {
-    val objectIdentifier = catalogManager.qualifyIdentifier(name: _*)
+    val unresolvedIdentifier = UnresolvedIdentifier.of(name: _*)
+    val objectIdentifier = catalogManager.qualifyIdentifier(unresolvedIdentifier)
     JavaScalaConversionUtil.toScala(catalogManager.getTable(objectIdentifier))
   }
 
