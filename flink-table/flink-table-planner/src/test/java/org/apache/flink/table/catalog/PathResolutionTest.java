@@ -23,6 +23,8 @@ import org.apache.flink.table.utils.StreamTableTestUtil;
 import org.apache.flink.util.Preconditions;
 
 import org.hamcrest.CoreMatchers;
+import org.hamcrest.Description;
+import org.hamcrest.TypeSafeMatcher;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
@@ -110,7 +112,13 @@ public class PathResolutionTest {
 				.withCatalogManager(catalogWithSpecialCharacters())
 				.tableApiLookupPath("default db", "tab 1")
 				.sqlLookupPath("`default db`.`tab 1`")
-				.expectPath(BUILTIN_CATALOG_NAME, "default db", "tab 1")
+				.expectPath(BUILTIN_CATALOG_NAME, "default db", "tab 1"),
+
+			testSpec("shadowingWithTemporaryTable")
+				.withCatalogManager(catalogWithTemporaryObjects())
+				.tableApiLookupPath("cat1", "db1", "tab1")
+				.sqlLookupPath("cat1.db1.tab1")
+				.expectTemporaryPath("cat1", "db1", "tab1")
 		);
 	}
 
@@ -137,6 +145,22 @@ public class PathResolutionTest {
 					table("tab1")
 				)
 			).build();
+	}
+
+	private static CatalogManager catalogWithTemporaryObjects() throws Exception {
+		return root()
+			.builtin(
+				database("default")
+			)
+			.catalog(
+				"cat1",
+				database(
+					"db1",
+					table("tab1")
+				)
+			)
+			.temporaryTable(ObjectIdentifier.of("cat1", "db1", "tab1"))
+			.build();
 	}
 
 	private static CatalogManager catalogWithSpecialCharacters() throws Exception {
@@ -170,9 +194,37 @@ public class PathResolutionTest {
 
 		UnresolvedIdentifier unresolvedIdentifier = UnresolvedIdentifier.of(lookupPath.toArray(new String[0]));
 		ObjectIdentifier identifier = catalogManager.qualifyIdentifier(unresolvedIdentifier);
+
 		assertThat(
 			Arrays.asList(identifier.getCatalogName(), identifier.getDatabaseName(), identifier.getObjectName()),
 			CoreMatchers.equalTo(testSpec.getExpectedPath()));
+		Optional<CatalogBaseTable> table = catalogManager.getTable(identifier);
+		assertThat(table, new TableMatcher(testSpec.isTemporaryObject()));
+	}
+
+	private static class TableMatcher extends TypeSafeMatcher<Optional<CatalogBaseTable>> {
+		private final boolean isTemporary;
+
+		private TableMatcher(boolean isTemporary) {
+			this.isTemporary = isTemporary;
+		}
+
+		@Override
+		protected boolean matchesSafely(Optional<CatalogBaseTable> item) {
+			return item.map(
+				t -> t instanceof CatalogStructureBuilder.TestTable &&
+					((CatalogStructureBuilder.TestTable) t).isTemporary() == isTemporary
+			).orElse(false);
+		}
+
+		@Override
+		public void describeTo(Description description) {
+			if (isTemporary) {
+				description.appendText("a temporary table");
+			} else {
+				description.appendText("a permanent table");
+			}
+		}
 	}
 
 	@Test
@@ -186,8 +238,9 @@ public class PathResolutionTest {
 		util.verifyJavaSql(
 			format("SELECT * FROM %s", testSpec.getSqlPathToLookup()),
 			format(
-				"StreamTableSourceScan(table=[[%s]], fields=[], source=[()])",
-				String.join(", ", testSpec.getExpectedPath()))
+				"StreamTableSourceScan(table=[[%s]], fields=[], source=[isTemporary=[%s]])",
+				String.join(", ", testSpec.getExpectedPath()),
+				testSpec.isTemporaryObject())
 		);
 	}
 
@@ -197,6 +250,7 @@ public class PathResolutionTest {
 		private String sqlPathToLookup;
 		private List<String> tableApiLookupPath;
 		private List<String> expectedPath;
+		private boolean isTemporaryObject = false;
 		private String defaultCatalog;
 		private String defaultDatabase;
 		private CatalogManager catalogManager;
@@ -238,6 +292,11 @@ public class PathResolutionTest {
 			return this;
 		}
 
+		public TestSpec expectTemporaryPath(String... expectedPath) {
+			this.isTemporaryObject = true;
+			return expectPath(expectedPath);
+		}
+
 		public TestSpec withDefaultPath(String defaultCatalog) {
 			this.defaultCatalog = defaultCatalog;
 			return this;
@@ -273,6 +332,10 @@ public class PathResolutionTest {
 			return Optional.ofNullable(defaultDatabase);
 		}
 
+		public boolean isTemporaryObject() {
+			return isTemporaryObject;
+		}
+
 		@Override
 		public String toString() {
 
@@ -285,6 +348,10 @@ public class PathResolutionTest {
 
 			if (defaultDatabase != null) {
 				properties.add("defaultDatabase: " + defaultDatabase);
+			}
+
+			if (isTemporaryObject) {
+				properties.add("temporary: true");
 			}
 
 			properties.add("sqlPath: " + sqlPathToLookup);

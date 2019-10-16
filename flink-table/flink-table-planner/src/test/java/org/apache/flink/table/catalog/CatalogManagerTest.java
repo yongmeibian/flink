@@ -18,6 +18,7 @@
 
 package org.apache.flink.table.catalog;
 
+import org.apache.flink.table.api.ValidationException;
 import org.apache.flink.table.catalog.exceptions.CatalogException;
 import org.apache.flink.util.TestLogger;
 
@@ -25,10 +26,13 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
 
+import static org.apache.flink.table.catalog.CatalogStructureBuilder.BUILTIN_CATALOG_NAME;
 import static org.apache.flink.table.catalog.CatalogStructureBuilder.database;
 import static org.apache.flink.table.catalog.CatalogStructureBuilder.root;
+import static org.hamcrest.CoreMatchers.equalTo;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 
 /**
@@ -89,6 +93,40 @@ public class CatalogManagerTest extends TestLogger {
 			.build();
 
 		manager.registerCatalog(TEST_CATALOG_NAME, new GenericInMemoryCatalog(TEST_CATALOG_NAME));
+	}
+
+	@Test
+	public void testReplaceTemporaryTable() throws Exception {
+		ObjectIdentifier tempIdentifier = ObjectIdentifier.of(
+			BUILTIN_CATALOG_NAME,
+			BUILTIN_DEFAULT_DATABASE_NAME,
+			"temp");
+		CatalogManager manager = root()
+			.builtin(
+				database(BUILTIN_DEFAULT_DATABASE_NAME))
+			.temporaryTable(tempIdentifier)
+			.build();
+
+		CatalogTest.TestTable table = new CatalogTest.TestTable();
+		manager.createTemporaryTable(table, tempIdentifier, true);
+		assertThat(manager.getTable(tempIdentifier).get(), equalTo(table));
+	}
+
+	@Test
+	public void testTemporaryTableExists() throws Exception {
+		ObjectIdentifier tempIdentifier = ObjectIdentifier.of(
+			BUILTIN_CATALOG_NAME,
+			BUILTIN_DEFAULT_DATABASE_NAME,
+			"temp");
+		CatalogManager manager = root()
+			.builtin(
+				database(BUILTIN_DEFAULT_DATABASE_NAME))
+			.temporaryTable(tempIdentifier)
+			.build();
+
+		thrown.expect(ValidationException.class);
+		thrown.expectMessage(String.format("Temporary table %s already exists", tempIdentifier));
+		manager.createTemporaryTable(new CatalogTest.TestTable(), tempIdentifier, false);
 	}
 
 	@Test

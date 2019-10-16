@@ -31,6 +31,8 @@ import org.apache.flink.util.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Optional;
@@ -51,6 +53,8 @@ public class CatalogManager {
 	// A map between names and catalogs.
 	private Map<String, Catalog> catalogs;
 
+	private Map<ObjectIdentifier, CatalogBaseTable> temporaryTables;
+
 	// The name of the current catalog and database
 	private String currentCatalogName;
 
@@ -69,6 +73,7 @@ public class CatalogManager {
 		this.currentCatalogName = defaultCatalogName;
 		this.currentDatabaseName = defaultCatalog.getDefaultDatabase();
 
+		this.temporaryTables = new HashMap<>();
 		// right now the default catalog is always the built-in one
 		this.builtInCatalogName = defaultCatalogName;
 	}
@@ -216,17 +221,37 @@ public class CatalogManager {
 	 */
 	public Optional<CatalogBaseTable> getTable(ObjectIdentifier objectIdentifier) {
 		try {
-			Catalog currentCatalog = catalogs.get(objectIdentifier.getCatalogName());
-			ObjectPath objectPath = new ObjectPath(
-				objectIdentifier.getDatabaseName(),
-				objectIdentifier.getObjectName());
-
-			if (currentCatalog != null && currentCatalog.tableExists(objectPath)) {
-				return Optional.of(currentCatalog.getTable(objectPath));
+			CatalogBaseTable temporaryTable = temporaryTables.get(objectIdentifier);
+			if (temporaryTable != null) {
+				return Optional.of(temporaryTable);
+			} else {
+				return getPermanentTable(objectIdentifier);
 			}
 		} catch (TableNotExistException ignored) {
 		}
 		return Optional.empty();
+	}
+
+	private Optional<CatalogBaseTable> getPermanentTable(ObjectIdentifier objectIdentifier)
+			throws TableNotExistException {
+		Catalog currentCatalog = catalogs.get(objectIdentifier.getCatalogName());
+		ObjectPath objectPath = new ObjectPath(
+			objectIdentifier.getDatabaseName(),
+			objectIdentifier.getObjectName());
+
+		if (currentCatalog != null && currentCatalog.tableExists(objectPath)) {
+			return Optional.of(currentCatalog.getTable(objectPath));
+		}
+		return Optional.empty();
+	}
+
+	/**
+	 * Returns unmodifiable map of all registered temporary tables and views.
+	 *
+	 * @return map of registered temporary tables & views
+	 */
+	public Map<ObjectIdentifier, CatalogBaseTable> getTemporaryTables() {
+		return Collections.unmodifiableMap(temporaryTables);
 	}
 
 	/**
@@ -256,6 +281,27 @@ public class CatalogManager {
 			objectIdentifier,
 			false,
 			"CreateTable");
+	}
+
+	/**
+	 * Creates a temporary table in a given fully qualified path.
+	 *
+	 * @param table The table to put in the given path.
+	 * @param objectIdentifier The fully qualified path where to put the table.
+	 * @param replace controls what happens if a table exists in the given path,
+	 * if true the table is replaced, an exception will be thrown otherwise
+	 */
+	public void createTemporaryTable(
+			CatalogBaseTable table,
+			ObjectIdentifier objectIdentifier,
+			boolean replace) {
+		temporaryTables.compute(objectIdentifier, (k, v) -> {
+			if (v != null && !replace) {
+				throw new ValidationException(String.format("Temporary table %s already exists", objectIdentifier));
+			} else {
+				return table;
+			}
+		});
 	}
 
 	/**

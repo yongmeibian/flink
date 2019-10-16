@@ -181,7 +181,7 @@ abstract class TableEnvImpl(
     }
 
     val view = new QueryOperationCatalogView(table.getQueryOperation)
-    catalogManager.createTable(view, getTemporaryObjectIdentifier(name), false)
+    catalogManager.createTemporaryTable(view, getTemporaryObjectIdentifier(name), false)
   }
 
   override def registerTableSource(name: String, tableSource: TableSource[_]): Unit = {
@@ -265,13 +265,16 @@ abstract class TableEnvImpl(
             tableSource,
             table.getTableSink.get,
             isBatchTable)
-          catalogManager.alterTable(sourceAndSink, getTemporaryObjectIdentifier(name), false)
+          catalogManager.createTemporaryTable(
+            sourceAndSink,
+            getTemporaryObjectIdentifier(name),
+            true)
         }
 
       // no table is registered
       case _ =>
         val source = ConnectorCatalogTable.source(tableSource, isBatchTable)
-        catalogManager.createTable(source, getTemporaryObjectIdentifier(name), false)
+        catalogManager.createTemporaryTable(source, getTemporaryObjectIdentifier(name), false)
     }
   }
 
@@ -297,13 +300,16 @@ abstract class TableEnvImpl(
             table.getTableSource.get,
             tableSink,
             isBatchTable)
-          catalogManager.alterTable(sourceAndSink, getTemporaryObjectIdentifier(name), false)
+          catalogManager.createTemporaryTable(
+            sourceAndSink,
+            getTemporaryObjectIdentifier(name),
+            true)
         }
 
       // no table is registered
       case _ =>
         val sink = ConnectorCatalogTable.sink(tableSink, isBatchTable)
-        catalogManager.createTable(sink, getTemporaryObjectIdentifier(name), false)
+        catalogManager.createTemporaryTable(sink, getTemporaryObjectIdentifier(name), false)
     }
   }
 

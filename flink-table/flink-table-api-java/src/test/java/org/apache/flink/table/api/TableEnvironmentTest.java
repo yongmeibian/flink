@@ -18,10 +18,9 @@
 
 package org.apache.flink.table.api;
 
-import org.apache.flink.table.catalog.Catalog;
 import org.apache.flink.table.catalog.CatalogBaseTable;
 import org.apache.flink.table.catalog.ConnectorCatalogTable;
-import org.apache.flink.table.catalog.ObjectPath;
+import org.apache.flink.table.catalog.ObjectIdentifier;
 import org.apache.flink.table.descriptors.Schema;
 import org.apache.flink.table.utils.ConnectorDescriptorMock;
 import org.apache.flink.table.utils.FormatDescriptorMock;
@@ -51,11 +50,10 @@ public class TableEnvironmentTest {
 			.inAppendMode()
 			.registerTableSource("my_table");
 
-		final Catalog catalog = tableEnv.getCatalog(EnvironmentSettings.DEFAULT_BUILTIN_CATALOG)
-			.orElseThrow(AssertionError::new);
-
-		final CatalogBaseTable table = catalog
-			.getTable(new ObjectPath(EnvironmentSettings.DEFAULT_BUILTIN_DATABASE, "my_table"));
+		CatalogBaseTable table = tableEnv.catalogManager.getTable(ObjectIdentifier.of(
+			EnvironmentSettings.DEFAULT_BUILTIN_CATALOG,
+			EnvironmentSettings.DEFAULT_BUILTIN_DATABASE,
+			"my_table")).orElseThrow(AssertionError::new);
 
 		assertThat(
 			table.getSchema(),

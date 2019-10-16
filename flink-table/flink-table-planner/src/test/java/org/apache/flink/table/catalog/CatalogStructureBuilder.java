@@ -51,6 +51,7 @@ import java.util.Objects;
  *          table("tab1"),
  *          table("tab2")
  *      )
+ *  .temporaryTable(ObjectIdentifier.of("cat1", "default", "tab1"))
  *  ).build();
  * }</pre>
  */
@@ -77,6 +78,11 @@ public class CatalogStructureBuilder {
 		GenericInMemoryCatalog catalog = buildCatalog(BUILTIN_CATALOG_NAME, defaultDb, databases);
 		this.catalogManager = new CatalogManager(BUILTIN_CATALOG_NAME, catalog);
 
+		return this;
+	}
+
+	public CatalogStructureBuilder temporaryTable(ObjectIdentifier path) {
+		this.catalogManager.createTemporaryTable(new TestTable(path.toString(), true), path, false);
 		return this;
 	}
 
@@ -158,33 +164,46 @@ public class CatalogStructureBuilder {
 		}
 
 		public TestTable build(String path) {
-			return new TestTable(path + "." + name);
+			return new TestTable(path + "." + name, false);
 		}
 	}
 
-	private static class TestTable extends ConnectorCatalogTable<Row, Row> {
+	/**
+	 * A test {@link CatalogTable}.
+	 */
+	public static class TestTable extends ConnectorCatalogTable<Row, Row> {
 		private final String fullyQualifiedPath;
+		private final boolean isTemporary;
 
-		private static final StreamTableSource<Row> tableSource = new StreamTableSource<Row>() {
-			@Override
-			public DataStream<Row> getDataStream(StreamExecutionEnvironment execEnv) {
-				return null;
-			}
+		public boolean isTemporary() {
+			return isTemporary;
+		}
 
-			@Override
-			public TypeInformation<Row> getReturnType() {
-				return Types.ROW();
-			}
+		private TestTable(String fullyQualifiedPath, boolean isTemporary) {
+			super(new StreamTableSource<Row>() {
+				@Override
+				public DataStream<Row> getDataStream(StreamExecutionEnvironment execEnv) {
+					return null;
+				}
 
-			@Override
-			public TableSchema getTableSchema() {
-				return TableSchema.builder().build();
-			}
-		};
+				@Override
+				public TypeInformation<Row> getReturnType() {
+					return Types.ROW();
+				}
 
-		private TestTable(String fullyQualifiedPath) {
-			super(tableSource, null, tableSource.getTableSchema(), false);
+				@Override
+				public TableSchema getTableSchema() {
+					return TableSchema.builder().build();
+				}
+
+				@Override
+				public String explainSource() {
+					return String.format("isTemporary=[%s]", isTemporary);
+				}
+			}, null, TableSchema.builder().build(), false);
+
 			this.fullyQualifiedPath = fullyQualifiedPath;
+			this.isTemporary = isTemporary;
 		}
 
 		@Override
@@ -196,7 +215,8 @@ public class CatalogStructureBuilder {
 				return false;
 			}
 			TestTable testTable = (TestTable) o;
-			return Objects.equals(fullyQualifiedPath, testTable.fullyQualifiedPath);
+			return Objects.equals(fullyQualifiedPath, testTable.fullyQualifiedPath) &&
+				Objects.equals(isTemporary, testTable.isTemporary);
 		}
 
 		@Override

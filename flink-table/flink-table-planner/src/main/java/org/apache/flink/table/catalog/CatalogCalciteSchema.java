@@ -30,8 +30,11 @@ import org.apache.calcite.schema.Schemas;
 import org.apache.calcite.schema.Table;
 
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /**
  * A mapping between Flink's catalog and Calcite's schema. This enables to look up and access objects(tables, views,
@@ -43,12 +46,12 @@ public class CatalogCalciteSchema implements Schema {
 
 	private final boolean isStreamingMode;
 	private final String catalogName;
-	private final Catalog catalog;
+	private final CatalogManager catalogManager;
 
-	public CatalogCalciteSchema(boolean isStreamingMode, String catalogName, Catalog catalog) {
+	public CatalogCalciteSchema(boolean isStreamingMode, String catalogName, CatalogManager catalogManager) {
 		this.isStreamingMode = isStreamingMode;
 		this.catalogName = catalogName;
-		this.catalog = catalog;
+		this.catalogManager = catalogManager;
 	}
 
 	/**
@@ -59,17 +62,34 @@ public class CatalogCalciteSchema implements Schema {
 	 */
 	@Override
 	public Schema getSubSchema(String schemaName) {
-
-		if (catalog.databaseExists(schemaName)) {
-			return new DatabaseCalciteSchema(isStreamingMode, schemaName, catalogName, catalog);
+		if (temporaryDatabaseExists(schemaName) || permanentDatabaseExists(schemaName)) {
+			return new DatabaseCalciteSchema(isStreamingMode, schemaName, catalogName, catalogManager);
 		} else {
 			return null;
 		}
 	}
 
+	private boolean temporaryDatabaseExists(String schemaName) {
+		return catalogManager.getTemporaryTables()
+			.keySet()
+			.stream()
+			.anyMatch(i -> i.getDatabaseName().equals(schemaName));
+	}
+
+	private Boolean permanentDatabaseExists(String schemaName) {
+		return catalogManager.getCatalog(catalogName).map(c -> c.databaseExists(schemaName)).orElse(false);
+	}
+
 	@Override
 	public Set<String> getSubSchemaNames() {
-		return new HashSet<>(catalog.listDatabases());
+		return Stream.concat(
+			catalogManager.getCatalog(catalogName).map(Catalog::listDatabases).orElse(Collections.emptyList()).stream(),
+			catalogManager.getTemporaryTables()
+				.keySet()
+				.stream()
+				.filter(i -> i.getCatalogName().equals(catalogName))
+				.map(ObjectIdentifier::getDatabaseName)
+		).collect(Collectors.toSet());
 	}
 
 	@Override

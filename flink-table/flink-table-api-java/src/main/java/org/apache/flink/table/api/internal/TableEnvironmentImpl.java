@@ -180,7 +180,7 @@ public class TableEnvironmentImpl implements TableEnvironment {
 		}
 
 		CatalogBaseTable tableTable = new QueryOperationCatalogView(table.getQueryOperation());
-		catalogManager.createTable(tableTable, getTemporaryObjectIdentifier(name), false);
+		catalogManager.createTemporaryTable(tableTable, getTemporaryObjectIdentifier(name), false);
 	}
 
 	@Override
@@ -458,7 +458,7 @@ public class TableEnvironmentImpl implements TableEnvironment {
 						tableSource,
 						sourceSinkTable.getTableSink().get(),
 						!IS_STREAM_TABLE);
-					catalogManager.alterTable(sourceAndSink, getTemporaryObjectIdentifier(name), false);
+					catalogManager.createTemporaryTable(sourceAndSink, getTemporaryObjectIdentifier(name), true);
 				}
 			} else {
 				throw new ValidationException(String.format(
@@ -466,7 +466,7 @@ public class TableEnvironmentImpl implements TableEnvironment {
 			}
 		} else {
 			ConnectorCatalogTable source = ConnectorCatalogTable.source(tableSource, !IS_STREAM_TABLE);
-			catalogManager.createTable(source, getTemporaryObjectIdentifier(name), false);
+			catalogManager.createTemporaryTable(source, getTemporaryObjectIdentifier(name), false);
 		}
 	}
 
@@ -486,7 +486,7 @@ public class TableEnvironmentImpl implements TableEnvironment {
 					// wrapper contains only sink (not source)
 					ConnectorCatalogTable sourceAndSink = ConnectorCatalogTable
 						.sourceAndSink(sourceSinkTable.getTableSource().get(), tableSink, !IS_STREAM_TABLE);
-					catalogManager.alterTable(sourceAndSink, getTemporaryObjectIdentifier(name), false);
+					catalogManager.createTemporaryTable(sourceAndSink, getTemporaryObjectIdentifier(name), true);
 				}
 			} else {
 				throw new ValidationException(String.format(
@@ -494,7 +494,7 @@ public class TableEnvironmentImpl implements TableEnvironment {
 			}
 		} else {
 			ConnectorCatalogTable sink = ConnectorCatalogTable.sink(tableSink, !IS_STREAM_TABLE);
-			catalogManager.createTable(sink, getTemporaryObjectIdentifier(name), false);
+			catalogManager.createTemporaryTable(sink, getTemporaryObjectIdentifier(name), false);
 		}
 	}
 
