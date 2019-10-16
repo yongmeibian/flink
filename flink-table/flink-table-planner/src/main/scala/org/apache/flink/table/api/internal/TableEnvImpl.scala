@@ -29,7 +29,7 @@ import org.apache.flink.table.expressions._
 import org.apache.flink.table.expressions.resolver.lookups.TableReferenceLookup
 import org.apache.flink.table.factories.{TableFactoryService, TableFactoryUtil, TableSinkFactory}
 import org.apache.flink.table.functions.{AggregateFunction, ScalarFunction, TableFunction, UserDefinedAggregateFunction, _}
-import org.apache.flink.table.operations.ddl.CreateTableOperation
+import org.apache.flink.table.operations.ddl.{CreateTableOperation, DropTableOperation}
 import org.apache.flink.table.operations.utils.OperationTreeBuilder
 import org.apache.flink.table.operations.{CatalogQueryOperation, PlannerQueryOperation, TableSourceQueryOperation, _}
 import org.apache.flink.table.planner.PlanningConfigurationBuilder
@@ -402,16 +402,19 @@ abstract class TableEnvImpl(
           targetTablePath.asScala:_*)
       case createTable: SqlCreateTable =>
         val operation = SqlToOperationConverter
-          .convert(planner, createTable)
+          .convert(planner, catalogManager, createTable)
           .asInstanceOf[CreateTableOperation]
-        val objectIdentifier = catalogManager.qualifyIdentifier(operation.getTablePath: _*)
         catalogManager.createTable(
           operation.getCatalogTable,
-          objectIdentifier,
+          operation.getIdentifier,
           operation.isIgnoreIfExists)
       case dropTable: SqlDropTable =>
-        val objectIdentifier = catalogManager.qualifyIdentifier(dropTable.fullTableName(): _*)
-        catalogManager.dropTable(objectIdentifier, dropTable.getIfExists)
+        val operation = SqlToOperationConverter
+          .convert(planner, catalogManager, dropTable)
+          .asInstanceOf[DropTableOperation]
+        catalogManager.dropTable(
+          operation.getIdentifier,
+          operation.isIfExists)
       case _ =>
         throw new TableException(
           "Unsupported SQL query! sqlUpdate() only accepts SQL statements of " +

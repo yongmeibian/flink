@@ -165,7 +165,7 @@ public class SqlToOperationConverterTest {
 		final FlinkPlannerImpl planner = getPlannerBySqlDialect(SqlDialect.DEFAULT);
 		SqlNode node = planner.parse(sql);
 		assert node instanceof SqlCreateTable;
-		Operation operation = SqlToOperationConverter.convert(planner, node);
+		Operation operation = SqlToOperationConverter.convert(planner, catalogManager, node);
 		assert operation instanceof CreateTableOperation;
 		CreateTableOperation op = (CreateTableOperation) operation;
 		CatalogTable catalogTable = op.getCatalogTable();
@@ -323,7 +323,7 @@ public class SqlToOperationConverterTest {
 		final FlinkPlannerImpl planner = getPlannerBySqlDialect(SqlDialect.DEFAULT);
 		SqlNode node = planner.parse(sql);
 		assert node instanceof SqlCreateTable;
-		Operation operation = SqlToOperationConverter.convert(planner, node);
+		Operation operation = SqlToOperationConverter.convert(planner, catalogManager, node);
 		TableSchema schema = ((CreateTableOperation) operation).getCatalogTable().getSchema();
 		Object[] expectedDataTypes = testItems.stream().map(item -> item.expectedType).toArray();
 		assertArrayEquals(expectedDataTypes, schema.getFieldDataTypes());
@@ -345,7 +345,7 @@ public class SqlToOperationConverterTest {
 
 	private Operation parse(String sql, FlinkPlannerImpl planner) {
 		SqlNode node = planner.parse(sql);
-		return SqlToOperationConverter.convert(planner, node);
+		return SqlToOperationConverter.convert(planner, catalogManager, node);
 	}
 
 	private FlinkPlannerImpl getPlannerBySqlDialect(SqlDialect sqlDialect) {
