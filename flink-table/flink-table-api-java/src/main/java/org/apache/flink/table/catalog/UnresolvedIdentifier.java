@@ -77,9 +77,9 @@ public class UnresolvedIdentifier {
 	}
 
 	private UnresolvedIdentifier(
-		@Nullable String catalogName,
-		@Nullable String databaseName,
-		String objectName) {
+			@Nullable String catalogName,
+			@Nullable String databaseName,
+			String objectName) {
 		this.catalogName = catalogName;
 		this.databaseName = databaseName;
 		this.objectName = Preconditions.checkNotNull(objectName, "Object name must not be null.");

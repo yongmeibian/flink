@@ -22,8 +22,8 @@ import org.apache.flink.api.common.time.Time
 import org.apache.flink.api.dag.Transformation
 import org.apache.flink.streaming.api.scala.{StreamExecutionEnvironment, _}
 import org.apache.flink.table.api.TableConfig
-import org.apache.flink.table.catalog.{CatalogManager, FunctionCatalog, GenericInMemoryCatalog}
-import org.apache.flink.table.delegation.{Executor, Planner}
+import org.apache.flink.table.catalog.{CatalogManager, FunctionCatalog, GenericInMemoryCatalog, UnresolvedIdentifier}
+import org.apache.flink.table.delegation.{Executor, Parser, Planner}
 import org.apache.flink.table.operations.{ModifyOperation, Operation}
 import org.apache.flink.types.Row
 
@@ -94,7 +94,14 @@ class StreamTableEnvironmentImplTest {
   }
 
   private class TestPlanner(transformation: Transformation[_]) extends Planner {
-    override def parse(statement: String) = throw new AssertionError("Should not be called")
+
+    override def getParser: Parser = new Parser {
+      override def parse(statement: String): JList[Operation] =
+        throw new AssertionError("Should not be called")
+
+      override def parseIdentifier(identifier: String): UnresolvedIdentifier =
+        throw new AssertionError("Should not be called")
+    }
 
     override def translate(modifyOperations: JList[ModifyOperation])
       : JList[Transformation[_]] = {
@@ -106,6 +113,7 @@ class StreamTableEnvironmentImplTest {
 
     override def getCompletionHints(statement: String, position: Int) =
       throw new AssertionError("Should not be called")
+
   }
 
   private val executor = new Executor() {
