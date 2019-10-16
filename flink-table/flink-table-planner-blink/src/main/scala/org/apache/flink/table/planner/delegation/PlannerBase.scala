@@ -82,7 +82,8 @@ abstract class PlannerBase(
 
   executor.asInstanceOf[ExecutorBase].setTableConfig(config)
 
-  private val plannerContext: PlannerContext =
+  @VisibleForTesting
+  private[flink] val plannerContext: PlannerContext =
     new PlannerContext(
       config,
       functionCatalog,
@@ -122,8 +123,9 @@ abstract class PlannerBase(
 
   override def parse(stmt: String): util.List[Operation] = {
     val planner = createFlinkPlanner
+    val parser = plannerContext.createCalciteParser()
     // parse the sql query
-    val parsed = planner.parse(stmt)
+    val parsed = parser.parse(stmt)
     parsed match {
       case insert: RichSqlInsert =>
         List(SqlToOperationConverter.convert(planner, catalogManager, insert))

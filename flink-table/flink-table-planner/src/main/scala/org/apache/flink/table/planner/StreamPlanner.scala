@@ -102,7 +102,7 @@ class StreamPlanner(
   override def parse(stmt: String): JList[Operation] = {
     val planner = getFlinkPlanner
     // parse the sql query
-    val parsed = planner.parse(stmt)
+    val parsed = planningConfigurationBuilder.createCalciteParser().parse(stmt)
 
     parsed match {
       case insert: RichSqlInsert =>
