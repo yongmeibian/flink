@@ -254,7 +254,8 @@ abstract class PlannerBase(
   protected def translateToPlan(execNodes: util.List[ExecNode[_, _]]): util.List[Transformation[_]]
 
   private def getTableSink(objectIdentifier: ObjectIdentifier): Option[TableSink[_]] = {
-    JavaScalaConversionUtil.toScala(catalogManager.getTable(objectIdentifier)) match {
+    JavaScalaConversionUtil.toScala(catalogManager.getTable(objectIdentifier))
+      .map(_.getTable) match {
       case Some(s) if s.isInstanceOf[ConnectorCatalogTable[_, _]] =>
         JavaScalaConversionUtil
           .toScala(s.asInstanceOf[ConnectorCatalogTable[_, _]].getTableSink)
