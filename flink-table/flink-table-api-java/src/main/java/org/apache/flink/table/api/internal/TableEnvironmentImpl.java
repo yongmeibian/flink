@@ -109,8 +109,13 @@ public class TableEnvironmentImpl implements TableEnvironment {
 		this.operationTreeBuilder = OperationTreeBuilder.create(
 			functionCatalog,
 			path -> {
-				Optional<CatalogQueryOperation> catalogTableOperation = scanInternal(path);
-				return catalogTableOperation.map(tableOperation -> new TableReferenceExpression(path, tableOperation));
+				try {
+					UnresolvedIdentifier unresolvedIdentifier = parser.parseIdentifier(path);
+					Optional<CatalogQueryOperation> catalogQueryOperation = scanInternal(unresolvedIdentifier);
+					return catalogQueryOperation.map(t -> new TableReferenceExpression(path, t));
+				} catch (SqlParserException ex) {
+					return Optional.empty();
+				}
 			},
 			isStreamingMode
 		);
@@ -224,14 +229,27 @@ public class TableEnvironmentImpl implements TableEnvironment {
 
 	@Override
 	public Table scan(String... tablePath) {
-		return scanInternal(tablePath).map(this::createTable)
+		UnresolvedIdentifier unresolvedIdentifier = UnresolvedIdentifier.of(tablePath);
+		return scanInternal(unresolvedIdentifier)
+			.map(this::createTable)
 			.orElseThrow(() -> new ValidationException(String.format(
-				"Table '%s' was not found.",
-				String.join(".", tablePath))));
+				"Table %s was not found.",
+				unresolvedIdentifier)));
 	}
 
-	private Optional<CatalogQueryOperation> scanInternal(String... tablePath) {
-		ObjectIdentifier objectIdentifier = catalogManager.qualifyIdentifier(UnresolvedIdentifier.of(tablePath));
+	@Override
+	public Table from(String path) {
+		UnresolvedIdentifier unresolvedIdentifier = parser.parseIdentifier(path);
+		return scanInternal(unresolvedIdentifier)
+			.map(this::createTable)
+			.orElseThrow(() -> new ValidationException(String.format(
+				"Table %s was not found.",
+				unresolvedIdentifier)));
+	}
+
+	private Optional<CatalogQueryOperation> scanInternal(UnresolvedIdentifier identifier) {
+		ObjectIdentifier objectIdentifier = catalogManager.qualifyIdentifier(identifier);
+
 		return catalogManager.getTable(objectIdentifier)
 			.map(t -> new CatalogQueryOperation(objectIdentifier, t.getSchema()));
 	}

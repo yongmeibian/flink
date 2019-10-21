@@ -47,6 +47,7 @@ import _root_.java.util.{Optional, HashMap => JHashMap, Map => JMap}
 
 import _root_.scala.collection.JavaConversions._
 import _root_.scala.collection.JavaConverters._
+import _root_.scala.util.Try
 
 /**
   * The abstract base class for the implementation of batch TableEnvironment.
@@ -72,7 +73,13 @@ abstract class TableEnvImpl(
     new TableReferenceLookup {
       override def lookupTable(name: String): Optional[TableReferenceExpression] = {
         JavaScalaConversionUtil
-          .toJava(scanInternal(Array(name)).map(t => new TableReferenceExpression(name, t)))
+          .toJava(
+            Try(
+              scanInternal(name)
+                .map(t => new TableReferenceExpression(name, t))
+            )
+              .toOption
+              .flatten)
       }
     }
   }
@@ -341,17 +348,27 @@ abstract class TableEnvImpl(
 
   @throws[TableException]
   override def scan(tablePath: String*): Table = {
-    scanInternal(tablePath.toArray) match {
+    from(tablePath.mkString("."))
+  }
+
+  override def from(path: String): Table = {
+    scanInternal(path) match {
       case Some(table) => createTable(table)
-      case None => throw new TableException(s"Table '${tablePath.mkString(".")}' was not found.")
+      case None => throw new TableException(s"Table '$path' was not found.")
     }
   }
 
-  private[flink] def scanInternal(tablePath: Array[String]): Option[CatalogQueryOperation] = {
-    val unresolvedIdentifier = UnresolvedIdentifier.of(tablePath: _*)
-    val objectIdentifier = catalogManager.qualifyIdentifier(unresolvedIdentifier)
+  private[flink] def scanInternal(tablePath: String): Option[CatalogQueryOperation] = {
+    val objectIdentifier: ObjectIdentifier = parseAndQualifyIdentifier(tablePath)
+
     JavaScalaConversionUtil.toScala(catalogManager.getTable(objectIdentifier))
       .map(t => new CatalogQueryOperation(objectIdentifier, t.getSchema))
+  }
+
+  private def parseAndQualifyIdentifier(tablePath: String): ObjectIdentifier = {
+    val parser = planningConfigurationBuilder.createCalciteParser()
+    val unresolvedIdentifier = UnresolvedIdentifier.of(parser.parseIdentifier(tablePath).names: _*)
+    catalogManager.qualifyIdentifier(unresolvedIdentifier)
   }
 
   override def listCatalogs(): Array[String] = {
