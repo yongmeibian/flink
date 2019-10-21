@@ -377,6 +377,18 @@ abstract class TableEnvImpl(
     catalogManager.listTemporaryViews()
   }
 
+  override def dropTemporaryTable(path: String): Boolean = {
+    val parser = planningConfigurationBuilder.createCalciteParser()
+    val unresolvedIdentifier = UnresolvedIdentifier.of(parser.parseIdentifier(path).names: _*)
+    catalogManager.dropTemporaryTable(unresolvedIdentifier)
+  }
+
+  override def dropTemporaryView(path: String): Boolean = {
+    val parser = planningConfigurationBuilder.createCalciteParser()
+    val unresolvedIdentifier = UnresolvedIdentifier.of(parser.parseIdentifier(path).names: _*)
+    catalogManager.dropTemporaryView(unresolvedIdentifier)
+  }
+
   override def listUserDefinedFunctions(): Array[String] = functionCatalog.getUserDefinedFunctions
 
   override def listFunctions(): Array[String] = functionCatalog.getFunctions

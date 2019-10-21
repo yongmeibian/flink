@@ -38,6 +38,7 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.Predicate;
 import java.util.stream.Stream;
 
 import static java.lang.String.format;
@@ -307,6 +308,41 @@ public class CatalogManager {
 	}
 
 	/**
+	 * Qualifies the given {@link UnresolvedIdentifier} with current catalog & database and
+	 * removes a temporary table registered with this path if it exists.
+	 *
+	 * @param identifier potentially unresolved identifier
+	 * @return true if a table with a given identifier existed and was removed, false otherwise
+	 */
+	public boolean dropTemporaryTable(UnresolvedIdentifier identifier) {
+		return doDropTemporaryTable(identifier, (table) -> table instanceof CatalogTable);
+	}
+
+	/**
+	 * Qualifies the given {@link UnresolvedIdentifier} with current catalog & database and
+	 * removes a temporary view registered with this path if it exists.
+	 *
+	 * @param identifier potentially unresolved identifier
+	 * @return true if a view with a given identifier existed and was removed, false otherwise
+	 */
+	public boolean dropTemporaryView(UnresolvedIdentifier identifier) {
+		return doDropTemporaryTable(identifier, (table) -> table instanceof CatalogView);
+	}
+
+	private boolean doDropTemporaryTable(
+			UnresolvedIdentifier unresolvedIdentifier,
+			Predicate<CatalogBaseTable> filter) {
+		ObjectIdentifier objectIdentifier = qualifyIdentifier(unresolvedIdentifier);
+		CatalogBaseTable catalogBaseTable = temporaryTables.get(objectIdentifier);
+		if (filter.test(catalogBaseTable)) {
+			temporaryTables.remove(objectIdentifier);
+			return true;
+		} else {
+			return false;
+		}
+	}
+
+	/**
 	 * Returns an array of names of all tables (tables and views, both temporary and permanent)
 	 * registered in the namespace of the current catalog and database.
 	 *
@@ -387,6 +423,11 @@ public class CatalogManager {
 	 * does not exist.
 	 */
 	public void dropTable(ObjectIdentifier objectIdentifier, boolean ignoreIfNotExists) {
+		if (temporaryTables.containsKey(objectIdentifier)) {
+			throw new ValidationException(String.format(
+				"Temporary table with identifier: '%s' exists. Drop it first before removing the permanent table.",
+				objectIdentifier));
+		}
 		execute(
 			(catalog, path) -> catalog.dropTable(path, ignoreIfNotExists),
 			objectIdentifier,
