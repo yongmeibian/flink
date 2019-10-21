@@ -130,6 +130,76 @@ public class CatalogManagerTest extends TestLogger {
 	}
 
 	@Test
+	public void testListTables() throws Exception {
+		ObjectIdentifier identifier1 = ObjectIdentifier.of(TEST_CATALOG_NAME, TEST_CATALOG_DEFAULT_DB_NAME, "test1");
+		ObjectIdentifier identifier2 = ObjectIdentifier.of(BUILTIN_CATALOG_NAME, BUILTIN_DEFAULT_DATABASE_NAME, "test2");
+		ObjectIdentifier viewIdentifier = ObjectIdentifier.of(BUILTIN_CATALOG_NAME, BUILTIN_DEFAULT_DATABASE_NAME, "testView");
+		CatalogManager manager = root()
+			.builtin(
+				database(BUILTIN_DEFAULT_DATABASE_NAME, table("test_in_builtin")))
+			.catalog(TEST_CATALOG_NAME, database(TEST_CATALOG_DEFAULT_DB_NAME, table("test_in_catalog")))
+			.temporaryTable(identifier1)
+			.temporaryTable(identifier2)
+			.temporaryView(viewIdentifier, "SELECT * FROM none")
+			.build();
+
+		manager.setCurrentCatalog(BUILTIN_CATALOG_NAME);
+		manager.setCurrentDatabase(BUILTIN_DEFAULT_DATABASE_NAME);
+
+		assertThat(manager.listTables(), equalTo(new String[]{
+			"test2",
+			"testView",
+			"test_in_builtin"
+		}));
+	}
+
+	@Test
+	public void testListTemporaryTables() throws Exception {
+		ObjectIdentifier identifier1 = ObjectIdentifier.of(TEST_CATALOG_NAME, TEST_CATALOG_DEFAULT_DB_NAME, "test1");
+		ObjectIdentifier identifier2 = ObjectIdentifier.of(BUILTIN_CATALOG_NAME, BUILTIN_DEFAULT_DATABASE_NAME, "test2");
+		ObjectIdentifier viewIdentifier = ObjectIdentifier.of(BUILTIN_CATALOG_NAME, BUILTIN_DEFAULT_DATABASE_NAME, "testView");
+		CatalogManager manager = root()
+			.builtin(
+				database(BUILTIN_DEFAULT_DATABASE_NAME, table("test_in_builtin")))
+			.catalog(TEST_CATALOG_NAME, database(TEST_CATALOG_DEFAULT_DB_NAME, table("test_in_catalog")))
+			.temporaryTable(identifier1)
+			.temporaryTable(identifier2)
+			.temporaryView(viewIdentifier, "SELECT * FROM none")
+			.build();
+
+		manager.setCurrentCatalog(BUILTIN_CATALOG_NAME);
+		manager.setCurrentDatabase(BUILTIN_DEFAULT_DATABASE_NAME);
+
+		assertThat(manager.listTemporaryTables(), equalTo(new String[]{
+			"test2",
+			"testView"
+		}));
+	}
+
+	@Test
+	public void testListTemporaryViews() throws Exception {
+		ObjectIdentifier tableIdentifier = ObjectIdentifier.of(TEST_CATALOG_NAME, TEST_CATALOG_DEFAULT_DB_NAME, "table");
+		ObjectIdentifier identifier1 = ObjectIdentifier.of(TEST_CATALOG_NAME, TEST_CATALOG_DEFAULT_DB_NAME, "test1");
+		ObjectIdentifier identifier2 = ObjectIdentifier.of(BUILTIN_CATALOG_NAME, BUILTIN_DEFAULT_DATABASE_NAME, "test2");
+
+		CatalogManager manager = root()
+			.builtin(
+				database(BUILTIN_DEFAULT_DATABASE_NAME, table("test_in_builtin")))
+			.catalog(TEST_CATALOG_NAME, database(TEST_CATALOG_DEFAULT_DB_NAME, table("test_in_catalog")))
+			.temporaryTable(tableIdentifier)
+			.temporaryView(identifier1, "SELECT * FROM none")
+			.temporaryView(identifier2, "SELECT * FROM none")
+			.build();
+
+		manager.setCurrentCatalog(TEST_CATALOG_NAME);
+		manager.setCurrentDatabase(TEST_CATALOG_DEFAULT_DB_NAME);
+
+		assertThat(manager.listTemporaryViews(), equalTo(new String[]{
+			"test1"
+		}));
+	}
+
+	@Test
 	public void testSetNonExistingCurrentCatalog() throws Exception {
 		thrown.expect(CatalogException.class);
 		thrown.expectMessage("A catalog with name [nonexistent] does not exist.");

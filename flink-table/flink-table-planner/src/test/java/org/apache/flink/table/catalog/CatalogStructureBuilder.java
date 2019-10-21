@@ -26,8 +26,11 @@ import org.apache.flink.table.api.Types;
 import org.apache.flink.table.sources.StreamTableSource;
 import org.apache.flink.types.Row;
 
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 
 /**
  * Utility classes to construct a {@link CatalogManager} with a given structure.
@@ -83,6 +86,21 @@ public class CatalogStructureBuilder {
 
 	public CatalogStructureBuilder temporaryTable(ObjectIdentifier path) {
 		this.catalogManager.createTemporaryTable(new TestTable(path.toString(), true), path, false);
+		return this;
+	}
+
+	public CatalogStructureBuilder temporaryView(ObjectIdentifier path, String query) {
+		this.catalogManager.createTemporaryTable(
+			new TestView(
+				query,
+				query,
+				TableSchema.builder().build(),
+				Collections.emptyMap(),
+				"",
+				true,
+				path.toString()),
+			path,
+			false);
 		return this;
 	}
 
@@ -221,7 +239,65 @@ public class CatalogStructureBuilder {
 
 		@Override
 		public int hashCode() {
-			return Objects.hash(fullyQualifiedPath);
+			return Objects.hash(fullyQualifiedPath, isTemporary);
+		}
+	}
+
+	/**
+	 * A test {@link CatalogView}.
+	 */
+	public static class TestView extends AbstractCatalogView {
+		private final boolean isTemporary;
+		private final String fullyQualifiedPath;
+
+		public boolean isTemporary() {
+			return isTemporary;
+		}
+
+		public TestView(
+				String originalQuery,
+				String expandedQuery,
+				TableSchema schema,
+				Map<String, String> properties,
+				String comment,
+				boolean isTemporary,
+				String fullyQualifiedPath) {
+			super(originalQuery, expandedQuery, schema, properties, comment);
+			this.isTemporary = isTemporary;
+			this.fullyQualifiedPath = fullyQualifiedPath;
+		}
+
+		@Override
+		public CatalogBaseTable copy() {
+			return this;
+		}
+
+		@Override
+		public Optional<String> getDescription() {
+			return Optional.empty();
+		}
+
+		@Override
+		public Optional<String> getDetailedDescription() {
+			return Optional.empty();
+		}
+
+		@Override
+		public boolean equals(Object o) {
+			if (this == o) {
+				return true;
+			}
+			if (o == null || getClass() != o.getClass()) {
+				return false;
+			}
+			TestView testView = (TestView) o;
+			return isTemporary == testView.isTemporary &&
+				Objects.equals(fullyQualifiedPath, testView.fullyQualifiedPath);
+		}
+
+		@Override
+		public int hashCode() {
+			return Objects.hash(isTemporary, fullyQualifiedPath);
 		}
 	}
 }

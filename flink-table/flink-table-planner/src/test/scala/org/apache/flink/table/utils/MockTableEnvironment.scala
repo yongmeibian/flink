@@ -94,4 +94,12 @@ class MockTableEnvironment extends TableEnvironment {
     sinkPathContinued: String*): Unit = ???
 
   override def execute(jobName: String): JobExecutionResult = ???
+
+  override def createTemporaryView(
+    path: String,
+    view: Table): Unit = ???
+
+  override def listTemporaryTables(): Array[String] = ???
+
+  override def listTemporaryViews(): Array[String] = ???
 }

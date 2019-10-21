@@ -173,15 +173,32 @@ abstract class TableEnvImpl(
   }
 
   override def registerTable(name: String, table: Table): Unit = {
+    createTemporaryView(UnresolvedIdentifier.of(name), table)
+  }
 
+  protected def parseIdentifier(identifier: String): UnresolvedIdentifier = {
+    val parser = planningConfigurationBuilder.createCalciteParser()
+    UnresolvedIdentifier.of(parser.parseIdentifier(identifier).names: _*)
+  }
+
+  override def createTemporaryView(path: String, view: Table): Unit = {
+    val identifier = parseIdentifier(path)
+    createTemporaryView(identifier, view)
+  }
+
+  private def createTemporaryView(identifier: UnresolvedIdentifier, view: Table): Unit = {
     // check that table belongs to this table environment
-    if (table.asInstanceOf[TableImpl].getTableEnvironment != this) {
+    if (view.asInstanceOf[TableImpl].getTableEnvironment != this) {
       throw new TableException(
         "Only tables that belong to this TableEnvironment can be registered.")
     }
 
-    val view = new QueryOperationCatalogView(table.getQueryOperation)
-    catalogManager.createTemporaryTable(view, getTemporaryObjectIdentifier(name), false)
+    val objectIdentifier = catalogManager.qualifyIdentifier(identifier)
+
+    catalogManager.createTemporaryTable(
+      new QueryOperationCatalogView(view.getQueryOperation),
+      objectIdentifier,
+      false)
   }
 
   override def registerTableSource(name: String, tableSource: TableSource[_]): Unit = {
@@ -349,13 +366,15 @@ abstract class TableEnvImpl(
   }
 
   override def listTables(): Array[String] = {
-    val currentCatalogName = catalogManager.getCurrentCatalog
-    val currentCatalog = catalogManager.getCatalog(currentCatalogName)
-    JavaScalaConversionUtil.toScala(currentCatalog) match {
-      case Some(catalog) => catalog.listTables(catalogManager.getCurrentDatabase).asScala.toArray
-      case None =>
-        throw new TableException(s"The current catalog ($currentCatalogName) does not exist.")
-    }
+    catalogManager.listTables()
+  }
+
+  override def listTemporaryTables(): Array[String] = {
+    catalogManager.listTemporaryTables()
+  }
+
+  override def listTemporaryViews(): Array[String] = {
+    catalogManager.listTemporaryViews()
   }
 
   override def listUserDefinedFunctions(): Array[String] = functionCatalog.getUserDefinedFunctions

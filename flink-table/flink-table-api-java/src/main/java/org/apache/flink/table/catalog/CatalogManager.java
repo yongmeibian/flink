@@ -31,12 +31,14 @@ import org.apache.flink.util.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.stream.Stream;
 
 import static java.lang.String.format;
 import static org.apache.flink.util.Preconditions.checkArgument;
@@ -302,6 +304,63 @@ public class CatalogManager {
 				return table;
 			}
 		});
+	}
+
+	/**
+	 * Returns an array of names of all tables (tables and views, both temporary and permanent)
+	 * registered in the namespace of the current catalog and database.
+	 *
+	 * @return paths of all registered tables
+	 */
+	public String[] listTables() {
+		Catalog currentCatalog = catalogs.get(getCurrentCatalog());
+
+		try {
+			return Stream.concat(
+				currentCatalog.listTables(getCurrentDatabase()).stream(),
+				Arrays.stream(listTemporaryTables())
+			).sorted().toArray(String[]::new);
+		} catch (DatabaseNotExistException e) {
+			throw new ValidationException("Current database does not exist", e);
+		}
+	}
+
+	/**
+	 * Returns an array of names of temporary tables registered in the namespace of the current
+	 * catalog and database.
+	 *
+	 * @return paths of registered temporary tables
+	 */
+	public String[] listTemporaryTables() {
+		return doListTemporaryTables(getCurrentCatalog(), getCurrentDatabase())
+			.map(e -> e.getKey().getObjectName())
+			.sorted()
+			.toArray(String[]::new);
+	}
+
+	/**
+	 * Returns an array of names of temporary views registered in the namespace of the current
+	 * catalog and database.
+	 *
+	 * @return paths of registered temporary views
+	 */
+	public String[] listTemporaryViews() {
+		return doListTemporaryTables(getCurrentCatalog(), getCurrentDatabase())
+			.filter(e -> e.getValue() instanceof CatalogView)
+			.map(e -> e.getKey().getObjectName())
+			.sorted()
+			.toArray(String[]::new);
+	}
+
+	private Stream<Map.Entry<ObjectIdentifier, CatalogBaseTable>> doListTemporaryTables(String catalogName, String databaseName) {
+		return temporaryTables
+			.entrySet()
+			.stream()
+			.filter(e -> {
+				ObjectIdentifier identifier = e.getKey();
+				return identifier.getCatalogName().equals(catalogName) &&
+					identifier.getDatabaseName().equals(databaseName);
+			});
 	}
 
 	/**

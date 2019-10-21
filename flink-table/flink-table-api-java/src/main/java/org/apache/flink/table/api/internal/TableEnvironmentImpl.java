@@ -174,13 +174,26 @@ public class TableEnvironmentImpl implements TableEnvironment {
 
 	@Override
 	public void registerTable(String name, Table table) {
-		if (((TableImpl) table).getTableEnvironment() != this) {
+		UnresolvedIdentifier identifier = UnresolvedIdentifier.of(name);
+		createTemporaryView(identifier, table);
+	}
+
+	@Override
+	public void createTemporaryView(String path, Table view) {
+		UnresolvedIdentifier identifier = parser.parseIdentifier(path);
+		createTemporaryView(identifier, view);
+	}
+
+	private void createTemporaryView(UnresolvedIdentifier identifier, Table view) {
+		if (((TableImpl) view).getTableEnvironment() != this) {
 			throw new TableException(
 				"Only tables that belong to this TableEnvironment can be registered.");
 		}
 
-		CatalogBaseTable tableTable = new QueryOperationCatalogView(table.getQueryOperation());
-		catalogManager.createTemporaryTable(tableTable, getTemporaryObjectIdentifier(name), false);
+		CatalogBaseTable tableTable = new QueryOperationCatalogView(view.getQueryOperation());
+
+		ObjectIdentifier objectIdentifier = catalogManager.qualifyIdentifier(identifier);
+		catalogManager.createTemporaryTable(tableTable, objectIdentifier, false);
 	}
 
 	@Override
@@ -243,17 +256,17 @@ public class TableEnvironmentImpl implements TableEnvironment {
 
 	@Override
 	public String[] listTables() {
-		String currentCatalogName = catalogManager.getCurrentCatalog();
-		Optional<Catalog> currentCatalog = catalogManager.getCatalog(currentCatalogName);
+		return catalogManager.listTables();
+	}
 
-		return currentCatalog.map(catalog -> {
-			try {
-				return catalog.listTables(catalogManager.getCurrentDatabase()).toArray(new String[0]);
-			} catch (DatabaseNotExistException e) {
-				throw new ValidationException("Current database does not exist", e);
-			}
-		}).orElseThrow(() ->
-			new TableException(String.format("The current catalog %s does not exist.", currentCatalogName)));
+	@Override
+	public String[] listTemporaryTables() {
+		return catalogManager.listTemporaryTables();
+	}
+
+	@Override
+	public String[] listTemporaryViews() {
+		return catalogManager.listTemporaryViews();
 	}
 
 	@Override

@@ -100,11 +100,29 @@ trait BatchTableEnvironment extends TableEnvironment {
     *
     * The field names of the [[Table]] are automatically derived from the type of the [[DataSet]].
     *
+    * The view is registered in the current catalog & database. To register the view
+    * in a different catalog use [[createTemporaryView]].
+    *
     * @param name The name under which the [[DataSet]] is registered in the catalog.
     * @param dataSet The [[DataSet]] to register.
     * @tparam T The type of the [[DataSet]] to register.
+    * @deprecated use [[createTemporaryView]]
     */
+  @deprecated
   def registerDataSet[T](name: String, dataSet: DataSet[T]): Unit
+
+  /**
+    * Creates a view from the given [[DataSet]] in a given path.
+    * Registered tables can be referenced in SQL queries.
+    *
+    * The field names of the [[Table]] are automatically derived
+    * from the type of the [[DataSet]].
+    *
+    * @param path The path under which the [[DataSet]] is created.
+    * @param dataSet The [[DataSet]] out of which to create the view.
+    * @tparam T The type of the [[DataSet]].
+    */
+  def createTemporaryView[T](path: String, dataSet: DataSet[T]): Unit
 
   /**
     * Registers the given [[DataSet]] as table with specified field names in the
@@ -118,12 +136,35 @@ trait BatchTableEnvironment extends TableEnvironment {
     *   tableEnv.registerDataSet("myTable", set, 'a, 'b)
     * }}}
     *
+    * The view is registered in the current catalog & database. To register the view
+    * in a different catalog use [[createTemporaryView]].
+    *
     * @param name The name under which the [[DataSet]] is registered in the catalog.
     * @param dataSet The [[DataSet]] to register.
     * @param fields The field names of the registered table.
     * @tparam T The type of the [[DataSet]] to register.
+    * @deprecated use [[createTemporaryView]]
     */
+  @deprecated
   def registerDataSet[T](name: String, dataSet: DataSet[T], fields: Expression*): Unit
+
+  /**
+    * Creates a view from the given [[DataSet]] in a given path with specified field names.
+    * Registered views can be referenced in SQL queries.
+    *
+    * Example:
+    *
+    * {{{
+    *   val set: DataStream[(String, Long)] = ...
+    *   tableEnv.createTemporaryView("cat.db.myTable", set, 'a, 'b)
+    * }}}
+    *
+    * @param path The path under which the [[DataSet]] is created.
+    * @param dataSet The [[DataSet]] out of which to create the view.
+    * @param fields The field names of the created view.
+    * @tparam T The type of the [[DataSet]].
+    */
+  def createTemporaryView[T](path: String, dataSet: DataSet[T], fields: Expression*): Unit
 
   /**
     * Converts the given [[Table]] into a [[DataSet]] of a specified type.

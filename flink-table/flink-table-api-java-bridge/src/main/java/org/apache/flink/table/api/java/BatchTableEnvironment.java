@@ -108,24 +108,38 @@ public interface BatchTableEnvironment extends TableEnvironment {
 	<T> Table fromDataSet(DataSet<T> dataSet, String fields);
 
 	/**
-	 * Registers the given {@link DataSet} as table in the
-	 * {@link TableEnvironment}'s catalog.
+	 * Registers the given {@link DataSet} as table in the {@link TableEnvironment}'s catalog.
 	 * Registered tables can be referenced in SQL queries.
 	 *
-	 * The field names of the {@link Table} are automatically derived from the type of the{@link DataSet}.
+	 * <p>The field names of the {@link Table} are automatically derived
+	 * from the type of the {@link DataSet}.
+	 *
+	 * <p>The view is registered in the current catalog & database. To register the view in
+	 * a different catalog use {@link #createTemporaryView(String, DataSet)}.
 	 *
 	 * @param name The name under which the {@link DataSet} is registered in the catalog.
 	 * @param dataSet The {@link DataSet} to register.
 	 * @param <T> The type of the {@link DataSet} to register.
+	 * @deprecated use {@link #createTemporaryView(String, DataSet)}
 	 */
+	@Deprecated
 	<T> void registerDataSet(String name, DataSet<T> dataSet);
 
 	/**
-	 * Registers the given {@link DataSet} as table with specified field names in the
-	 * {@link TableEnvironment}'s catalog.
-	 * Registered tables can be referenced in SQL queries.
+	 * Registers the given {@link DataSet} as a temporary view with specified field names in the
+	 * {@link TableEnvironment}. Registered views can be referenced in SQL queries.
 	 *
-	 * Example:
+	 * @param path The path under which the {@link DataSet} is created.
+	 * @param dataSet The {@link DataSet} out of which to create the view.
+	 * @param <T> The type of the {@link DataSet}.
+	 */
+	<T> void createTemporaryView(String path, DataSet<T> dataSet);
+
+	/**
+	 * Registers the given {@link DataSet} as a view with specified field names in the
+	 * {@link TableEnvironment}'s catalog. Registered tables can be referenced in SQL queries.
+	 *
+	 * <p>Example:
 	 *
 	 * <pre>
 	 * {@code
@@ -134,12 +148,37 @@ public interface BatchTableEnvironment extends TableEnvironment {
 	 * }
 	 * </pre>
 	 *
+	 * <p>The view is registered in the current catalog & database. To register the view in
+	 * a different catalog use {@link #createTemporaryView(String, DataSet)}.
+	 *
 	 * @param name The name under which the {@link DataSet} is registered in the catalog.
 	 * @param dataSet The {@link DataSet} to register.
 	 * @param fields The field names of the registered table.
 	 * @param <T> The type of the {@link DataSet} to register.
+	 * @deprecated use {@link #createTemporaryView(String, DataSet, String)}
 	 */
+	@Deprecated
 	<T> void registerDataSet(String name, DataSet<T> dataSet, String fields);
+
+	/**
+	 * Creates a view from the given {@link DataSet} in a given path with specified field names.
+	 * Registered views can be referenced in SQL queries.
+	 *
+	 * <p>Example:
+	 *
+	 * <pre>
+	 * {@code
+	 *   DataSet<Tuple2<String, Long>> set = ...
+	 *   tableEnv.createTemporaryView("myTable", set, "a, b");
+	 * }
+	 * </pre>
+	 *
+	 * @param path The path under which the {@link DataSet} is registered.
+	 * @param dataSet The {@link DataSet} out of which to create the view.
+	 * @param fields The field names of the registered view.
+	 * @param <T> The type of the {@link DataSet}.
+	 */
+	<T> void createTemporaryView(String path, DataSet<T> dataSet, String fields);
 
 	/**
 	 * Converts the given {@link Table} into a {@link DataSet} of a specified type.
