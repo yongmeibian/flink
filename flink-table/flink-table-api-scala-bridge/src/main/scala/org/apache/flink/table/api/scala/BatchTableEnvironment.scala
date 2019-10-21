@@ -235,7 +235,9 @@ trait BatchTableEnvironment extends TableEnvironment {
     *                          name of the [[TableSink]] is provided.
     * @param sinkPathContinued The remaining part of the path of the registered [[TableSink]] to
     *                          which the [[Table]] is written.
+    * @deprecated use `TableEnvironment#insertInto(String, Table)`
     */
+  @deprecated
   def insertInto(
     table: Table,
     queryConfig: BatchQueryConfig,

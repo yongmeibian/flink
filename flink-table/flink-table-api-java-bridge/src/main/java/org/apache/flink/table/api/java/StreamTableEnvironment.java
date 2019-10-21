@@ -487,7 +487,7 @@ public interface StreamTableEnvironment extends TableEnvironment {
 	 *       .field("count", "DECIMAL")
 	 *       .field("proc-time", "TIMESTAMP").proctime())
 	 *   .inAppendMode()
-	 *   .registerSource("MyTable")
+	 *   .createTemporaryTable("MyTable")
 	 * }
 	 * </pre>
 	 *
@@ -533,7 +533,9 @@ public interface StreamTableEnvironment extends TableEnvironment {
 	 *        written. This is to ensure at least the name of the {@link TableSink} is provided.
 	 * @param sinkPathContinued The remaining part of the path of the registered {@link TableSink} to which the
 	 *        {@link Table} is written.
+	 * @deprecated use {@link #insertInto(String, Table)}
 	 */
+	@Deprecated
 	void insertInto(Table table, StreamQueryConfig queryConfig, String sinkPath, String... sinkPathContinued);
 
 	/**
