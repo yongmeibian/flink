@@ -113,37 +113,78 @@ trait StreamTableEnvironment extends TableEnvironment {
   def fromDataStream[T](dataStream: DataStream[T], fields: Expression*): Table
 
   /**
-    * Registers the given [[DataStream]] as table in the
-    * [[TableEnvironment]]'s catalog.
+    * Creates a view from the given [[DataStream]].
+    * Registered views can be referenced in SQL queries.
+    *
+    * The field names of the [[Table]] are automatically derived
+    * from the type of the [[DataStream]].
+    *
+    * The view is registered in the current catalog & database. To register the view
+    * in a different catalog use [[createTemporaryView]].
+    *
+    * @param name The name under which the [[DataStream]] is registered in the catalog.
+    * @param dataStream The [[DataStream]] to register.
+    * @tparam T The type of the [[DataStream]] to register.
+    * @deprecated use [[createTemporaryView]]
+    */
+  @deprecated
+  def registerDataStream[T](name: String, dataStream: DataStream[T]): Unit
+
+  /**
+    * Creates a view from the given [[DataStream]] in a given path.
     * Registered tables can be referenced in SQL queries.
     *
     * The field names of the [[Table]] are automatically derived
     * from the type of the [[DataStream]].
     *
-    * @param name The name under which the [[DataStream]] is registered in the catalog.
-    * @param dataStream The [[DataStream]] to register.
-    * @tparam T The type of the [[DataStream]] to register.
+    * @param path The path under which the [[DataStream]] is created.
+    *             See also the [[TableEnvironment]] class description for the format of the path.
+    * @param dataStream The [[DataStream]] out of which to create the view.
+    * @tparam T The type of the [[DataStream]].
     */
-  def registerDataStream[T](name: String, dataStream: DataStream[T]): Unit
+  def createTemporaryView[T](path: String, dataStream: DataStream[T]): Unit
 
   /**
-    * Registers the given [[DataStream]] as table with specified field names in the
-    * [[TableEnvironment]]'s catalog.
-    * Registered tables can be referenced in SQL queries.
+    * Creates a view from the given [[DataStream]] in a given path with specified field names.
+    * Registered views can be referenced in SQL queries.
     *
     * Example:
     *
     * {{{
-    *   val set: DataStream[(String, Long)] = ...
-    *   tableEnv.registerDataStream("myTable", set, 'a, 'b)
+    *   val stream: DataStream[(String, Long)] = ...
+    *   tableEnv.registerDataStream("myTable", stream, 'a, 'b)
     * }}}
+    *
+    * The view is registered in the current catalog & database. To register the view
+    * in a different catalog use [[createTemporaryView]].
     *
     * @param name The name under which the [[DataStream]] is registered in the catalog.
     * @param dataStream The [[DataStream]] to register.
-    * @param fields The field names of the registered table.
+    * @param fields The field names of the registered view.
     * @tparam T The type of the [[DataStream]] to register.
+    * @deprecated use [[createTemporaryView]]
     */
+  @deprecated
   def registerDataStream[T](name: String, dataStream: DataStream[T], fields: Expression*): Unit
+
+  /**
+    * Creates a view from the given [[DataStream]] in a given path with specified field names.
+    * Registered views can be referenced in SQL queries.
+    *
+    * Example:
+    *
+    * {{{
+    *   val stream: DataStream[(String, Long)] = ...
+    *   tableEnv.createTemporaryView("cat.db.myTable", stream, 'a, 'b)
+    * }}}
+    *
+    * @param path The path under which the [[DataStream]] is created.
+    *             See also the [[TableEnvironment]] class description for the format of the path.
+    * @param dataStream The [[DataStream]] out of which to create the view.
+    * @param fields The field names of the created view.
+    * @tparam T The type of the [[DataStream]].
+    */
+  def createTemporaryView[T](path: String, dataStream: DataStream[T], fields: Expression*): Unit
 
   /**
     * Converts the given [[Table]] into an append [[DataStream]] of a specified type.

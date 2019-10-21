@@ -50,6 +50,14 @@ import java.util.Optional;
  *     <li>Offering further configuration options.</li>
  * </ul>
  *
+ * <p>The path in methods such as {@link #createTemporaryView(String, Table)} should be a proper SQL identifier.
+ * The syntax is following [[catalog-name.]database-name.]object-name, where the catalog name and database are
+ * optional. For path resolution see {@link #useCatalog(String)} and {@link #useDatabase(String)}. All keywords
+ * or other special characters need to be escaped.
+ *
+ * <p>Example: `cat.1`.`db`.`Table` resolves to an object named 'Table' (table is a reserved keyword, thus must
+ * be escaped) in a catalog named 'cat.1' and database named 'db'.
+ *
  * <p>Note: This environment is meant for pure table programs. If you would like to convert from or to
  * other Flink APIs, it might be necessary to use one of the available language-specific table environments
  * in the corresponding bridging modules.
@@ -135,8 +143,19 @@ public interface TableEnvironment {
 	 *
 	 * @param name The name under which the table will be registered.
 	 * @param table The table to register.
+	 * @deprecated use {@link #createTemporaryView(String, Table)}
 	 */
+	@Deprecated
 	void registerTable(String name, Table table);
+
+	/**
+	 * Registers a {@link Table} API object as a temporary view similar to SQL temporary views.
+	 *
+	 * @param path The path under which the view will be registered.
+	 *             See also the {@link TableEnvironment} class description for the format of the path.
+	 * @param view The view to register.
+	 */
+	void createTemporaryView(String path, Table view);
 
 	/**
 	 * Registers an external {@link TableSource} in this {@link TableEnvironment}'s catalog.
