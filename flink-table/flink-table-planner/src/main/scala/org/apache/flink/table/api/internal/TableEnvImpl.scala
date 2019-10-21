@@ -269,13 +269,13 @@ abstract class TableEnvImpl(
   protected def validateTableSink(tableSink: TableSink[_]): Unit
 
   private def registerTableSourceInternal(
-    name: String,
-    tableSource: TableSource[_])
-  : Unit = {
-    // register
-    getCatalogTable(
-      catalogManager.getBuiltInCatalogName,
-      catalogManager.getBuiltInDatabaseName, name) match {
+      name: String,
+      tableSource: TableSource[_])
+    : Unit = {
+    val unresolvedIdentifier = UnresolvedIdentifier.of(name)
+    val objectIdentifier = catalogManager.qualifyIdentifier(unresolvedIdentifier)
+    // check if a table (source or sink) is registered
+    JavaScalaConversionUtil.toScala(catalogManager.getTable(objectIdentifier)) match {
 
       // check if a table (source or sink) is registered
       case Some(table: ConnectorCatalogTable[_, _]) =>
@@ -291,26 +291,25 @@ abstract class TableEnvImpl(
             isBatchTable)
           catalogManager.createTemporaryTable(
             sourceAndSink,
-            getTemporaryObjectIdentifier(name),
+            objectIdentifier,
             true)
         }
 
       // no table is registered
       case _ =>
         val source = ConnectorCatalogTable.source(tableSource, isBatchTable)
-        catalogManager.createTemporaryTable(source, getTemporaryObjectIdentifier(name), false)
+        catalogManager.createTemporaryTable(source, objectIdentifier, false)
     }
   }
 
   private def registerTableSinkInternal(
-    name: String,
-    tableSink: TableSink[_])
-  : Unit = {
+      name: String,
+      tableSink: TableSink[_])
+    : Unit = {
+    val unresolvedIdentifier = UnresolvedIdentifier.of(name)
+    val objectIdentifier = catalogManager.qualifyIdentifier(unresolvedIdentifier)
     // check if a table (source or sink) is registered
-    getCatalogTable(
-      catalogManager.getBuiltInCatalogName,
-      catalogManager.getBuiltInDatabaseName,
-      name) match {
+    JavaScalaConversionUtil.toScala(catalogManager.getTable(objectIdentifier)) match {
 
       // table source and/or sink is registered
       case Some(table: ConnectorCatalogTable[_, _]) =>
@@ -326,24 +325,15 @@ abstract class TableEnvImpl(
             isBatchTable)
           catalogManager.createTemporaryTable(
             sourceAndSink,
-            getTemporaryObjectIdentifier(name),
+            objectIdentifier,
             true)
         }
 
       // no table is registered
       case _ =>
         val sink = ConnectorCatalogTable.sink(tableSink, isBatchTable)
-        catalogManager.createTemporaryTable(sink, getTemporaryObjectIdentifier(name), false)
+        catalogManager.createTemporaryTable(sink, objectIdentifier, false)
     }
-  }
-
-  private def getTemporaryObjectIdentifier(name: String): ObjectIdentifier = {
-    catalogManager.qualifyIdentifier(
-      UnresolvedIdentifier.of(
-        catalogManager.getBuiltInCatalogName,
-        catalogManager.getBuiltInDatabaseName,
-        name
-      ))
   }
 
   @throws[TableException]
@@ -418,9 +408,10 @@ abstract class TableEnvImpl(
   }
 
   override def sqlQuery(query: String): Table = {
+    val parser = planningConfigurationBuilder.createCalciteParser()
     val planner = getFlinkPlanner
     // parse the sql query
-    val parsed = planningConfigurationBuilder.createCalciteParser().parse(query)
+    val parsed = parser.parse(query)
     if (null != parsed && parsed.getKind.belongsTo(SqlKind.QUERY)) {
       // validate the sql query
       val validated = planner.validate(parsed)
@@ -435,9 +426,10 @@ abstract class TableEnvImpl(
   }
 
   override def sqlUpdate(stmt: String): Unit = {
+    val parser = planningConfigurationBuilder.createCalciteParser()
     val planner = getFlinkPlanner
     // parse the sql query
-    val parsed = planningConfigurationBuilder.createCalciteParser().parse(stmt)
+    val parsed = parser.parse(stmt)
     parsed match {
       case insert: RichSqlInsert =>
         // validate the insert
@@ -452,10 +444,14 @@ abstract class TableEnvImpl(
 
         // get name of sink table
         val targetTablePath = insert.getTargetTable.asInstanceOf[SqlIdentifier].names
+        val unresolvedIdentifier = UnresolvedIdentifier.of(targetTablePath: _*)
+        val objectIdentifier = catalogManager.qualifyIdentifier(unresolvedIdentifier)
 
         // insert query result into sink table
-        insertInto(queryResult, InsertOptions(insert.getStaticPartitionKVs, insert.isOverwrite),
-          targetTablePath.asScala:_*)
+        insertInto(
+          queryResult,
+          InsertOptions(insert.getStaticPartitionKVs, insert.isOverwrite),
+          objectIdentifier)
       case createTable: SqlCreateTable =>
         val operation = SqlToOperationConverter
           .convert(planner, catalogManager, createTable)
@@ -495,14 +491,23 @@ abstract class TableEnvImpl(
     */
   private[flink] def writeToSink[T](table: Table, sink: TableSink[T]): Unit
 
-  override def insertInto(
-      table: Table,
-      path: String,
-      pathContinued: String*): Unit = {
+  override def insertInto(path: String, table: Table): Unit = {
     insertInto(
       table,
-      InsertOptions(new JHashMap[String, String](), false),
-      path +: pathContinued: _*)
+      InsertOptions(new JHashMap[String, String](), overwrite = false),
+      parseAndQualifyIdentifier(path))
+  }
+
+  override def insertInto(
+        table: Table,
+        sinkPath: String,
+        sinkPathContinued: String*): Unit = {
+    val unresolvedIdentifier = UnresolvedIdentifier.of(sinkPath +: sinkPathContinued: _*)
+    val objectIdentifier = catalogManager.qualifyIdentifier(unresolvedIdentifier)
+    insertInto(
+      table,
+      InsertOptions(new JHashMap[String, String](), overwrite = false),
+      objectIdentifier)
   }
 
   /** Insert options for executing sql insert. **/
@@ -512,26 +517,24 @@ abstract class TableEnvImpl(
     * Writes the [[Table]] to a [[TableSink]] that was registered under the specified name.
     *
     * @param table The table to write to the TableSink.
-    * @param sinkTablePath The name of the registered TableSink.
+    * @param sinkIdentifier The name of the registered TableSink.
     */
-  private def insertInto(table: Table,
+  private def insertInto(
+      table: Table,
       insertOptions: InsertOptions,
-      sinkTablePath: String*): Unit = {
+      sinkIdentifier: ObjectIdentifier): Unit = {
 
-    val unresolvedIdentifier = UnresolvedIdentifier.of(sinkTablePath: _*)
-    val objectIdentifier = catalogManager.qualifyIdentifier(unresolvedIdentifier)
-
-    getTableSink(objectIdentifier) match {
+    getTableSink(sinkIdentifier) match {
 
       case None =>
-        throw new TableException(s"No table was registered under the name $sinkTablePath.")
+        throw new TableException(s"No table was registered under the name $sinkIdentifier.")
 
       case Some(tableSink) =>
         // validate schema of source table and table sink
         TableSinkUtils.validateSink(
           insertOptions.staticPartitions,
           table.getQueryOperation,
-          objectIdentifier,
+          sinkIdentifier,
           tableSink)
         // set static partitions if it is a partitioned table sink
         tableSink match {
@@ -581,12 +584,6 @@ abstract class TableEnvImpl(
 
       case _ => None
     }
-  }
-
-  protected def getCatalogTable(name: String*): Option[CatalogBaseTable] = {
-    val unresolvedIdentifier = UnresolvedIdentifier.of(name: _*)
-    val objectIdentifier = catalogManager.qualifyIdentifier(unresolvedIdentifier)
-    JavaScalaConversionUtil.toScala(catalogManager.getTable(objectIdentifier))
   }
 
   /** Returns the [[FlinkRelBuilder]] of this TableEnvironment. */

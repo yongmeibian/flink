@@ -283,12 +283,10 @@ public interface BatchTableEnvironment extends TableEnvironment {
 	 *
 	 * @param table The Table to write to the sink.
 	 * @param queryConfig The {@link BatchQueryConfig} to use.
-	 * @param sinkPath The first part of the path of the registered {@link TableSink} to which the {@link Table} is
-	 *        written. This is to ensure at least the name of the {@link TableSink} is provided.
-	 * @param sinkPathContinued The remaining part of the path of the registered {@link TableSink} to which the
-	 *        {@link Table} is written.
+	 * @param sinkPath The path of the registered {@link TableSink} to which the {@link Table} is
+	 *        written.
 	 */
-	void insertInto(Table table, BatchQueryConfig queryConfig, String sinkPath, String... sinkPathContinued);
+	void insertInto(Table table, BatchQueryConfig queryConfig, String sinkPath);
 
 	/**
 	 * Creates a table source and/or table sink from a descriptor.

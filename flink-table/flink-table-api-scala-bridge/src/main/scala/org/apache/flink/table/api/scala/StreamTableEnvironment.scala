@@ -284,17 +284,13 @@ trait StreamTableEnvironment extends TableEnvironment {
     *
     * @param table             The Table to write to the sink.
     * @param queryConfig       The [[StreamQueryConfig]] to use.
-    * @param sinkPath          The first part of the path of the registered [[TableSink]] to
-    *                          which the [[Table]] is written. This is to ensure at least the name
-    *                          of the [[TableSink]] is provided.
-    * @param sinkPathContinued The remaining part of the path of the registered [[TableSink]] to
+    * @param sinkPath          The path of the registered [[TableSink]] to
     *                          which the [[Table]] is written.
     */
   def insertInto(
     table: Table,
     queryConfig: StreamQueryConfig,
-    sinkPath: String,
-    sinkPathContinued: String*): Unit
+    sinkPath: String): Unit
 
   /**
     * Triggers the program execution. The environment will execute all parts of
@@ -343,7 +339,7 @@ trait StreamTableEnvironment extends TableEnvironment {
     *       .field("count", "DECIMAL")
     *       .field("proc-time", "TIMESTAMP").proctime())
     *   .inAppendMode()
-    *   .registerSource("MyTable")
+    *   .createTemporaryTable("MyTable")
     * }}}
     *
     * @param connectorDescriptor connector descriptor describing the external system

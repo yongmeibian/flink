@@ -256,13 +256,13 @@ class StreamTableEnvironmentImpl (
   override def insertInto(
       table: Table,
       queryConfig: StreamQueryConfig,
-      sinkPath: String,
-      sinkPathContinued: String*): Unit = {
+      sinkPath: String): Unit = {
     tableConfig
       .setIdleStateRetentionTime(
         Time.milliseconds(queryConfig.getMinIdleStateRetentionTime),
         Time.milliseconds(queryConfig.getMaxIdleStateRetentionTime))
-    insertInto(table, sinkPath, sinkPathContinued: _*)
+    insertInto(sinkPath, table)
+  }
 
   override def createTemporaryView[T](
       path: String,
