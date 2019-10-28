@@ -55,7 +55,7 @@ BatchTableEnvironment tEnv = BatchTableEnvironment.create(env);
 // ...
 
 // specify table program
-Table orders = tEnv.scan("Orders"); // schema (a, b, c, rowtime)
+Table orders = tEnv.from("Orders"); // schema (a, b, c, rowtime)
 
 Table counts = orders
         .groupBy("a")
@@ -87,7 +87,7 @@ val tEnv = BatchTableEnvironment.create(env)
 // ...
 
 // specify table program
-val orders = tEnv.scan("Orders") // schema (a, b, c, rowtime)
+val orders = tEnv.from("Orders") // schema (a, b, c, rowtime)
 
 val result = orders
                .groupBy('a)
@@ -136,7 +136,7 @@ The next example shows a more complex Table API program. The program scans again
 // ...
 
 // specify table program
-Table orders = tEnv.scan("Orders"); // schema (a, b, c, rowtime)
+Table orders = tEnv.from("Orders"); // schema (a, b, c, rowtime)
 
 Table result = orders
         .filter("a.isNotNull && b.isNotNull && c.isNotNull")
@@ -155,7 +155,7 @@ Table result = orders
 // ...
 
 // specify table program
-val orders: Table = tEnv.scan("Orders") // schema (a, b, c, rowtime)
+val orders: Table = tEnv.from("Orders") // schema (a, b, c, rowtime)
 
 val result: Table = orders
         .filter('a.isNotNull && 'b.isNotNull && 'c.isNotNull)
@@ -210,13 +210,13 @@ The Table API supports the following operations. Please note that not all operat
   <tbody>
   	<tr>
   		<td>
-        <strong>Scan</strong><br>
+        <strong>From</strong><br>
         <span class="label label-primary">Batch</span> <span class="label label-primary">Streaming</span>
       </td>
   		<td>
         <p>Similar to the FROM clause in a SQL query. Performs a scan of a registered table.</p>
 {% highlight java %}
-Table orders = tableEnv.scan("Orders");
+Table orders = tableEnv.from("Orders");
 {% endhighlight %}
       </td>
   	</tr>
@@ -228,7 +228,7 @@ Table orders = tableEnv.scan("Orders");
       <td>
         <p>Similar to a SQL SELECT statement. Performs a select operation.</p>
 {% highlight java %}
-Table orders = tableEnv.scan("Orders");
+Table orders = tableEnv.from("Orders");
 Table result = orders.select("a, c as d");
 {% endhighlight %}
         <p>You can use star (<code>*</code>) to act as a wild card, selecting all of the columns in the table.</p>
@@ -245,7 +245,7 @@ Table result = orders.select("*");
       <td>
         <p>Renames fields.</p>
 {% highlight java %}
-Table orders = tableEnv.scan("Orders");
+Table orders = tableEnv.from("Orders");
 Table result = orders.as("x, y, z, t");
 {% endhighlight %}
       </td>
@@ -259,12 +259,12 @@ Table result = orders.as("x, y, z, t");
       <td>
         <p>Similar to a SQL WHERE clause. Filters out rows that do not pass the filter predicate.</p>
 {% highlight java %}
-Table orders = tableEnv.scan("Orders");
+Table orders = tableEnv.from("Orders");
 Table result = orders.where("b === 'red'");
 {% endhighlight %}
 or
 {% highlight java %}
-Table orders = tableEnv.scan("Orders");
+Table orders = tableEnv.from("Orders");
 Table result = orders.filter("a % 2 === 0");
 {% endhighlight %}
       </td>
@@ -285,13 +285,13 @@ Table result = orders.filter("a % 2 === 0");
   <tbody>
   	<tr>
   		<td>
-        <strong>Scan</strong><br>
+        <strong>From</strong><br>
         <span class="label label-primary">Batch</span> <span class="label label-primary">Streaming</span>
       </td>
   		<td>
         <p>Similar to the FROM clause in a SQL query. Performs a scan of a registered table.</p>
 {% highlight scala %}
-val orders: Table = tableEnv.scan("Orders")
+val orders: Table = tableEnv.from("Orders")
 {% endhighlight %}
       </td>
   	</tr>
@@ -303,12 +303,12 @@ val orders: Table = tableEnv.scan("Orders")
       <td>
         <p>Similar to a SQL SELECT statement. Performs a select operation.</p>
 {% highlight scala %}
-val orders: Table = tableEnv.scan("Orders")
+val orders: Table = tableEnv.from("Orders")
 val result = orders.select('a, 'c as 'd)
 {% endhighlight %}
         <p>You can use star (<code>*</code>) to act as a wild card, selecting all of the columns in the table.</p>
 {% highlight scala %}
-val orders: Table = tableEnv.scan("Orders")
+val orders: Table = tableEnv.from("Orders")
 val result = orders.select('*)
 {% endhighlight %}
       </td>
@@ -321,7 +321,7 @@ val result = orders.select('*)
       <td>
         <p>Renames fields.</p>
 {% highlight scala %}
-val orders: Table = tableEnv.scan("Orders").as('x, 'y, 'z, 't)
+val orders: Table = tableEnv.from("Orders").as('x, 'y, 'z, 't)
 {% endhighlight %}
       </td>
     </tr>
@@ -334,12 +334,12 @@ val orders: Table = tableEnv.scan("Orders").as('x, 'y, 'z, 't)
       <td>
         <p>Similar to a SQL WHERE clause. Filters out rows that do not pass the filter predicate.</p>
 {% highlight scala %}
-val orders: Table = tableEnv.scan("Orders")
+val orders: Table = tableEnv.from("Orders")
 val result = orders.filter('a % 2 === 0)
 {% endhighlight %}
 or
 {% highlight scala %}
-val orders: Table = tableEnv.scan("Orders")
+val orders: Table = tableEnv.from("Orders")
 val result = orders.where('b === "red")
 {% endhighlight %}
       </td>
@@ -446,7 +446,7 @@ result = orders.filter("a % 2 === 0")
           <td>
           <p>Performs a field add operation. It will throw an exception if the added fields already exist.</p>
 {% highlight java %}
-Table orders = tableEnv.scan("Orders");
+Table orders = tableEnv.from("Orders");
 Table result = orders.addColumns("concat(c, 'sunny')");
 {% endhighlight %}
 </td>
@@ -460,7 +460,7 @@ Table result = orders.addColumns("concat(c, 'sunny')");
                   <td>
                   <p>Performs a field add operation. Existing fields will be replaced if add columns name is the same as the existing column name.  Moreover, if the added fields have duplicate field name, then the last one is used. </p>
 {% highlight java %}
-Table orders = tableEnv.scan("Orders");
+Table orders = tableEnv.from("Orders");
 Table result = orders.addOrReplaceColumns("concat(c, 'sunny') as desc");
 {% endhighlight %}
                   </td>
@@ -473,7 +473,7 @@ Table result = orders.addOrReplaceColumns("concat(c, 'sunny') as desc");
                   <td>
                   <p>Performs a field drop operation. The field expressions should be field reference expressions, and only existing fields can be dropped.</p>
 {% highlight java %}
-Table orders = tableEnv.scan("Orders");
+Table orders = tableEnv.from("Orders");
 Table result = orders.dropColumns("b, c");
 {% endhighlight %}
                   </td>
@@ -486,7 +486,7 @@ Table result = orders.dropColumns("b, c");
                   <td>
                   <p>Performs a field rename operation. The field expressions should be alias expressions, and only the existing fields can be renamed.</p>
 {% highlight java %}
-Table orders = tableEnv.scan("Orders");
+Table orders = tableEnv.from("Orders");
 Table result = orders.renameColumns("b as b2, c as c2");
 {% endhighlight %}
                   </td>
@@ -513,7 +513,7 @@ Table result = orders.renameColumns("b as b2, c as c2");
           <td>
             <p>Performs a field add operation. It will throw an exception if the added fields already exist.</p>
 {% highlight scala %}
-val orders = tableEnv.scan("Orders");
+val orders = tableEnv.from("Orders");
 val result = orders.addColumns(concat('c, "Sunny"))
 {% endhighlight %}
           </td>
@@ -526,7 +526,7 @@ val result = orders.addColumns(concat('c, "Sunny"))
                   <td>
                      <p>Performs a field add operation. Existing fields will be replaced if add columns name is the same as the existing column name.  Moreover, if the added fields have duplicate field name, then the last one is used. </p>
 {% highlight scala %}
-val orders = tableEnv.scan("Orders");
+val orders = tableEnv.from("Orders");
 val result = orders.addOrReplaceColumns(concat('c, "Sunny") as 'desc)
 {% endhighlight %}
                   </td>
@@ -539,7 +539,7 @@ val result = orders.addOrReplaceColumns(concat('c, "Sunny") as 'desc)
                   <td>
                     <p>Performs a field drop operation. The field expressions should be field reference expressions, and only existing fields can be dropped.</p>
 {% highlight scala %}
-val orders = tableEnv.scan("Orders");
+val orders = tableEnv.from("Orders");
 val result = orders.dropColumns('b, 'c)
 {% endhighlight %}
                   </td>
@@ -552,7 +552,7 @@ val result = orders.dropColumns('b, 'c)
                   <td>
                     <p>Performs a field rename operation. The field expressions should be alias expressions, and only the existing fields can be renamed.</p>
 {% highlight scala %}
-val orders = tableEnv.scan("Orders");
+val orders = tableEnv.from("Orders");
 val result = orders.renameColumns('b as 'b2, 'c as 'c2)
 {% endhighlight %}
                   </td>
@@ -653,7 +653,7 @@ result = orders.rename_columns("b as b2, c as c2")
       <td>
         <p>Similar to a SQL GROUP BY clause. Groups the rows on the grouping keys with a following running aggregation operator to aggregate rows group-wise.</p>
 {% highlight java %}
-Table orders = tableEnv.scan("Orders");
+Table orders = tableEnv.from("Orders");
 Table result = orders.groupBy("a").select("a, b.sum as d");
 {% endhighlight %}
         <p><b>Note:</b> For streaming queries the required state to compute the query result might grow infinitely depending on the type of aggregation and the number of distinct grouping keys. Please provide a query configuration with valid retention interval to prevent excessive state size. See <a href="streaming/query_configuration.html">Query Configuration</a> for details.</p>
@@ -667,7 +667,7 @@ Table result = orders.groupBy("a").select("a, b.sum as d");
     	<td>
         <p>Groups and aggregates a table on a <a href="#group-windows">group window</a> and possibly one or more grouping keys.</p>
 {% highlight java %}
-Table orders = tableEnv.scan("Orders");
+Table orders = tableEnv.from("Orders");
 Table result = orders
     .window(Tumble.over("5.minutes").on("rowtime").as("w")) // define window
     .groupBy("a, w") // group by key and window
@@ -683,7 +683,7 @@ Table result = orders
       <td>
        <p>Similar to a SQL OVER clause. Over window aggregates are computed for each row, based on a window (range) of preceding and succeeding rows. See the <a href="#over-windows">over windows section</a> for more details.</p>
 {% highlight java %}
-Table orders = tableEnv.scan("Orders");
+Table orders = tableEnv.from("Orders");
 Table result = orders
     // define window
     .window(Over  
@@ -706,7 +706,7 @@ Table result = orders
       <td>
         <p>Similar to a SQL DISTINCT aggregation clause such as COUNT(DISTINCT a). Distinct aggregation declares that an aggregation function (built-in or user-defined) is only applied on distinct input values. Distinct can be applied to <b>GroupBy Aggregation</b>, <b>GroupBy Window Aggregation</b> and <b>Over Window Aggregation</b>.</p>
 {% highlight java %}
-Table orders = tableEnv.scan("Orders");
+Table orders = tableEnv.from("Orders");
 // Distinct aggregation on group by
 Table groupByDistinctResult = orders
     .groupBy("a")
@@ -726,7 +726,7 @@ Table result = orders
 {% endhighlight %}
         <p>User-defined aggregation function can also be used with DISTINCT modifiers. To calculate the aggregate results only for distinct values, simply add the distinct modifier towards the aggregation function. </p>
 {% highlight java %}
-Table orders = tEnv.scan("Orders");
+Table orders = tEnv.from("Orders");
 
 // Use distinct aggregation for user-defined aggregate functions
 tEnv.registerFunction("myUdagg", new MyUdagg());
@@ -744,7 +744,7 @@ orders.groupBy("users").select("users, myUdagg.distinct(points) as myDistinctRes
       <td>
         <p>Similar to a SQL DISTINCT clause. Returns records with distinct value combinations.</p>
 {% highlight java %}
-Table orders = tableEnv.scan("Orders");
+Table orders = tableEnv.from("Orders");
 Table result = orders.distinct();
 {% endhighlight %}
         <p><b>Note:</b> For streaming queries the required state to compute the query result might grow infinitely depending on the number of distinct fields. Please provide a query configuration with valid retention interval to prevent excessive state size. If state cleaning is enabled, distinct have to emit messages to prevent too early state eviction of downstream operators which makes distinct contains result updating. See <a href="streaming/query_configuration.html">Query Configuration</a> for details.</p>
@@ -774,7 +774,7 @@ Table result = orders.distinct();
       <td>
         <p>Similar to a SQL GROUP BY clause. Groups the rows on the grouping keys with a following running aggregation operator to aggregate rows group-wise.</p>
 {% highlight scala %}
-val orders: Table = tableEnv.scan("Orders")
+val orders: Table = tableEnv.from("Orders")
 val result = orders.groupBy('a).select('a, 'b.sum as 'd)
 {% endhighlight %}
         <p><b>Note:</b> For streaming queries the required state to compute the query result might grow infinitely depending on the type of aggregation and the number of distinct grouping keys. Please provide a query configuration with valid retention interval to prevent excessive state size. See <a href="streaming/query_configuration.html">Query Configuration</a> for details.</p>
@@ -788,7 +788,7 @@ val result = orders.groupBy('a).select('a, 'b.sum as 'd)
     	<td>
         <p>Groups and aggregates a table on a <a href="#group-windows">group window</a> and possibly one or more grouping keys.</p>
 {% highlight scala %}
-val orders: Table = tableEnv.scan("Orders")
+val orders: Table = tableEnv.from("Orders")
 val result: Table = orders
     .window(Tumble over 5.minutes on 'rowtime as 'w) // define window
     .groupBy('a, 'w) // group by key and window
@@ -804,7 +804,7 @@ val result: Table = orders
     	<td>
        <p>Similar to a SQL OVER clause. Over window aggregates are computed for each row, based on a window (range) of preceding and succeeding rows. See the <a href="#over-windows">over windows section</a> for more details.</p>
        {% highlight scala %}
-val orders: Table = tableEnv.scan("Orders")
+val orders: Table = tableEnv.from("Orders")
 val result: Table = orders
     // define window
     .window(Over  
@@ -827,7 +827,7 @@ val result: Table = orders
       <td>
         <p>Similar to a SQL DISTINCT AGGREGATION clause such as COUNT(DISTINCT a). Distinct aggregation declares that an aggregation function (built-in or user-defined) is only applied on distinct input values. Distinct can be applied to <b>GroupBy Aggregation</b>, <b>GroupBy Window Aggregation</b> and <b>Over Window Aggregation</b>.</p>
 {% highlight scala %}
-val orders: Table = tableEnv.scan("Orders");
+val orders: Table = tableEnv.from("Orders");
 // Distinct aggregation on group by
 val groupByDistinctResult = orders
     .groupBy('a)
@@ -847,7 +847,7 @@ val result = orders
 {% endhighlight %}
         <p>User-defined aggregation function can also be used with DISTINCT modifiers. To calculate the aggregate results only for distinct values, simply add the distinct modifier towards the aggregation function. </p>
 {% highlight scala %}
-val orders: Table = tEnv.scan("Orders");
+val orders: Table = tEnv.from("Orders");
 
 // Use distinct aggregation for user-defined aggregate functions
 val myUdagg = new MyUdagg();
@@ -865,7 +865,7 @@ orders.groupBy('users).select('users, myUdagg.distinct('points) as 'myDistinctRe
       <td>
         <p>Similar to a SQL DISTINCT clause. Returns records with distinct value combinations.</p>
 {% highlight scala %}
-val orders: Table = tableEnv.scan("Orders")
+val orders: Table = tableEnv.from("Orders")
 val result = orders.distinct()
 {% endhighlight %}
         <p><b>Note:</b> For streaming queries the required state to compute the query result might grow infinitely depending on the number of distinct fields. Please provide a query configuration with valid retention interval to prevent excessive state size. If state cleaning is enabled, distinct have to emit messages to prevent too early state eviction of downstream operators which makes distinct contains result updating. See <a href="streaming/query_configuration.html">Query Configuration</a> for details.</p>
@@ -1073,7 +1073,7 @@ TableFunction<String> split = new MySplitUDTF();
 tableEnv.registerFunction("split", split);
 
 // join
-Table orders = tableEnv.scan("Orders");
+Table orders = tableEnv.from("Orders");
 Table result = orders
     .joinLateral("split(c).as(s, t, v)")
     .select("a, b, s, t, v");
@@ -1094,7 +1094,7 @@ TableFunction<String> split = new MySplitUDTF();
 tableEnv.registerFunction("split", split);
 
 // join
-Table orders = tableEnv.scan("Orders");
+Table orders = tableEnv.from("Orders");
 Table result = orders
     .leftOuterJoinLateral("split(c).as(s, t, v)")
     .select("a, b, s, t, v");
@@ -1113,7 +1113,7 @@ Table result = orders
 
         <p>Currently only inner joins with temporal tables are supported.</p>
 {% highlight java %}
-Table ratesHistory = tableEnv.scan("RatesHistory");
+Table ratesHistory = tableEnv.from("RatesHistory");
 
 // register temporal table function with a time attribute and primary key
 TemporalTableFunction rates = ratesHistory.createTemporalTableFunction(
@@ -1122,7 +1122,7 @@ TemporalTableFunction rates = ratesHistory.createTemporalTableFunction(
 tableEnv.registerFunction("rates", rates);
 
 // join with "Orders" based on the time attribute and key
-Table orders = tableEnv.scan("Orders");
+Table orders = tableEnv.from("Orders");
 Table result = orders
     .joinLateral("rates(o_proctime)", "o_currency = r_currency")
 {% endhighlight %}
@@ -1257,13 +1257,13 @@ val result: Table = table
 
         <p>Currently only inner joins with temporal tables are supported.</p>
 {% highlight scala %}
-val ratesHistory = tableEnv.scan("RatesHistory")
+val ratesHistory = tableEnv.from("RatesHistory")
 
 // register temporal table function with a time attribute and primary key
 val rates = ratesHistory.createTemporalTableFunction('r_proctime, 'r_currency)
 
 // join with "Orders" based on the time attribute and key
-val orders = tableEnv.scan("Orders")
+val orders = tableEnv.from("Orders")
 val result = orders
     .joinLateral(rates('o_rowtime), 'r_currency === 'o_currency)
 {% endhighlight %}
@@ -1502,7 +1502,7 @@ Table right = ds2.toTable(tableEnv, "a");
 Table result = left.select("a, b, c").where("a.in(" + right + ")");
 
 // using explicit registration
-tableEnv.registerTable("RightTable", right);
+tableEnv.createTemporaryView("RightTable", right);
 Table result = left.select("a, b, c").where("a.in(RightTable)");
 {% endhighlight %}
 
@@ -1934,10 +1934,10 @@ result3 = in.order_by("a.asc").offset(10).fetch(5)
       <td>
         <p>Similar to the INSERT INTO clause in a SQL query. Performs a insertion into a registered output table.</p>
 
-        <p>Output tables must be registered in the TableEnvironment (see <a href="common.html#register-a-tablesink">Register a TableSink</a>). Moreover, the schema of the registered table must match the schema of the query.</p>
+        <p>Output tables must be registered in the TableEnvironment (see <a href="common.html#connector-tables">Connector tables</a>). Moreover, the schema of the registered table must match the schema of the query.</p>
 
 {% highlight java %}
-Table orders = tableEnv.scan("Orders");
+Table orders = tableEnv.from("Orders");
 orders.insertInto("OutOrders");
 {% endhighlight %}
       </td>
@@ -1964,10 +1964,10 @@ orders.insertInto("OutOrders");
       <td>
         <p>Similar to the INSERT INTO clause in a SQL query. Performs a insertion into a registered output table.</p>
 
-        <p>Output tables must be registered in the TableEnvironment (see <a href="common.html#register-a-tablesink">Register a TableSink</a>). Moreover, the schema of the registered table must match the schema of the query.</p>
+        <p>Output tables must be registered in the TableEnvironment (see <a href="common.html#connector-tables">Connector tables</a>). Moreover, the schema of the registered table must match the schema of the query.</p>
 
 {% highlight scala %}
-val orders: Table = tableEnv.scan("Orders")
+val orders: Table = tableEnv.from("Orders")
 orders.insertInto("OutOrders")
 {% endhighlight %}
       </td>
@@ -2739,7 +2739,7 @@ public class Top2 extends TableAggregateFunction<Tuple2<Integer, Integer>, Top2A
 }
     
 tEnv.registerFunction("top2", new Top2());
-Table orders = tableEnv.scan("Orders");
+Table orders = tableEnv.from("Orders");
 Table result = orders
     .groupBy("key")
     .flatAggregate("top2(a) as (v, rank)")
@@ -2759,7 +2759,7 @@ Table result = orders
         <p>Groups and aggregates a table on a <a href="#group-windows">group window</a> and possibly one or more grouping keys. You have to close the "flatAggregate" with a select statement. And the select statement does not support aggregate functions.</p>
 {% highlight java %}
 tableEnv.registerFunction("top2", new Top2());
-Table orders = tableEnv.scan("Orders");
+Table orders = tableEnv.from("Orders");
 Table result = orders
     .window(Tumble.over("5.minutes").on("rowtime").as("w")) // define window
     .groupBy("a, w") // group by key and window
@@ -2967,7 +2967,7 @@ class Top2 extends TableAggregateFunction[JTuple2[JInteger, JInteger], Top2Accum
 }
 
 val top2 = new Top2
-val orders: Table = tableEnv.scan("Orders")
+val orders: Table = tableEnv.from("Orders")
 val result = orders
     .groupBy('key)
     .flatAggregate(top2('a) as ('v, 'rank))
@@ -2986,7 +2986,7 @@ val result = orders
         <p>Groups and aggregates a table on a <a href="#group-windows">group window</a> and possibly one or more grouping keys. You have to close the "flatAggregate" with a select statement. And the select statement does not support aggregate functions.</p>
 {% highlight scala %}
 val top2 = new Top2
-val orders: Table = tableEnv.scan("Orders")
+val orders: Table = tableEnv.from("Orders")
 val result = orders
     .window(Tumble over 5.minutes on 'rowtime as 'w) // define window
     .groupBy('a, 'w) // group by key and window
