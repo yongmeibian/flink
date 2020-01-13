@@ -36,6 +36,8 @@ import org.apache.flink.table.api.TableSchema;
 import org.apache.flink.table.api.ValidationException;
 import org.apache.flink.table.api.WindowGroupedTable;
 import org.apache.flink.table.catalog.FunctionLookup;
+import org.apache.flink.table.descriptors.ConnectorDescriptor;
+import org.apache.flink.table.descriptors.SinkTableDescriptor;
 import org.apache.flink.table.expressions.Expression;
 import org.apache.flink.table.expressions.ExpressionParser;
 import org.apache.flink.table.expressions.UnresolvedReferenceExpression;
@@ -43,6 +45,7 @@ import org.apache.flink.table.expressions.resolver.LookupCallResolver;
 import org.apache.flink.table.functions.TemporalTableFunction;
 import org.apache.flink.table.functions.TemporalTableFunctionImpl;
 import org.apache.flink.table.operations.JoinQueryOperation.JoinType;
+import org.apache.flink.table.operations.ModifyOperation;
 import org.apache.flink.table.operations.QueryOperation;
 import org.apache.flink.table.operations.utils.OperationExpressionsUtils;
 import org.apache.flink.table.operations.utils.OperationExpressionsUtils.CategorizedExpressions;
@@ -53,6 +56,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 /**
@@ -67,6 +71,7 @@ public class TableImpl implements Table {
 	private final QueryOperation operationTree;
 	private final OperationTreeBuilder operationTreeBuilder;
 	private final LookupCallResolver lookupResolver;
+	private final Consumer<ModifyOperation> execute;
 
 	private String tableName = null;
 
@@ -78,23 +83,27 @@ public class TableImpl implements Table {
 			TableEnvironment tableEnvironment,
 			QueryOperation operationTree,
 			OperationTreeBuilder operationTreeBuilder,
-			LookupCallResolver lookupResolver) {
+			LookupCallResolver lookupResolver,
+			Consumer<ModifyOperation> execute) {
 		this.tableEnvironment = tableEnvironment;
 		this.operationTree = operationTree;
 		this.operationTreeBuilder = operationTreeBuilder;
 		this.lookupResolver = lookupResolver;
+		this.execute = execute;
 	}
 
 	public static TableImpl createTable(
 			TableEnvironment tableEnvironment,
 			QueryOperation operationTree,
 			OperationTreeBuilder operationTreeBuilder,
-			FunctionLookup functionLookup) {
+			FunctionLookup functionLookup,
+			Consumer<ModifyOperation> execute) {
 		return new TableImpl(
 			tableEnvironment,
 			operationTree,
 			operationTreeBuilder,
-			new LookupCallResolver(functionLookup));
+			new LookupCallResolver(functionLookup),
+			execute);
 	}
 
 	@Override
@@ -412,6 +421,11 @@ public class TableImpl implements Table {
 	}
 
 	@Override
+	public SinkTableDescriptor insertInto(ConnectorDescriptor descriptor) {
+		return new SinkTableDescriptor(getQueryOperation(), execute, descriptor);
+	}
+
+	@Override
 	public void insertInto(String tableName, QueryConfig conf) {
 		insertInto(conf, tableName);
 	}
@@ -560,7 +574,7 @@ public class TableImpl implements Table {
 	}
 
 	private TableImpl createTable(QueryOperation operation) {
-		return new TableImpl(tableEnvironment, operation, operationTreeBuilder, lookupResolver);
+		return new TableImpl(tableEnvironment, operation, operationTreeBuilder, lookupResolver, execute);
 	}
 
 	private static final class GroupedTableImpl implements GroupedTable {

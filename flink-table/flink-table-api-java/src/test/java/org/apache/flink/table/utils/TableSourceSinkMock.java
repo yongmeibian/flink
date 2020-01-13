@@ -18,7 +18,9 @@
 
 package org.apache.flink.table.utils;
 
+import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.table.api.TableSchema;
+import org.apache.flink.table.sinks.TableSink;
 import org.apache.flink.table.sources.TableSource;
 import org.apache.flink.table.types.DataType;
 import org.apache.flink.types.Row;
@@ -26,13 +28,13 @@ import org.apache.flink.types.Row;
 /**
  * Mocking {@link TableSource} for tests.
  */
-public class TableSourceMock implements TableSource<Row> {
+public class TableSourceSinkMock implements TableSource<Row>, TableSink<Row> {
 
 	private final DataType producedDataType;
 
 	private final TableSchema tableSchema;
 
-	public TableSourceMock(TableSchema tableSchema) {
+	public TableSourceSinkMock(TableSchema tableSchema) {
 		this.tableSchema = TableSchemaUtils.checkNoGeneratedColumns(tableSchema);
 		this.producedDataType = tableSchema.toRowDataType();
 	}
@@ -43,7 +45,19 @@ public class TableSourceMock implements TableSource<Row> {
 	}
 
 	@Override
+	public DataType getConsumedDataType() {
+		return producedDataType;
+	}
+
+	@Override
 	public TableSchema getTableSchema() {
 		return tableSchema;
+	}
+
+	@Override
+	public TableSink<Row> configure(
+			String[] fieldNames,
+			TypeInformation<?>[] fieldTypes) {
+		throw new UnsupportedOperationException();
 	}
 }

@@ -26,7 +26,9 @@ import org.apache.flink.table.descriptors.DescriptorProperties;
 import org.apache.flink.table.descriptors.FormatDescriptorValidator;
 import org.apache.flink.table.descriptors.Schema;
 import org.apache.flink.table.descriptors.StreamTableDescriptorValidator;
+import org.apache.flink.table.factories.TableSinkFactory;
 import org.apache.flink.table.factories.TableSourceFactory;
+import org.apache.flink.table.sinks.TableSink;
 import org.apache.flink.table.sources.TableSource;
 import org.apache.flink.types.Row;
 
@@ -44,7 +46,7 @@ import static org.apache.flink.table.descriptors.DescriptorProperties.WATERMARK_
 /**
  * Mocking {@link TableSourceFactory} for tests.
  */
-public class TableSourceFactoryMock implements TableSourceFactory<Row> {
+public class TableSourceSinkFactoryMock implements TableSourceFactory<Row>, TableSinkFactory<Row> {
 
 	public static final String CONNECTOR_TYPE_VALUE = "table-source-factory-mock";
 
@@ -54,12 +56,21 @@ public class TableSourceFactoryMock implements TableSourceFactory<Row> {
 		descriptorProperties.putProperties(properties);
 		final TableSchema schema = TableSchemaUtils.getPhysicalSchema(
 			descriptorProperties.getTableSchema(Schema.SCHEMA));
-		return new TableSourceMock(schema);
+		return new TableSourceSinkMock(schema);
 	}
 
 	@Override
 	public TableSource<Row> createTableSource(ObjectPath tablePath, CatalogTable table) {
-		return new TableSourceMock(TableSchemaUtils.getPhysicalSchema(table.getSchema()));
+		return new TableSourceSinkMock(TableSchemaUtils.getPhysicalSchema(table.getSchema()));
+	}
+
+	@Override
+	public TableSink<Row> createTableSink(Map<String, String> properties) {
+		final DescriptorProperties descriptorProperties = new DescriptorProperties();
+		descriptorProperties.putProperties(properties);
+		final TableSchema schema = TableSchemaUtils.getPhysicalSchema(
+			descriptorProperties.getTableSchema(Schema.SCHEMA));
+		return new TableSourceSinkMock(schema);
 	}
 
 	@Override
@@ -86,4 +97,6 @@ public class TableSourceFactoryMock implements TableSourceFactory<Row> {
 		supportedProperties.add(Schema.SCHEMA + "." + WATERMARK + ".#."  + WATERMARK_STRATEGY_DATA_TYPE);
 		return supportedProperties;
 	}
+
+
 }

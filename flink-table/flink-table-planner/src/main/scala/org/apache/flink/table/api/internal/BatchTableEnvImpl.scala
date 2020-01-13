@@ -33,7 +33,7 @@ import org.apache.flink.table.expressions.utils.ApiExpressionDefaultVisitor
 import org.apache.flink.table.expressions.{Expression, UnresolvedCallExpression}
 import org.apache.flink.table.functions.BuiltInFunctionDefinitions.TIME_ATTRIBUTES
 import org.apache.flink.table.module.ModuleManager
-import org.apache.flink.table.operations.DataSetQueryOperation
+import org.apache.flink.table.operations.{DataSetQueryOperation, QueryOperation}
 import org.apache.flink.table.plan.BatchOptimizer
 import org.apache.flink.table.plan.nodes.dataset.DataSetRel
 import org.apache.flink.table.planner.Conversions
@@ -86,6 +86,8 @@ abstract class BatchTableEnvImpl(
     override def createTableSink(name: String, tableSource: TableSink[_]): Unit = {
       registerTableSink(name, tableSource)
     }
+
+    override def toTable(tableSource: TableSource[_]): Table = fromTableSource(tableSource)
   }
 
   /**
@@ -122,12 +124,12 @@ abstract class BatchTableEnvImpl(
     * Internally, the [[Table]] is translated into a [[DataSet]] and handed over to the
     * [[TableSink]] to write it.
     *
-    * @param table The [[Table]] to write.
+    * @param queryOperation The [[QueryOperation]] to write.
     * @param sink The [[TableSink]] to write the [[Table]] to.
     * @tparam T The expected type of the [[DataSet]] which represents the [[Table]].
     */
   override private[flink] def writeToSink[T](
-      table: Table,
+      queryOperation: QueryOperation,
       sink: TableSink[T]): Unit = {
 
     sink match {
@@ -135,14 +137,14 @@ abstract class BatchTableEnvImpl(
         val outputType = fromDataTypeToLegacyInfo(sink.getConsumedDataType)
           .asInstanceOf[TypeInformation[T]]
         // translate the Table into a DataSet and provide the type that the TableSink expects.
-        val result: DataSet[T] = translate(table)(outputType)
+        val result: DataSet[T] = translate(queryOperation)(outputType)
         // Give the DataSet to the TableSink to emit it.
         batchSink.emitDataSet(result)
       case boundedSink: OutputFormatTableSink[T] =>
         val outputType = fromDataTypeToLegacyInfo(sink.getConsumedDataType)
           .asInstanceOf[TypeInformation[T]]
         // translate the Table into a DataSet and provide the type that the TableSink expects.
-        val result: DataSet[T] = translate(table)(outputType)
+        val result: DataSet[T] = translate(queryOperation)(outputType)
         // use the OutputFormat to consume the DataSet.
         val dataSink = result.output(boundedSink.getOutputFormat)
         dataSink.name(
@@ -269,13 +271,12 @@ abstract class BatchTableEnvImpl(
     * The transformation involves optimizing the relational expression tree as defined by
     * Table API calls and / or SQL queries and generating corresponding [[DataSet]] operators.
     *
-    * @param table The root node of the relational expression tree.
+    * @param queryOperation The root node of the relational expression tree.
     * @param tpe   The [[TypeInformation]] of the resulting [[DataSet]].
     * @tparam A The type of the resulting [[DataSet]].
     * @return The [[DataSet]] that corresponds to the translated [[Table]].
     */
-  protected def translate[A](table: Table)(implicit tpe: TypeInformation[A]): DataSet[A] = {
-    val queryOperation = table.getQueryOperation
+  protected def translate[A](queryOperation: QueryOperation)(implicit tpe: TypeInformation[A]): DataSet[A] = {
     val relNode = getRelBuilder.tableOperation(queryOperation).build()
     val dataSetPlan = optimizer.optimize(relNode)
     translate(

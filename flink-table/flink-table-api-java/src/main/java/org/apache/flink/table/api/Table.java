@@ -19,6 +19,8 @@
 package org.apache.flink.table.api;
 
 import org.apache.flink.annotation.PublicEvolving;
+import org.apache.flink.table.descriptors.ConnectorDescriptor;
+import org.apache.flink.table.descriptors.SinkTableDescriptor;
 import org.apache.flink.table.expressions.Expression;
 import org.apache.flink.table.functions.TableFunction;
 import org.apache.flink.table.functions.TemporalTableFunction;
@@ -825,6 +827,14 @@ public interface Table {
 	 *        written.
 	 */
 	void insertInto(String tablePath);
+
+	/**
+	 * Writes the {@link Table} to a table described by the given {@link ConnectorDescriptor}.
+	 *
+	 * @param descriptor
+	 * @return
+	 */
+	SinkTableDescriptor insertInto(ConnectorDescriptor descriptor);
 
 	/**
 	 * Writes the {@link Table} to a {@link TableSink} that was registered under the specified name

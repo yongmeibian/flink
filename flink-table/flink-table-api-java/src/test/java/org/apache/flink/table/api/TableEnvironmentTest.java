@@ -18,17 +18,27 @@
 
 package org.apache.flink.table.api;
 
+import org.apache.flink.api.dag.Transformation;
 import org.apache.flink.table.catalog.CatalogBaseTable;
 import org.apache.flink.table.catalog.CatalogManager;
 import org.apache.flink.table.catalog.ConnectorCatalogTable;
 import org.apache.flink.table.catalog.ObjectIdentifier;
 import org.apache.flink.table.descriptors.Schema;
+import org.apache.flink.table.expressions.UnresolvedReferenceExpression;
+import org.apache.flink.table.operations.ModifyOperation;
+import org.apache.flink.table.operations.QueryOperation;
+import org.apache.flink.table.operations.UnregisteredSinkModifyOperation;
+import org.apache.flink.table.sinks.TableSink;
 import org.apache.flink.table.utils.ConnectorDescriptorMock;
 import org.apache.flink.table.utils.FormatDescriptorMock;
+import org.apache.flink.table.utils.PlannerMock;
 import org.apache.flink.table.utils.TableEnvironmentMock;
-import org.apache.flink.table.utils.TableSourceFactoryMock;
+import org.apache.flink.table.utils.TableSourceSinkFactoryMock;
 
 import org.junit.Test;
+
+import java.util.Collections;
+import java.util.List;
 
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.junit.Assert.assertThat;
@@ -43,7 +53,7 @@ public class TableEnvironmentTest {
 		final TableEnvironmentMock tableEnv = TableEnvironmentMock.getStreamingInstance();
 
 		tableEnv
-			.connect(new ConnectorDescriptorMock(TableSourceFactoryMock.CONNECTOR_TYPE_VALUE, 1, true))
+			.connect(new ConnectorDescriptorMock(TableSourceSinkFactoryMock.CONNECTOR_TYPE_VALUE, 1, true))
 			.withFormat(new FormatDescriptorMock("my_format", 1))
 			.withSchema(new Schema()
 				.field("my_field_0", "INT")
@@ -73,5 +83,44 @@ public class TableEnvironmentTest {
 		assertThat(
 			connectorCatalogTable.getTableSource().isPresent(),
 			equalTo(true));
+	}
+
+	@Test
+	public void testConnectWithInlineTables() throws Exception {
+		TableEnvironmentMock tableEnv = TableEnvironmentMock.mock()
+			.setPlanner(new PlannerMock() {
+				@Override
+				public List<Transformation<?>> translate(List<ModifyOperation> modifyOperations) {
+					ModifyOperation modifyOperation = modifyOperations.get(0);
+					UnregisteredSinkModifyOperation sinkModifyOperation = (UnregisteredSinkModifyOperation) modifyOperation;
+
+					TableSink sink = sinkModifyOperation.getSink();
+					assertThat(sink.getTableSchema(), equalTo(
+						TableSchema.builder()
+							.field("my_field_1", DataTypes.BOOLEAN())
+							.build()));
+
+					QueryOperation query = sinkModifyOperation.getChild();
+					assertThat(query.asSummaryString(), equalTo(""));
+
+					return Collections.emptyList();
+				}
+			}).createStreamingInstance();
+
+		tableEnv
+			.connect(new ConnectorDescriptorMock(TableSourceSinkFactoryMock.CONNECTOR_TYPE_VALUE, 1, true))
+			.withFormat(new FormatDescriptorMock("my_format", 1))
+			.withSchema(new Schema()
+				.field("my_field_0", "INT")
+				.field("my_field_1", "BOOLEAN"))
+			.inAppendMode()
+			.read()
+			.select(new UnresolvedReferenceExpression("my_field_1"))
+			.insertInto(new ConnectorDescriptorMock(TableSourceSinkFactoryMock.CONNECTOR_TYPE_VALUE, 1, true))
+			.withFormat(new FormatDescriptorMock("my_format", 1))
+			.inAppendMode()
+			.write();
+
+		tableEnv.execute("");
 	}
 }

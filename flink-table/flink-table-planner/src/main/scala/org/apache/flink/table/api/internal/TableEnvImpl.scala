@@ -40,7 +40,7 @@ import org.apache.flink.table.util.JavaScalaConversionUtil
 import org.apache.calcite.jdbc.CalciteSchemaBuilder.asRootSchema
 import org.apache.calcite.sql.parser.SqlParser
 import org.apache.calcite.tools.FrameworkConfig
-import _root_.java.util.function.{Supplier => JSupplier}
+import _root_.java.util.function.{Supplier => JSupplier, Consumer => JConsumer}
 import _root_.java.util.{Optional, HashMap => JHashMap, Map => JMap}
 
 import _root_.scala.collection.JavaConverters._
@@ -585,17 +585,23 @@ abstract class TableEnvImpl(
       this,
       tableOperation,
       operationTreeBuilder,
-      functionCatalog)
+      functionCatalog,
+      new JConsumer[ModifyOperation] {
+        override def accept(t: ModifyOperation): Unit = {
+          val modifyOperation = t.asInstanceOf[UnregisteredSinkModifyOperation[_]]
+          writeToSink(modifyOperation.getChild, modifyOperation.getSink)
+        }
+      })
   }
 
   /**
     * Writes a [[Table]] to a [[TableSink]].
     *
-    * @param table The [[Table]] to write.
+    * @param queryOperation The [[Table]] to write.
     * @param sink The [[TableSink]] to write the [[Table]] to.
     * @tparam T The data type that the [[TableSink]] expects.
     */
-  private[flink] def writeToSink[T](table: Table, sink: TableSink[T]): Unit
+  private[flink] def writeToSink[T](queryOperation: QueryOperation, sink: TableSink[T]): Unit
 
   override def insertInto(path: String, table: Table): Unit = {
     val parser = planningConfigurationBuilder.createCalciteParser()
@@ -661,7 +667,7 @@ abstract class TableEnvImpl(
               tableSink.getClass.getName)
         }
         // emit the table to the configured table sink
-        writeToSink(table, tableSink)
+        writeToSink(table.getQueryOperation, tableSink)
     }
   }
 

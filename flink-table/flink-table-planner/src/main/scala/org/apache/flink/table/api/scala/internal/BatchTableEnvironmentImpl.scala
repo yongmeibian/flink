@@ -66,12 +66,12 @@ class BatchTableEnvironmentImpl(
 
   override def toDataSet[T: TypeInformation](table: Table): DataSet[T] = {
     // Use the default batch query config.
-    wrap[T](translate(table))(ClassTag.AnyRef.asInstanceOf[ClassTag[T]])
+    wrap[T](translate(table.getQueryOperation))(ClassTag.AnyRef.asInstanceOf[ClassTag[T]])
   }
 
   override def toDataSet[T: TypeInformation](
     table: Table, queryConfig: BatchQueryConfig): DataSet[T] = {
-    wrap[T](translate(table))(ClassTag.AnyRef.asInstanceOf[ClassTag[T]])
+    wrap[T](translate(table.getQueryOperation))(ClassTag.AnyRef.asInstanceOf[ClassTag[T]])
   }
 
   override def registerFunction[T: TypeInformation](name: String, tf: TableFunction[T]): Unit = {

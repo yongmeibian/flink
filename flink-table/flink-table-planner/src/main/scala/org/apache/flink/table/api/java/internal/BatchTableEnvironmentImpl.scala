@@ -84,26 +84,26 @@ class BatchTableEnvironmentImpl(
 
   override def toDataSet[T](table: Table, clazz: Class[T]): DataSet[T] = {
     // Use the default query config.
-    translate[T](table)(TypeExtractor.createTypeInfo(clazz))
+    translate[T](table.getQueryOperation)(TypeExtractor.createTypeInfo(clazz))
   }
 
   override def toDataSet[T](table: Table, typeInfo: TypeInformation[T]): DataSet[T] = {
     // Use the default batch query config.
-    translate[T](table)(typeInfo)
+    translate[T](table.getQueryOperation)(typeInfo)
   }
 
   override def toDataSet[T](
       table: Table,
       clazz: Class[T],
       queryConfig: BatchQueryConfig): DataSet[T] = {
-    translate[T](table)(TypeExtractor.createTypeInfo(clazz))
+    translate[T](table.getQueryOperation)(TypeExtractor.createTypeInfo(clazz))
   }
 
   override def toDataSet[T](
       table: Table,
       typeInfo: TypeInformation[T],
       queryConfig: BatchQueryConfig): DataSet[T] = {
-    translate[T](table)(typeInfo)
+    translate[T](table.getQueryOperation)(typeInfo)
   }
 
   override def registerFunction[T](name: String, tf: TableFunction[T]): Unit = {

@@ -19,6 +19,7 @@
 package org.apache.flink.table.descriptors;
 
 import org.apache.flink.annotation.PublicEvolving;
+import org.apache.flink.table.api.Table;
 import org.apache.flink.table.api.TableEnvironment;
 import org.apache.flink.table.api.TableException;
 import org.apache.flink.table.api.TableSchema;
@@ -149,6 +150,11 @@ public abstract class ConnectTableDescriptor
 		);
 
 		registration.createTemporaryTable(path, catalogTable);
+	}
+
+	public Table read() {
+		TableSource<?> tableSource = TableFactoryUtil.findAndCreateTableSource(this);
+		return registration.toTable(tableSource);
 	}
 
 	private TableSchema getTableSchema(Map<String, String> schemaProperties) {

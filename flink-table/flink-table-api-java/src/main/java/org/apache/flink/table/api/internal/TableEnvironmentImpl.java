@@ -149,6 +149,11 @@ public class TableEnvironmentImpl implements TableEnvironment {
 		public void createTableSink(String name, TableSink<?> tableSink) {
 			registerTableSink(name, tableSink);
 		}
+
+		@Override
+		public Table toTable(TableSource<?> tableSource) {
+			return fromTableSource(tableSource);
+		}
 	};
 
 	protected TableEnvironmentImpl(
@@ -351,6 +356,10 @@ public class TableEnvironmentImpl implements TableEnvironment {
 				objectIdentifier,
 				table.getQueryOperation()));
 
+		translateOrBuffer(modifyOperations);
+	}
+
+	private void translateOrBuffer(List<ModifyOperation> modifyOperations) {
 		if (isEagerOperationTranslation()) {
 			translate(modifyOperations);
 		} else {
@@ -491,11 +500,7 @@ public class TableEnvironmentImpl implements TableEnvironment {
 
 		if (operation instanceof ModifyOperation) {
 			List<ModifyOperation> modifyOperations = Collections.singletonList((ModifyOperation) operation);
-			if (isEagerOperationTranslation()) {
-				translate(modifyOperations);
-			} else {
-				buffer(modifyOperations);
-			}
+			translateOrBuffer(modifyOperations);
 		} else if (operation instanceof CreateTableOperation) {
 			CreateTableOperation createTableOperation = (CreateTableOperation) operation;
 			catalogManager.createTable(
@@ -939,6 +944,7 @@ public class TableEnvironmentImpl implements TableEnvironment {
 			this,
 			tableOperation,
 			operationTreeBuilder,
-			functionCatalog);
+			functionCatalog,
+			op -> translateOrBuffer(Collections.singletonList(op)));
 	}
 }

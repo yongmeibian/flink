@@ -19,6 +19,7 @@
 package org.apache.flink.table.api.internal;
 
 import org.apache.flink.annotation.Internal;
+import org.apache.flink.table.api.Table;
 import org.apache.flink.table.api.TableEnvironment;
 import org.apache.flink.table.catalog.CatalogBaseTable;
 import org.apache.flink.table.sinks.TableSink;
@@ -57,4 +58,12 @@ public interface Registration {
 	 * @param table table to register
 	 */
 	void createTemporaryTable(String path, CatalogBaseTable table);
+
+	/**
+	 * Creates an inline scan of a given table source.
+	 *
+	 * @param tableSource The {@link TableSource} to scan.
+	 * @return A scan of the table source.
+	 */
+	Table toTable(TableSource<?> tableSource);
 }
