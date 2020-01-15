@@ -16,21 +16,15 @@
  * limitations under the License.
  */
 
-package org.apache.flink.table.operations;
+package org.apache.flink.table.factories;
 
-import org.apache.flink.annotation.Internal;
+import org.apache.flink.table.api.TableSchema;
+import org.apache.flink.table.functions.AggregateFunction;
+import org.apache.flink.table.sources.TableSource;
 
-/**
- * Class that implements visitor pattern. It allows type safe logic on top of tree
- * of {@link ModifyOperation}s.
- */
-@Internal
-public interface ModifyOperationVisitor<T> {
-	T visit(CatalogSinkModifyOperation catalogSink);
+public interface SchemaDerivation {
 
-	T visit(OutputConversionModifyOperation outputConversion);
+	TableSource<?> getTableSource();
 
-	<U> T visit(UnregisteredSinkModifyOperation<U> unregisteredSink);
-
-	<U> T visit(DeriveSchemaOperation deriveSchema);
+	AggregateFunction<TableSchema, ?> getAccumulator();
 }

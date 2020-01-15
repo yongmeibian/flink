@@ -33,7 +33,7 @@ import org.apache.flink.table.expressions.utils.ApiExpressionDefaultVisitor
 import org.apache.flink.table.expressions.{Expression, UnresolvedCallExpression}
 import org.apache.flink.table.functions.BuiltInFunctionDefinitions.TIME_ATTRIBUTES
 import org.apache.flink.table.module.ModuleManager
-import org.apache.flink.table.operations.{DataSetQueryOperation, QueryOperation}
+import org.apache.flink.table.operations.{DataSetQueryOperation, ModifyOperation, QueryOperation}
 import org.apache.flink.table.plan.BatchOptimizer
 import org.apache.flink.table.plan.nodes.dataset.DataSetRel
 import org.apache.flink.table.planner.Conversions
@@ -88,6 +88,8 @@ abstract class BatchTableEnvImpl(
     }
 
     override def toTable(tableSource: TableSource[_]): Table = fromTableSource(tableSource)
+
+    override def execute(operation: ModifyOperation): JobExecutionResult = ???
   }
 
   /**

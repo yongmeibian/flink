@@ -21,6 +21,7 @@ package org.apache.flink.table.api;
 import org.apache.flink.streaming.api.TimeCharacteristic;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.table.api.java.StreamTableEnvironment;
+import org.apache.flink.table.descriptors.FileSystem;
 import org.apache.flink.types.Row;
 
 import org.junit.Before;
@@ -30,6 +31,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
+import static org.apache.flink.table.descriptors.GenericFormatDescriptor.genericFormat;
 import static org.junit.Assert.assertEquals;
 
 /**
@@ -69,5 +71,21 @@ public class TableUtilsStreamingITCase {
 			List<Row> actual = TableUtils.collectToList(table);
 			assertEquals(expected, actual);
 		}
+	}
+
+	@Test
+	public void testConnectWithInlineTables() throws Exception {
+		StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
+		EnvironmentSettings settings = EnvironmentSettings.newInstance().useBlinkPlanner().inStreamingMode().build();
+		StreamTableEnvironment tEnv = StreamTableEnvironment.create(env, settings);
+
+		TableSchema tableSchema = tEnv
+			.connect(new FileSystem().path("/tmp/tmp.csv"))
+			.withFormat(genericFormat("csv"))
+			.inAppendMode()
+			.read()
+			.getSchema();
+
+		System.out.println(tableSchema);
 	}
 }

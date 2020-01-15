@@ -101,7 +101,9 @@ public class TableEnvironmentTest {
 							.build()));
 
 					QueryOperation query = sinkModifyOperation.getChild();
-					assertThat(query.asSummaryString(), equalTo(""));
+					assertThat(query.asSummaryString(),
+						equalTo(
+							"Project: (projections: [my_field_1])\\n    TableSource: (fields: [my_field_0, my_field_1])"));
 
 					return Collections.emptyList();
 				}

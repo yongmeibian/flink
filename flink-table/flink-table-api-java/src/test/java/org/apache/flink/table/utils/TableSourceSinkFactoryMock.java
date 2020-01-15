@@ -26,6 +26,7 @@ import org.apache.flink.table.descriptors.DescriptorProperties;
 import org.apache.flink.table.descriptors.FormatDescriptorValidator;
 import org.apache.flink.table.descriptors.Schema;
 import org.apache.flink.table.descriptors.StreamTableDescriptorValidator;
+import org.apache.flink.table.factories.SchemaDerivation;
 import org.apache.flink.table.factories.TableSinkFactory;
 import org.apache.flink.table.factories.TableSourceFactory;
 import org.apache.flink.table.sinks.TableSink;
@@ -36,6 +37,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 import static org.apache.flink.table.descriptors.DescriptorProperties.TABLE_SCHEMA_EXPR;
 import static org.apache.flink.table.descriptors.DescriptorProperties.WATERMARK;
@@ -97,6 +99,4 @@ public class TableSourceSinkFactoryMock implements TableSourceFactory<Row>, Tabl
 		supportedProperties.add(Schema.SCHEMA + "." + WATERMARK + ".#."  + WATERMARK_STRATEGY_DATA_TYPE);
 		return supportedProperties;
 	}
-
-
 }

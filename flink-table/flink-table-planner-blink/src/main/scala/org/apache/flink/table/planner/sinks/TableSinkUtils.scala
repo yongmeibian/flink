@@ -27,6 +27,7 @@ import org.apache.flink.table.dataformat.BaseRow
 import org.apache.flink.table.operations.CatalogSinkModifyOperation
 import org.apache.flink.table.planner.calcite.FlinkTypeFactory
 import org.apache.flink.table.planner.plan.utils.RelOptUtils
+import org.apache.flink.table.runtime.types.LogicalTypeDataTypeConverter
 import org.apache.flink.table.runtime.typeutils.BaseRowTypeInfo
 import org.apache.flink.table.sinks._
 import org.apache.flink.table.types.DataType
@@ -62,10 +63,9 @@ object TableSinkUtils {
       sinkIdentifier: Option[String] = None): RelNode = {
 
     val queryLogicalType = FlinkTypeFactory.toLogicalRowType(query.getRowType)
-    val sinkLogicalType = DataTypeUtils
+    val sinkLogicalType = LogicalTypeDataTypeConverter.fromDataTypeToLogicalType(DataTypeUtils
       // we recognize legacy decimal is the same to default decimal
-      .transform(sinkSchema.toRowDataType, legacyDecimalToDefaultDecimal)
-      .getLogicalType
+      .transform(sinkSchema.toRowDataType, legacyDecimalToDefaultDecimal))
       .asInstanceOf[RowType]
     if (LogicalTypeCasts.supportsImplicitCast(queryLogicalType, sinkLogicalType)) {
       // the query can be written into sink

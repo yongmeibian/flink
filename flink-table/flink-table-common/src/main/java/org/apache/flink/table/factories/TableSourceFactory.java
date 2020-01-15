@@ -24,6 +24,7 @@ import org.apache.flink.table.catalog.ObjectPath;
 import org.apache.flink.table.sources.TableSource;
 
 import java.util.Map;
+import java.util.Optional;
 
 /**
  * A factory to create configured table source instances in a batch or stream environment based on
@@ -53,4 +54,7 @@ public interface TableSourceFactory<T> extends TableFactory {
 		return createTableSource(table.toProperties());
 	}
 
+	default Optional<SchemaDerivation> deriveSchema(Map<String, String> properties) {
+		return Optional.empty();
+	}
 }

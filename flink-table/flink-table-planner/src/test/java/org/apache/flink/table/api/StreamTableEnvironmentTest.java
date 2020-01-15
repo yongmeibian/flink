@@ -24,13 +24,20 @@ import org.apache.flink.configuration.PipelineOptions;
 import org.apache.flink.streaming.api.environment.ExecutionCheckpointingOptions;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.table.api.java.StreamTableEnvironment;
+import org.apache.flink.table.descriptors.FileSystem;
+import org.apache.flink.table.descriptors.GenericFormatDescriptor;
+import org.apache.flink.table.descriptors.Schema;
+import org.apache.flink.table.expressions.UnresolvedReferenceExpression;
 import org.apache.flink.types.Row;
 
 import org.junit.Test;
 
 import java.time.Duration;
 
+import static org.apache.flink.table.descriptors.GenericConnectorDescriptor.genericConnector;
+import static org.apache.flink.table.descriptors.GenericFormatDescriptor.genericFormat;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertThat;
 
 /**
  * Tests for {@link StreamTableEnvironment} that require a planner.

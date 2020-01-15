@@ -19,9 +19,11 @@
 package org.apache.flink.table.api.internal;
 
 import org.apache.flink.annotation.Internal;
+import org.apache.flink.api.common.JobExecutionResult;
 import org.apache.flink.table.api.Table;
 import org.apache.flink.table.api.TableEnvironment;
 import org.apache.flink.table.catalog.CatalogBaseTable;
+import org.apache.flink.table.operations.ModifyOperation;
 import org.apache.flink.table.sinks.TableSink;
 import org.apache.flink.table.sources.TableSource;
 
@@ -66,4 +68,6 @@ public interface Registration {
 	 * @return A scan of the table source.
 	 */
 	Table toTable(TableSource<?> tableSource);
+
+	JobExecutionResult execute(ModifyOperation operation) throws Exception;
 }

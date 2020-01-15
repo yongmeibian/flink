@@ -23,12 +23,14 @@ import org.apache.flink.annotation.VisibleForTesting;
 import org.apache.flink.api.common.JobExecutionResult;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.api.dag.Transformation;
+import org.apache.flink.table.api.DataTypes;
 import org.apache.flink.table.api.EnvironmentSettings;
 import org.apache.flink.table.api.SqlParserException;
 import org.apache.flink.table.api.Table;
 import org.apache.flink.table.api.TableConfig;
 import org.apache.flink.table.api.TableEnvironment;
 import org.apache.flink.table.api.TableException;
+import org.apache.flink.table.api.TableSchema;
 import org.apache.flink.table.api.ValidationException;
 import org.apache.flink.table.catalog.Catalog;
 import org.apache.flink.table.catalog.CatalogBaseTable;
@@ -55,7 +57,14 @@ import org.apache.flink.table.delegation.PlannerFactory;
 import org.apache.flink.table.descriptors.ConnectTableDescriptor;
 import org.apache.flink.table.descriptors.ConnectorDescriptor;
 import org.apache.flink.table.descriptors.StreamTableDescriptor;
+import org.apache.flink.table.expressions.CallExpression;
+import org.apache.flink.table.expressions.Expression;
+import org.apache.flink.table.expressions.FieldReferenceExpression;
+import org.apache.flink.table.expressions.ResolvedExpression;
 import org.apache.flink.table.expressions.TableReferenceExpression;
+import org.apache.flink.table.expressions.UnresolvedCallExpression;
+import org.apache.flink.table.expressions.UnresolvedReferenceExpression;
+import org.apache.flink.table.expressions.utils.ApiExpressionUtils;
 import org.apache.flink.table.factories.ComponentFactoryService;
 import org.apache.flink.table.functions.AggregateFunction;
 import org.apache.flink.table.functions.AggregateFunctionDefinition;
@@ -70,10 +79,14 @@ import org.apache.flink.table.module.Module;
 import org.apache.flink.table.module.ModuleManager;
 import org.apache.flink.table.operations.CatalogQueryOperation;
 import org.apache.flink.table.operations.CatalogSinkModifyOperation;
+import org.apache.flink.table.operations.DeriveSchemaOperation;
 import org.apache.flink.table.operations.ModifyOperation;
+import org.apache.flink.table.operations.ModifyOperationVisitor;
 import org.apache.flink.table.operations.Operation;
+import org.apache.flink.table.operations.OutputConversionModifyOperation;
 import org.apache.flink.table.operations.QueryOperation;
 import org.apache.flink.table.operations.TableSourceQueryOperation;
+import org.apache.flink.table.operations.UnregisteredSinkModifyOperation;
 import org.apache.flink.table.operations.UseCatalogOperation;
 import org.apache.flink.table.operations.UseDatabaseOperation;
 import org.apache.flink.table.operations.ddl.AlterCatalogFunctionOperation;
@@ -101,6 +114,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
+
+import static org.apache.flink.table.descriptors.GenericConnectorDescriptor.genericConnector;
 
 /**
  * Implementation of {@link TableEnvironment} that works exclusively with Table API interfaces.
@@ -153,6 +168,59 @@ public class TableEnvironmentImpl implements TableEnvironment {
 		@Override
 		public Table toTable(TableSource<?> tableSource) {
 			return fromTableSource(tableSource);
+		}
+
+		@Override
+		public JobExecutionResult execute(ModifyOperation operation) throws Exception {
+			operation.accept(new ModifyOperationVisitor<Void>() {
+				@Override
+				public Void visit(CatalogSinkModifyOperation catalogSink) {
+					translate(Collections.singletonList(catalogSink));
+					return null;
+				}
+
+				@Override
+				public Void visit(OutputConversionModifyOperation outputConversion) {
+					translate(Collections.singletonList(outputConversion));
+					return null;
+				}
+
+				@Override
+				public <U> Void visit(UnregisteredSinkModifyOperation<U> unregisteredSink) {
+					translate(Collections.singletonList(unregisteredSink));
+					return null;
+				}
+
+				@Override
+				public <U> Void visit(DeriveSchemaOperation deriveSchema) {
+					AggregateFunction<TableSchema, ?> mergeFunction = deriveSchema.getMergeFunction();
+					List<Expression> arguments = deriveSchema.getQuery()
+						.getTableSchema()
+						.getTableColumns()
+						.stream()
+						.map(column -> new UnresolvedReferenceExpression(column.getName()))
+						.collect(Collectors.toList());
+					AggregateFunctionDefinition aggregateFunctionDefinition = new AggregateFunctionDefinition(
+						mergeFunction.getClass().getName(),
+						mergeFunction,
+						mergeFunction.getResultType(),
+						mergeFunction.getAccumulatorType()
+					);
+
+					createTable(deriveSchema.getQuery())
+						.select(
+							new UnresolvedCallExpression(
+								aggregateFunctionDefinition,
+								arguments))
+						.insertInto(
+							genericConnector("collect")
+								.property("connector.accumulator-id", deriveSchema.getId()))
+						.write();
+					return null;
+				}
+			});
+
+			return TableEnvironmentImpl.this.execute("Derive schema");
 		}
 	};
 

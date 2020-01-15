@@ -19,10 +19,20 @@
 package org.apache.flink.table.sources;
 
 import org.apache.flink.annotation.PublicEvolving;
+import org.apache.flink.api.common.io.InputFormat;
+import org.apache.flink.api.java.io.TextInputFormat;
+import org.apache.flink.core.fs.Path;
+import org.apache.flink.table.api.DataTypes;
+import org.apache.flink.table.api.TableSchema;
+import org.apache.flink.table.descriptors.FileSystemValidator;
 import org.apache.flink.table.factories.BatchTableSourceFactory;
+import org.apache.flink.table.factories.SchemaDerivation;
+import org.apache.flink.table.functions.AggregateFunction;
+import org.apache.flink.table.types.DataType;
 import org.apache.flink.types.Row;
 
 import java.util.Map;
+import java.util.Optional;
 
 /**
  * Factory for creating configured instances of {@link CsvTableSource} in a batch environment.

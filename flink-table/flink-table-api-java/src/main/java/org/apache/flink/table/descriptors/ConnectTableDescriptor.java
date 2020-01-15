@@ -19,13 +19,18 @@
 package org.apache.flink.table.descriptors;
 
 import org.apache.flink.annotation.PublicEvolving;
+import org.apache.flink.api.common.JobExecutionResult;
 import org.apache.flink.table.api.Table;
 import org.apache.flink.table.api.TableEnvironment;
 import org.apache.flink.table.api.TableException;
 import org.apache.flink.table.api.TableSchema;
 import org.apache.flink.table.api.internal.Registration;
 import org.apache.flink.table.catalog.CatalogTableImpl;
+import org.apache.flink.table.factories.TableFactoryService;
 import org.apache.flink.table.factories.TableFactoryUtil;
+import org.apache.flink.table.factories.TableSourceFactory;
+import org.apache.flink.table.operations.DeriveSchemaOperation;
+import org.apache.flink.table.operations.TableSourceQueryOperation;
 import org.apache.flink.table.sinks.TableSink;
 import org.apache.flink.table.sources.TableSource;
 import org.apache.flink.util.Preconditions;
@@ -35,6 +40,7 @@ import javax.annotation.Nullable;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Optional;
 
 /**
  * Describes a table connected from {@link TableEnvironment#connect(ConnectorDescriptor)}.
@@ -131,29 +137,56 @@ public abstract class ConnectTableDescriptor
 	 * @param path path where to register the temporary table
 	 */
 	public void createTemporaryTable(String path) {
-		if (schemaDescriptor == null) {
-			throw new TableException(
-				"Table schema must be explicitly defined. To derive schema from the underlying connector" +
-					" use registerTableSource/registerTableSink/registerTableSourceAndSink.");
-		}
+		CatalogTableImpl catalogTable = getCatalogTable();
+		registration.createTemporaryTable(path, catalogTable);
+	}
 
-		Map<String, String> schemaProperties = schemaDescriptor.toProperties();
-		TableSchema tableSchema = getTableSchema(schemaProperties);
+	private CatalogTableImpl getCatalogTable() {
+		TableSchema tableSchema = Optional.ofNullable(schemaDescriptor)
+			.map(Schema::toProperties)
+			.map(this::getTableSchema)
+			.orElseGet(() -> {
+					Map<String, String> properties = this.toProperties();
+					TableSourceFactory<?> sourceFactory = TableFactoryService.find(
+						TableSourceFactory.class,
+						properties);
+
+					return sourceFactory.deriveSchema(properties)
+						.map(schemaDerivation -> new DeriveSchemaOperation(
+							new TableSourceQueryOperation<>(
+								schemaDerivation.getTableSource(),
+								false
+							),
+							schemaDerivation.getAccumulator()))
+						.map(op -> {
+							try {
+								JobExecutionResult execute = registration.execute(op);
+								return op.collectResult(execute);
+							} catch (Exception e) {
+								throw new TableException("Could not derive schema.", e);
+							}
+						}).orElseThrow(
+							() -> new TableException(
+								"Table schema must be explicitly defined. To derive schema from the underlying connector" +
+									" use registerTableSource/registerTableSink/registerTableSourceAndSink.")
+						);
+				}
+			);
 
 		Map<String, String> properties = new HashMap<>(toProperties());
-		schemaProperties.keySet().forEach(properties::remove);
+		if (schemaDescriptor != null) {
+			schemaDescriptor.toProperties().keySet().forEach(properties::remove);
+		}
 
-		CatalogTableImpl catalogTable = new CatalogTableImpl(
+		return new CatalogTableImpl(
 			tableSchema,
 			properties,
 			""
 		);
-
-		registration.createTemporaryTable(path, catalogTable);
 	}
 
 	public Table read() {
-		TableSource<?> tableSource = TableFactoryUtil.findAndCreateTableSource(this);
+		TableSource<?> tableSource = TableFactoryUtil.findAndCreateTableSource(getCatalogTable());
 		return registration.toTable(tableSource);
 	}
 
