@@ -21,14 +21,16 @@ package org.apache.flink.table.planner.calcite
 import org.apache.flink.api.common.typeinfo.{NothingTypeInfo, TypeInformation}
 import org.apache.flink.api.java.typeutils.TypeExtractor
 import org.apache.flink.table.api.{DataTypes, TableException, TableSchema}
+import org.apache.flink.table.catalog.{DataTypeLookup, UnresolvedIdentifier}
 import org.apache.flink.table.planner.calcite.FlinkTypeFactory.toLogicalType
 import org.apache.flink.table.planner.plan.schema.{GenericRelDataType, _}
-import org.apache.flink.table.runtime.types.LogicalTypeDataTypeConverter
 import org.apache.flink.table.types.DataType
 import org.apache.flink.table.types.logical._
+import org.apache.flink.table.types.utils.TypeConversions
 import org.apache.flink.table.typeutils.TimeIndicatorTypeInfo
 import org.apache.flink.types.Nothing
 import org.apache.flink.util.Preconditions.checkArgument
+
 import org.apache.calcite.avatica.util.TimeUnit
 import org.apache.calcite.jdbc.JavaTypeFactoryImpl
 import org.apache.calcite.rel.RelNode
@@ -38,11 +40,10 @@ import org.apache.calcite.sql.`type`.SqlTypeName._
 import org.apache.calcite.sql.`type`.{BasicSqlType, MapSqlType, SqlTypeName}
 import org.apache.calcite.sql.parser.SqlParserPos
 import org.apache.calcite.util.ConversionUtil
+
 import java.nio.charset.Charset
 import java.util
 import java.util.Optional
-
-import org.apache.flink.table.catalog.{DataTypeLookup, UnresolvedIdentifier}
 
 import scala.collection.JavaConversions._
 import scala.collection.JavaConverters._
@@ -504,7 +505,7 @@ object FlinkTypeFactory {
     val fieldTypes = relDataType.getFieldList
       .asScala
       .map(field =>
-        LogicalTypeDataTypeConverter.fromLogicalTypeToDataType(
+        TypeConversions.fromLogicalToDataType(
           FlinkTypeFactory.toLogicalType(field.getType))
       ).toArray
     TableSchema.builder.fields(fieldNames, fieldTypes).build
