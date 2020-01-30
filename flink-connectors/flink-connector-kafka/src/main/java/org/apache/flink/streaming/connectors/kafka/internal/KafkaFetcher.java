@@ -147,7 +147,8 @@ public class KafkaFetcher<T> extends AbstractFetcher<T, TopicPartition> {
 
 						// emit the actual record. this also updates offset state atomically
 						// and deals with timestamps and watermark generation
-						emitRecord(value, partition, record.offset(), record);
+						emitRecord(value, partition, record);
+						finalizeOffset(partition, record.offset());
 					}
 				}
 			}
@@ -179,10 +180,9 @@ public class KafkaFetcher<T> extends AbstractFetcher<T, TopicPartition> {
 	protected void emitRecord(
 		T record,
 		KafkaTopicPartitionState<TopicPartition> partition,
-		long offset,
 		ConsumerRecord<?, ?> consumerRecord) throws Exception {
 
-		emitRecordWithTimestamp(record, partition, offset, consumerRecord.timestamp());
+		emitRecordWithTimestamp(record, partition, consumerRecord.timestamp());
 	}
 
 	/**
