@@ -173,8 +173,10 @@ class TestFilterableTableSource(
   override def explainSource(): String = {
     if (filterPredicates.nonEmpty) {
       // TODO we cast to planner expression as a temporary solution to keep the old interfaces
-      s"filterPushedDown=[$filterPushedDown], filter=[${filterPredicates.reduce((l, r) =>
-        And(l.asInstanceOf[PlannerExpression], r.asInstanceOf[PlannerExpression])).toString}]"
+      s"filterPushedDown=[$filterPushedDown], filter=[${
+        And(filterPredicates.map(_
+          .asInstanceOf[PlannerExpression])).toString
+      }]"
     } else {
       s"filterPushedDown=[$filterPushedDown], filter=[]"
     }

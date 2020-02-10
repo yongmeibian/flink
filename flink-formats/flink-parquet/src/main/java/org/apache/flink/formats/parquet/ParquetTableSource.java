@@ -30,7 +30,6 @@ import org.apache.flink.table.api.TableSchema;
 import org.apache.flink.table.expressions.And;
 import org.apache.flink.table.expressions.Attribute;
 import org.apache.flink.table.expressions.BinaryComparison;
-import org.apache.flink.table.expressions.BinaryExpression;
 import org.apache.flink.table.expressions.EqualTo;
 import org.apache.flink.table.expressions.Expression;
 import org.apache.flink.table.expressions.GreaterThan;
@@ -41,6 +40,7 @@ import org.apache.flink.table.expressions.Literal;
 import org.apache.flink.table.expressions.Not;
 import org.apache.flink.table.expressions.NotEqualTo;
 import org.apache.flink.table.expressions.Or;
+import org.apache.flink.table.expressions.Predicate;
 import org.apache.flink.table.sources.BatchTableSource;
 import org.apache.flink.table.sources.FilterableTableSource;
 import org.apache.flink.table.sources.ProjectableTableSource;
@@ -71,6 +71,8 @@ import javax.annotation.Nullable;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Objects;
+import java.util.stream.Collectors;
 
 /**
  * A TableSource to read Parquet files.
@@ -322,18 +324,22 @@ public class ParquetTableSource
 					return null;
 				}
 			}
-		} else if (exp instanceof BinaryExpression) {
+		} else if (exp instanceof Predicate) {
 			if (exp instanceof And) {
 				LOG.debug("All of the predicates should be in CNF. Found an AND expression: {}.", exp);
 			} else if (exp instanceof Or) {
-				FilterPredicate c1 = toParquetPredicate(((Or) exp).left());
-				FilterPredicate c2 = toParquetPredicate(((Or) exp).right());
+				List<FilterPredicate> parquetPredicates = exp.getChildren()
+					.stream()
+					.map(this::toParquetPredicate)
+					.collect(Collectors.toList());
 
-				if (c1 == null || c2 == null) {
+				if (parquetPredicates.stream().anyMatch(Objects::isNull)) {
 					return null;
-				} else {
-					return FilterApi.or(c1, c2);
 				}
+
+				return parquetPredicates.stream()
+					.reduce(FilterApi::or)
+					.orElse(null);
 			} else {
 				// Unsupported Predicate
 				LOG.debug("Unsupported predicate [{}] cannot be pushed into ParquetTableSource.", exp);

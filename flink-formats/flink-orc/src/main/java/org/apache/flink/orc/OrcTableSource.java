@@ -229,13 +229,11 @@ public class OrcTableSource
 
 	private Predicate toOrcPredicate(Expression pred) {
 		if (pred instanceof Or) {
-			Predicate c1 = toOrcPredicate(((Or) pred).left());
-			Predicate c2 = toOrcPredicate(((Or) pred).right());
-			if (c1 == null || c2 == null) {
-				return null;
-			} else {
-				return new OrcSplitReader.Or(c1, c2);
-			}
+			Predicate[] predicates = pred.getChildren()
+				.stream()
+				.map(this::toOrcPredicate)
+				.toArray(Predicate[]::new);
+			return new OrcSplitReader.Or(predicates);
 		} else if (pred instanceof Not) {
 			Predicate c = toOrcPredicate(((Not) pred).child());
 			if (c == null) {

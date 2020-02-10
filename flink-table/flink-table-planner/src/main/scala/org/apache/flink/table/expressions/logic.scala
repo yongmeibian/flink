@@ -17,23 +17,24 @@
  */
 package org.apache.flink.table.expressions
 
+import org.apache.flink.api.common.typeinfo.BasicTypeInfo
+import org.apache.flink.table.validate._
+
 import org.apache.calcite.rex.RexNode
 import org.apache.calcite.sql.fun.SqlStdOperatorTable
 import org.apache.calcite.tools.RelBuilder
 
-import org.apache.flink.api.common.typeinfo.BasicTypeInfo
-import org.apache.flink.table.validate._
+import scala.collection.JavaConverters._
 
-abstract class BinaryPredicate extends BinaryExpression {
+abstract class Predicate extends PlannerExpression {
+
   override private[flink] def resultType = BasicTypeInfo.BOOLEAN_TYPE_INFO
 
   override private[flink] def validateInput(): ValidationResult = {
-    if (left.resultType == BasicTypeInfo.BOOLEAN_TYPE_INFO &&
-        right.resultType == BasicTypeInfo.BOOLEAN_TYPE_INFO) {
+    if (children.forall(_.resultType == BasicTypeInfo.BOOLEAN_TYPE_INFO)) {
       ValidationSuccess
     } else {
-      ValidationFailure(s"$this only accepts children of Boolean type, " +
-        s"get $left : ${left.resultType} and $right : ${right.resultType}")
+      ValidationFailure(s"$this only accepts children of Boolean type")
     }
   }
 }
@@ -58,21 +59,21 @@ case class Not(child: PlannerExpression) extends UnaryExpression {
   }
 }
 
-case class And(left: PlannerExpression, right: PlannerExpression) extends BinaryPredicate {
+case class And(children: Seq[PlannerExpression]) extends Predicate {
 
-  override def toString = s"$left && $right"
+  override def toString: String = children.mkString(" && ")
 
   override private[flink] def toRexNode(implicit relBuilder: RelBuilder): RexNode = {
-    relBuilder.and(left.toRexNode, right.toRexNode)
+    relBuilder.and(children.map(_.toRexNode).asJava)
   }
 }
 
-case class Or(left: PlannerExpression, right: PlannerExpression) extends BinaryPredicate {
+case class Or(children: Seq[PlannerExpression]) extends Predicate {
 
-  override def toString = s"$left || $right"
+  override def toString: String = children.mkString(" || ")
 
   override private[flink] def toRexNode(implicit relBuilder: RelBuilder): RexNode = {
-    relBuilder.or(left.toRexNode, right.toRexNode)
+    relBuilder.or(children.map(_.toRexNode).asJava)
   }
 }
 

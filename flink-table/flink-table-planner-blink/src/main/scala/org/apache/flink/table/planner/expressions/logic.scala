@@ -22,16 +22,15 @@ import org.apache.flink.table.planner.validate._
 import org.apache.flink.table.runtime.types.TypeInfoLogicalTypeConverter.fromTypeInfoToLogicalType
 import org.apache.flink.table.runtime.typeutils.TypeCheckUtils.isDecimal
 
-abstract class BinaryPredicate extends BinaryExpression {
+abstract class Predicate extends PlannerExpression {
+
   override private[flink] def resultType = BasicTypeInfo.BOOLEAN_TYPE_INFO
 
   override private[flink] def validateInput(): ValidationResult = {
-    if (left.resultType == BasicTypeInfo.BOOLEAN_TYPE_INFO &&
-        right.resultType == BasicTypeInfo.BOOLEAN_TYPE_INFO) {
+    if (children.forall(_.resultType == BasicTypeInfo.BOOLEAN_TYPE_INFO)) {
       ValidationSuccess
     } else {
-      ValidationFailure(s"$this only accepts children of Boolean type, " +
-        s"get $left : ${left.resultType} and $right : ${right.resultType}")
+      ValidationFailure(s"$this only accepts children of Boolean type")
     }
   }
 }
@@ -52,14 +51,12 @@ case class Not(child: PlannerExpression) extends UnaryExpression {
   }
 }
 
-case class And(left: PlannerExpression, right: PlannerExpression) extends BinaryPredicate {
-
-  override def toString = s"$left && $right"
+case class And(children: Seq[PlannerExpression]) extends Predicate {
+  override def toString: String = children.mkString(" && ")
 }
 
-case class Or(left: PlannerExpression, right: PlannerExpression) extends BinaryPredicate {
-
-  override def toString = s"$left || $right"
+case class Or(children: Seq[PlannerExpression]) extends Predicate {
+  override def toString: String = children.mkString(" || ")
 }
 
 @deprecated(

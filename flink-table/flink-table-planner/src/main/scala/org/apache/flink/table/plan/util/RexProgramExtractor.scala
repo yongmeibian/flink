@@ -241,14 +241,6 @@ class RexNodeToExpressionConverter(
     } else {
         // TODO we cast to planner expression as a temporary solution to keep the old interfaces
         call.getOperator match {
-          case SqlStdOperatorTable.OR =>
-            Option(operands.reduceLeft { (l, r) =>
-              Or(l.asInstanceOf[PlannerExpression], r.asInstanceOf[PlannerExpression])
-            })
-          case SqlStdOperatorTable.AND =>
-            Option(operands.reduceLeft { (l, r) =>
-              And(l.asInstanceOf[PlannerExpression], r.asInstanceOf[PlannerExpression])
-            })
           case function: SqlFunction =>
             lookupFunction(replace(function.getName), operands)
           case postfix: SqlPostfixOperator =>
