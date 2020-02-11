@@ -20,6 +20,7 @@ package org.apache.flink.table.api;
 
 import org.apache.flink.annotation.PublicEvolving;
 import org.apache.flink.table.expressions.Expression;
+import org.apache.flink.table.expressions.utils.ApiExpressionUtils;
 
 /**
  * Session window on time with alias. Fully specifies a window.
@@ -31,7 +32,7 @@ public final class SessionWithGapOnTimeWithAlias extends GroupWindow {
 
 	SessionWithGapOnTimeWithAlias(Expression alias, Expression timeField, Expression gap) {
 		super(alias, timeField);
-		this.gap = gap;
+		this.gap = ApiExpressionUtils.unwrapFromApi(gap);
 	}
 
 	public Expression getGap() {
