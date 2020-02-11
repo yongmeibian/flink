@@ -140,7 +140,7 @@ final class ExpandColumnFunctionsRule implements ResolverRule {
 	/**
 	 * Expands a single column expression to it's real parent's input references.
 	 */
-	class ColumnsExpressionExpander extends ApiExpressionDefaultVisitor<List<UnresolvedReferenceExpression>> {
+	static class ColumnsExpressionExpander extends ApiExpressionDefaultVisitor<List<UnresolvedReferenceExpression>> {
 
 		private final List<UnresolvedReferenceExpression> inputFieldReferences;
 		public ColumnsExpressionExpander(List<UnresolvedReferenceExpression> inputFieldReferences) {
