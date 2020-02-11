@@ -288,7 +288,13 @@ public final class Expressions {
 	 * Equivalent to {@code lit(Duration)}.
 	 */
 	public static ApiExpression interval(Duration duration) {
-		return new ApiExpression(valueLiteral(duration));
+		if (duration.getNano() > 999) {
+			throw new ValidationException("For now only intervals of millisecond precision are supported.");
+		}
+		long totalMillis = duration.toMillis();
+		return new ApiExpression(valueLiteral(
+			totalMillis,
+			DataTypes.INTERVAL(DataTypes.SECOND(3)).bridgedTo(Long.class)));
 	}
 
 	/**
@@ -296,14 +302,13 @@ public final class Expressions {
 	 * Equivalent to {@code lit(Duration)}.
 	 */
 	public static ApiExpression interval(Period period) {
-		return new ApiExpression(valueLiteral(period));
-	}
-
-	/**
-	 * Creates a SQL INTERVAL literal corresponding number of interval units.
-	 */
-	public static ApiExpression interval(long interval, DataTypes.Resolution resolution) {
-		return new ApiExpression(valueLiteral(interval, DataTypes.INTERVAL(resolution)));
+		long totalMonths = period.toTotalMonths();
+		if (totalMonths > Integer.MAX_VALUE) {
+			throw new ValidationException("For now only intervals of up to INTEGER.MAX_VALUE months are supported.");
+		}
+		return new ApiExpression(valueLiteral(
+			(int) totalMonths,
+			DataTypes.INTERVAL(DataTypes.MONTH()).bridgedTo(Integer.class)));
 	}
 
 	/**
