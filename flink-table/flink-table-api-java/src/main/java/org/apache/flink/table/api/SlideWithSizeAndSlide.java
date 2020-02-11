@@ -21,6 +21,7 @@ package org.apache.flink.table.api;
 import org.apache.flink.annotation.PublicEvolving;
 import org.apache.flink.table.expressions.Expression;
 import org.apache.flink.table.expressions.ExpressionParser;
+import org.apache.flink.table.expressions.utils.ApiExpressionUtils;
 
 /**
  * Sliding window. The size of the window either as time or row-count interval.
@@ -37,8 +38,8 @@ public final class SlideWithSizeAndSlide {
 	private final Expression slide;
 
 	SlideWithSizeAndSlide(Expression size, Expression slide) {
-		this.size = size;
-		this.slide = slide;
+		this.size = ApiExpressionUtils.unwrapFromApi(size);
+		this.slide = ApiExpressionUtils.unwrapFromApi(slide);
 	}
 
 	/**
