@@ -284,10 +284,42 @@ public final class Expressions {
 	}
 
 	/**
+	 * Creates a SQL INTERVAL literal corresponding to the given {@link Duration}.
+	 * Equivalent to {@code lit(Duration)}.
+	 */
+	public static ApiExpression interval(Duration duration) {
+		return new ApiExpression(valueLiteral(duration));
+	}
+
+	/**
+	 * Creates a SQL INTERVAL literal corresponding to the given {@link Period}.
+	 * Equivalent to {@code lit(Duration)}.
+	 */
+	public static ApiExpression interval(Period period) {
+		return new ApiExpression(valueLiteral(period));
+	}
+
+	/**
 	 * Creates a SQL INTERVAL literal corresponding number of interval units.
 	 */
 	public static ApiExpression interval(long interval, DataTypes.Resolution resolution) {
 		return new ApiExpression(valueLiteral(interval, DataTypes.INTERVAL(resolution)));
+	}
+
+	/**
+	 * Parses given string and creates a SQL INTERVAL literal. For the expected formats see javadocs for
+	 * corresponding {@code DataTypes}.
+	 *
+	 * @see org.apache.flink.table.types.logical.YearMonthIntervalType
+	 * @see org.apache.flink.table.types.logical.DayTimeIntervalType
+	 */
+	public static ApiExpression interval(
+			String interval,
+			DataTypes.Resolution lowerResolution,
+			DataTypes.Resolution upperResolution) {
+		DataType intervalType = DataTypes.INTERVAL(lowerResolution, upperResolution);
+		Function<String, Object> intervalParser = IntervalParsingUtils.intervalParser(intervalType);
+		return new ApiExpression(valueLiteral(intervalParser.apply(interval), intervalType));
 	}
 
 	/**

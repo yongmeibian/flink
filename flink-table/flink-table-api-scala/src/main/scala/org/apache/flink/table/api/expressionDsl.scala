@@ -851,6 +851,20 @@ trait ImplicitExpressionConversions {
   }
 
   /**
+   * Boolean AND in three-valued logic.
+   */
+  def and(predicate0: Expression, predicate1: Expression, predicates: Expression*): Expression = {
+    Expressions.and(predicate0, predicate1, predicates: _*)
+  }
+
+  /**
+   * Boolean OR in three-valued logic.
+   */
+  def or(predicate0: Expression, predicate1: Expression, predicates: Expression*): Expression = {
+    Expressions.or(predicate0, predicate1, predicates: _*)
+  }
+
+  /**
     * Creates an expression that selects a range of columns. It can be used wherever an array of
     * expression is accepted such as function calls, projections, or groupings.
     *
