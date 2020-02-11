@@ -19,11 +19,10 @@
 package org.apache.flink.table.expressions;
 
 import org.apache.flink.annotation.PublicEvolving;
+import org.apache.flink.table.expressions.utils.ApiExpressionUtils;
 import org.apache.flink.table.functions.FunctionDefinition;
 import org.apache.flink.util.Preconditions;
 
-import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 import java.util.stream.Collectors;
@@ -43,7 +42,10 @@ public final class LookupCallExpression implements Expression {
 
 	public LookupCallExpression(String unresolvedFunction, List<Expression> args) {
 		this.unresolvedName = Preconditions.checkNotNull(unresolvedFunction);
-		this.args = Collections.unmodifiableList(new ArrayList<>(Preconditions.checkNotNull(args)));
+		this.args = Preconditions.checkNotNull(args)
+			.stream()
+			.map(ApiExpressionUtils::unwrapFromApi)
+			.collect(Collectors.toList());
 	}
 
 	public String getUnresolvedName() {
