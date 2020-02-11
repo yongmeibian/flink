@@ -41,43 +41,86 @@ final class IntervalParsingUtils {
 	 * <p>It supports only types with roots: {@link LogicalTypeRoot#INTERVAL_YEAR_MONTH} and
 	 * {@link LogicalTypeRoot#INTERVAL_DAY_TIME} and only of a combined resolution such as {@code YEAR TO MONTH}
 	 * or {@code DAY TO MINUTE}.
+	 *
+	 * <p>Intended to be used only in {@link Expressions#interval(String, DataTypes.Resolution, DataTypes.Resolution)}.
 	 */
 	static Function<String, Object> intervalParser(DataType dataType) {
 		if (LogicalTypeChecks.hasRoot(dataType.getLogicalType(), LogicalTypeRoot.INTERVAL_YEAR_MONTH)) {
-			YearMonthIntervalType yearMonthIntervalType = (YearMonthIntervalType) dataType.getLogicalType();
-			if (yearMonthIntervalType.getResolution() == YearMonthIntervalType.YearMonthResolution.YEAR_TO_MONTH) {
-				return conversionYearToMonth(dataType, yearMonthIntervalType);
-			} else {
-				throw new UnsupportedOperationException(
-					"Unsupported resolution " + yearMonthIntervalType.getResolution());
-			}
+			return getYearMonthParser(dataType);
 		} else if (LogicalTypeChecks.hasRoot(dataType.getLogicalType(), LogicalTypeRoot.INTERVAL_DAY_TIME)) {
-			DayTimeIntervalType dayTimeIntervalType = (DayTimeIntervalType) dataType.getLogicalType();
-			switch (dayTimeIntervalType.getResolution()){
-				case DAY_TO_HOUR:
-					return conversionDayToHour(dataType, dayTimeIntervalType);
-				case DAY_TO_MINUTE:
-					return conversionDayToMinute(dataType, dayTimeIntervalType);
-				case DAY_TO_SECOND:
-					return conversionDayToSecond(dataType, dayTimeIntervalType);
-				case HOUR_TO_MINUTE:
-					return conversionHourToMinute(dataType);
-				case HOUR_TO_SECOND:
-					return conversionHourToSecond(dataType, dayTimeIntervalType);
-				case MINUTE_TO_SECOND:
-					return conversionMinuteToSecond(dataType, dayTimeIntervalType);
-				default:
-					throw new UnsupportedOperationException(
-						"Unsupported resolution " + dayTimeIntervalType.getResolution());
-			}
+			return getDayTimeParser(dataType);
 		} else {
 			throw new IllegalArgumentException("Only interval types are supported.");
 		}
 	}
 
+	private static Function<String, Object> getDayTimeParser(DataType dataType) {
+		DayTimeIntervalType dayTimeIntervalType = (DayTimeIntervalType) dataType.getLogicalType();
+		switch (dayTimeIntervalType.getResolution()){
+			case DAY:
+				return conversionDay(dataType, dayTimeIntervalType);
+			case DAY_TO_HOUR:
+				return conversionDayToHour(dataType, dayTimeIntervalType);
+			case DAY_TO_MINUTE:
+				return conversionDayToMinute(dataType, dayTimeIntervalType);
+			case DAY_TO_SECOND:
+				return conversionDayToSecond(dataType, dayTimeIntervalType);
+			case HOUR:
+				return conversionHour(dataType);
+			case HOUR_TO_MINUTE:
+				return conversionHourToMinute(dataType);
+			case HOUR_TO_SECOND:
+				return conversionHourToSecond(dataType, dayTimeIntervalType);
+			case MINUTE:
+				return conversionMinute(dataType);
+			case MINUTE_TO_SECOND:
+				return conversionMinuteToSecond(dataType, dayTimeIntervalType);
+			case SECOND:
+				return conversionSecond(dataType, dayTimeIntervalType);
+			default:
+				throw new UnsupportedOperationException(
+					"Unsupported resolution " + dayTimeIntervalType.getResolution());
+		}
+	}
+
+	private static Function<String, Object> getYearMonthParser(DataType dataType) {
+		YearMonthIntervalType yearMonthIntervalType = (YearMonthIntervalType) dataType.getLogicalType();
+		switch (yearMonthIntervalType.getResolution()) {
+			case YEAR:
+				return conversionYear(dataType, yearMonthIntervalType);
+			case YEAR_TO_MONTH:
+				return conversionYearToMonth(dataType, yearMonthIntervalType);
+			case MONTH:
+				return conversionMonth(dataType);
+			default:
+				throw new UnsupportedOperationException(
+					"Unsupported resolution " + yearMonthIntervalType.getResolution());
+		}
+	}
+
+	private static Function<String, Object> conversionYear(
+			DataType dataType,
+			YearMonthIntervalType yearMonthIntervalType) {
+		String intervalPattern = String.format(
+			"(\\d{1,%d})",
+			yearMonthIntervalType.getYearPrecision());
+		return value -> {
+			Matcher m = Pattern.compile(intervalPattern).matcher(value);
+			if (m.matches()) {
+				int year = Integer.parseInt(m.group(1));
+				return Period.of(year, 0, 0);
+			} else {
+				throw new ValidationException(String.format(
+					"Incorrect format for %s. Expected: %s",
+					dataType,
+					intervalPattern));
+			}
+		};
+	}
+
 	private static Function<String, Object> conversionYearToMonth(
-		DataType dataType,
-		YearMonthIntervalType yearMonthIntervalType) {
+			DataType dataType,
+			YearMonthIntervalType yearMonthIntervalType) {
 		String intervalPattern = String.format(
 			"(\\d{1,%d})-(\\d{1,2})",
 			yearMonthIntervalType.getYearPrecision());
@@ -88,14 +131,51 @@ final class IntervalParsingUtils {
 				int month = Integer.parseInt(m.group(2));
 				return Period.of(year, month, 0);
 			} else {
-				throw new ValidationException("Incorrect format for " + dataType);
+				throw new ValidationException(String.format(
+					"Incorrect format for %s. Expected: %s",
+					dataType,
+					intervalPattern));
+			}
+		};
+	}
+
+	private static Function<String, Object> conversionMonth(DataType dataType) {
+		String intervalPattern = "(\\d{1,2})";
+		return value -> {
+			Matcher m = Pattern.compile(intervalPattern).matcher(value);
+			if (m.matches()) {
+				int months = Integer.parseInt(m.group(1));
+				return Period.of(0, months, 0);
+			} else {
+				throw new ValidationException(String.format(
+					"Incorrect format for %s. Expected: %s",
+					dataType,
+					intervalPattern));
+			}
+		};
+	}
+
+	private static Function<String, Object> conversionDay(DataType dataType, DayTimeIntervalType dayTimeIntervalType) {
+		String intervalPattern = String.format(
+			"(\\d{1,%d})",
+			dayTimeIntervalType.getDayPrecision());
+		return value -> {
+			Matcher m = Pattern.compile(intervalPattern).matcher(value);
+			if (m.matches()) {
+				long days = Long.parseLong(m.group(1));
+				return Duration.ofDays(days);
+			} else {
+				throw new ValidationException(String.format(
+					"Incorrect format for %s. Expected: %s",
+					dataType,
+					intervalPattern));
 			}
 		};
 	}
 
 	private static Function<String, Object> conversionDayToHour(
-		DataType dataType,
-		DayTimeIntervalType dayTimeIntervalType) {
+			DataType dataType,
+			DayTimeIntervalType dayTimeIntervalType) {
 		String intervalPattern = String.format(
 			"(\\d{1,%d}) (\\d{1,2})",
 			dayTimeIntervalType.getDayPrecision());
@@ -115,8 +195,8 @@ final class IntervalParsingUtils {
 	}
 
 	private static Function<String, Object> conversionDayToMinute(
-		DataType dataType,
-		DayTimeIntervalType dayTimeIntervalType) {
+			DataType dataType,
+			DayTimeIntervalType dayTimeIntervalType) {
 		String intervalPattern = String.format(
 			"(\\d{1,%d}) (\\d{1,2}):(\\d{1,2})",
 			dayTimeIntervalType.getDayPrecision());
@@ -157,6 +237,22 @@ final class IntervalParsingUtils {
 					.plusMinutes(minutes)
 					.plusSeconds(seconds)
 					.plusNanos(nanos);
+			} else {
+				throw new ValidationException(String.format(
+					"Incorrect format for %s. Expected: %s",
+					dataType,
+					intervalPattern));
+			}
+		};
+	}
+
+	private static Function<String, Object> conversionHour(DataType dataType) {
+		String intervalPattern = "(\\d{1,2})";
+		return value -> {
+			Matcher m = Pattern.compile(intervalPattern).matcher(value);
+			if (m.matches()) {
+				long hours = Long.parseLong(m.group(1));
+				return Duration.ofHours(hours);
 			} else {
 				throw new ValidationException(String.format(
 					"Incorrect format for %s. Expected: %s",
@@ -211,6 +307,22 @@ final class IntervalParsingUtils {
 		};
 	}
 
+	private static Function<String, Object> conversionMinute(DataType dataType) {
+		String intervalPattern = "(\\d{1,2})";
+		return value -> {
+			Matcher m = Pattern.compile(intervalPattern).matcher(value);
+			if (m.matches()) {
+				long minutes = Long.parseLong(m.group(1));
+				return Duration.ofMinutes(minutes);
+			} else {
+				throw new ValidationException(String.format(
+					"Incorrect format for %s. Expected: %s",
+					dataType,
+					intervalPattern));
+			}
+		};
+	}
+
 	private static Function<String, Object> conversionMinuteToSecond(
 		DataType dataType,
 		DayTimeIntervalType dayTimeIntervalType) {
@@ -226,6 +338,29 @@ final class IntervalParsingUtils {
 				long nanos = parseNanos(m.group(5));
 				return Duration.ofMinutes(minutes)
 					.plusSeconds(seconds)
+					.plusNanos(nanos);
+			} else {
+				throw new ValidationException(String.format(
+					"Incorrect format for %s. Expected: %s",
+					dataType,
+					intervalPattern));
+			}
+		};
+	}
+
+	private static Function<String, Object> conversionSecond(
+			DataType dataType,
+			DayTimeIntervalType dayTimeIntervalType) {
+		String intervalPattern = String.format(
+			"(\\d{1,2})\\.?(\\d{0,%d})",
+			dayTimeIntervalType.getFractionalPrecision()
+		);
+		return value -> {
+			Matcher m = Pattern.compile(intervalPattern).matcher(value);
+			if (m.matches()) {
+				long seconds = Long.parseLong(m.group(4));
+				long nanos = parseNanos(m.group(5));
+				return Duration.ofSeconds(seconds)
 					.plusNanos(nanos);
 			} else {
 				throw new ValidationException(String.format(
