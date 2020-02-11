@@ -533,9 +533,9 @@ TableEnvironment tableEnv = ...; // see "Create a TableEnvironment" section
 Table orders = tableEnv.from("Orders");
 // compute revenue for all customers from France
 Table revenue = orders
-  .filter("cCountry === 'FRANCE'")
-  .groupBy("cID, cName")
-  .select("cID, cName, revenue.sum AS revSum");
+  .filter($("cCountry").isEqual("FRANCE"))
+  .groupBy($("cID"), $("cName")
+  .select($("cID"), $("cName"), $("revenue").sum().as("revSum"));
 
 // emit or convert Table
 // execute query
@@ -553,9 +553,9 @@ val tableEnv = ... // see "Create a TableEnvironment" section
 val orders = tableEnv.from("Orders")
 // compute revenue for all customers from France
 val revenue = orders
-  .filter('cCountry === "FRANCE")
-  .groupBy('cID, 'cName)
-  .select('cID, 'cName, 'revenue.sum AS 'revSum)
+  .filter($"cCountry" === "FRANCE")
+  .groupBy($"cID", $"cName")
+  .select($"cID", $"cName", $"revenue".sum AS "revSum")
 
 // emit or convert Table
 // execute query
@@ -1472,7 +1472,7 @@ DataStream<Tuple2<Integer, String>> stream2 = env.fromElements(new Tuple2<>(1, "
 Table table1 = tEnv.fromDataStream(stream1, "count, word");
 Table table2 = tEnv.fromDataStream(stream2, "count, word");
 Table table = table1
-  .where("LIKE(word, 'F%')")
+  .where($("word").like("F%"))
   .unionAll(table2);
 
 String explanation = tEnv.explain(table);
@@ -1485,10 +1485,10 @@ System.out.println(explanation);
 val env = StreamExecutionEnvironment.getExecutionEnvironment
 val tEnv = StreamTableEnvironment.create(env)
 
-val table1 = env.fromElements((1, "hello")).toTable(tEnv, 'count, 'word)
-val table2 = env.fromElements((1, "hello")).toTable(tEnv, 'count, 'word)
+val table1 = env.fromElements((1, "hello")).toTable(tEnv, $"count", $"word")
+val table2 = env.fromElements((1, "hello")).toTable(tEnv, $"count", $"word")
 val table = table1
-  .where('word.like("F%"))
+  .where($"word".like("F%"))
   .unionAll(table2)
 
 val explanation: String = tEnv.explain(table)
@@ -1666,7 +1666,7 @@ tEnv.connect(new FileSystem("/sink/path2"))
     .withSchema(schema)
     .createTemporaryTable("MySink2");
 
-Table table1 = tEnv.from("MySource1").where("LIKE(word, 'F%')");
+Table table1 = tEnv.from("MySource1").where($("word").like("F%"));
 table1.insertInto("MySink1");
 
 Table table2 = table1.unionAll(tEnv.from("MySource2"));
@@ -1704,7 +1704,7 @@ tEnv.connect(new FileSystem("/sink/path2"))
     .withSchema(schema)
     .createTemporaryTable("MySink2")
 
-val table1 = tEnv.from("MySource1").where("LIKE(word, 'F%')")
+val table1 = tEnv.from("MySource1").where($"word".like("F%"))
 table1.insertInto("MySink1")
 
 val table2 = table1.unionAll(tEnv.from("MySource2"))
