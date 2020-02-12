@@ -19,12 +19,14 @@
 package org.apache.flink.table.planner.plan.stream.table
 
 import org.apache.flink.api.scala._
-import org.apache.flink.table.api.Tumble
+import org.apache.flink.table.api.{Expressions, Tumble}
 import org.apache.flink.table.api.scala._
 import org.apache.flink.table.planner.expressions.utils.{Func1, Func23, Func24}
 import org.apache.flink.table.planner.utils.TableTestBase
 
 import org.junit.Test
+
+import java.time.Duration
 
 class CalcTest extends TableTestBase {
 
@@ -40,7 +42,7 @@ class CalcTest extends TableTestBase {
       util.addDataStream[(Int, Long, String, Double)](
         "MyTable", 'a, 'b, 'c, 'd, 'rowtime.rowtime)
     val resultTable = sourceTable
-        .window(Tumble over 5.millis on 'rowtime as 'w)
+        .window(Tumble over Expressions.interval(Duration.ofMillis(5)) on 'rowtime as 'w)
         .groupBy('w)
         .select('c.upperCase().count, 'a.sum)
 
