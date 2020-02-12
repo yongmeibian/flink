@@ -31,6 +31,8 @@ import org.apache.flink.table.functions.FunctionDefinition;
 import org.apache.flink.table.types.DataType;
 import org.apache.flink.table.types.utils.TypeConversions;
 
+import java.time.Duration;
+import java.time.Period;
 import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Stream;
@@ -278,6 +280,40 @@ public final class Expressions {
 	 */
 	public static ApiExpression rowInterval(Long rows) {
 		return new ApiExpression(valueLiteral(rows));
+	}
+
+
+	/**
+	 * Creates a SQL INTERVAL literal corresponding to the given {@link Duration}.
+	 * Equivalent to {@code lit(Duration)}.
+	 */
+	public static ApiExpression interval(Duration duration) {
+		try {
+			if (duration.getNano() % 1_000 != 0) {
+				throw new ValidationException("For now only intervals of millisecond precision are supported.");
+			}
+			long totalMillis = duration.toMillis();
+			return new ApiExpression(valueLiteral(
+				totalMillis,
+				DataTypes.INTERVAL(DataTypes.SECOND(3)).bridgedTo(Long.class)));
+		} catch (ArithmeticException ex) {
+			throw new ValidationException(
+				"For now only intervals of up to Long.MAX_VALUE milliseconds are supported.", ex);
+		}
+	}
+
+	/**
+	 * Creates a SQL INTERVAL literal corresponding to the given {@link Period}.
+	 * Equivalent to {@code lit(Duration)}.
+	 */
+	public static ApiExpression interval(Period period) {
+		long totalMonths = period.toTotalMonths();
+		if (totalMonths > Integer.MAX_VALUE) {
+			throw new ValidationException("For now only intervals of up to INTEGER.MAX_VALUE months are supported.");
+		}
+		return new ApiExpression(valueLiteral(
+			(int) totalMonths,
+			DataTypes.INTERVAL(DataTypes.MONTH()).bridgedTo(Integer.class)));
 	}
 
 	/**
