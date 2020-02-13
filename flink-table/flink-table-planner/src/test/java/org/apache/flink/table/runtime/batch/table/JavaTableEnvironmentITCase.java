@@ -29,6 +29,7 @@ import org.apache.flink.api.java.tuple.Tuple5;
 import org.apache.flink.api.java.typeutils.GenericTypeInfo;
 import org.apache.flink.api.java.typeutils.TupleTypeInfo;
 import org.apache.flink.table.api.PlannerConfig;
+import org.apache.flink.table.api.SqlParserException;
 import org.apache.flink.table.api.Table;
 import org.apache.flink.table.api.TableException;
 import org.apache.flink.table.api.ValidationException;
@@ -72,7 +73,7 @@ public class JavaTableEnvironmentITCase extends TableProgramsCollectionTestBase 
 		});
 	}
 
-	@Test(expected = ValidationException.class)
+	@Test(expected = SqlParserException.class)
 	public void testIllegalEmptyName() throws Exception {
 		ExecutionEnvironment env = ExecutionEnvironment.getExecutionEnvironment();
 		BatchTableEnvironment tableEnv = BatchTableEnvironment.create(env, config());
@@ -80,10 +81,10 @@ public class JavaTableEnvironmentITCase extends TableProgramsCollectionTestBase 
 		DataSet<Tuple3<Integer, Long, String>> ds = CollectionDataSets.get3TupleDataSet(env);
 		Table t = tableEnv.fromDataSet(ds);
 		// Must fail. Table is empty
-		tableEnv.registerTable("", t);
+		tableEnv.createTemporaryView("", t);
 	}
 
-	@Test(expected = ValidationException.class)
+	@Test(expected = SqlParserException.class)
 	public void testIllegalWhitespaceOnlyName() throws Exception {
 		ExecutionEnvironment env = ExecutionEnvironment.getExecutionEnvironment();
 		BatchTableEnvironment tableEnv = BatchTableEnvironment.create(env, config());
@@ -91,7 +92,7 @@ public class JavaTableEnvironmentITCase extends TableProgramsCollectionTestBase 
 		DataSet<Tuple3<Integer, Long, String>> ds = CollectionDataSets.get3TupleDataSet(env);
 		Table t = tableEnv.fromDataSet(ds);
 		// Must fail. Table is empty
-		tableEnv.registerTable("     ", t);
+		tableEnv.createTemporaryView("     ", t);
 	}
 
 	@Test
@@ -101,8 +102,8 @@ public class JavaTableEnvironmentITCase extends TableProgramsCollectionTestBase 
 		BatchTableEnvironment tableEnv = BatchTableEnvironment.create(env, config());
 
 		DataSet<Tuple3<Integer, Long, String>> ds = CollectionDataSets.get3TupleDataSet(env);
-		tableEnv.registerDataSet(tableName, ds);
-		Table t = tableEnv.scan(tableName);
+		tableEnv.createTemporaryView(tableName, ds);
+		Table t = tableEnv.from(tableName);
 
 		Table result = t.select($("f0"), $("f1"));
 
@@ -121,8 +122,8 @@ public class JavaTableEnvironmentITCase extends TableProgramsCollectionTestBase 
 		BatchTableEnvironment tableEnv = BatchTableEnvironment.create(env, config());
 
 		DataSet<Tuple3<Integer, Long, String>> ds = CollectionDataSets.get3TupleDataSet(env);
-		tableEnv.registerDataSet(tableName, ds, "a, b, c");
-		Table t = tableEnv.scan(tableName);
+		tableEnv.createTemporaryView(tableName, ds, "a, b, c");
+		Table t = tableEnv.from(tableName);
 
 		Table result = t.select($("a"), $("b"), $("c"));
 
@@ -144,11 +145,11 @@ public class JavaTableEnvironmentITCase extends TableProgramsCollectionTestBase 
 		BatchTableEnvironment tableEnv = BatchTableEnvironment.create(env, config());
 
 		DataSet<Tuple3<Integer, Long, String>> ds = CollectionDataSets.get3TupleDataSet(env);
-		tableEnv.registerDataSet("MyTable", ds);
+		tableEnv.createTemporaryView("MyTable", ds);
 		DataSet<Tuple5<Integer, Long, Integer, String, Long>> ds2 =
 				CollectionDataSets.getSmall5TupleDataSet(env);
 		// Must fail. Name is already used for different table.
-		tableEnv.registerDataSet("MyTable", ds2);
+		tableEnv.createTemporaryView("MyTable", ds2);
 	}
 
 	@Test(expected = TableException.class)
@@ -157,7 +158,7 @@ public class JavaTableEnvironmentITCase extends TableProgramsCollectionTestBase 
 		BatchTableEnvironment tableEnv = BatchTableEnvironment.create(env, config());
 
 		// Must fail. No table registered under that name.
-		tableEnv.scan("nonRegisteredTable");
+		tableEnv.from("nonRegisteredTable");
 	}
 
 	@Test
@@ -168,7 +169,7 @@ public class JavaTableEnvironmentITCase extends TableProgramsCollectionTestBase 
 
 		DataSet<Tuple3<Integer, Long, String>> ds = CollectionDataSets.get3TupleDataSet(env);
 		Table t = tableEnv.fromDataSet(ds);
-		tableEnv.registerTable(tableName, t);
+		tableEnv.createTemporaryView(tableName, t);
 		Table result = tableEnv.scan(tableName).select($("f0"), $("f1")).filter($("f0").isGreater(7));
 
 		DataSet<Row> resultSet = tableEnv.toDataSet(result, Row.class);
@@ -187,7 +188,7 @@ public class JavaTableEnvironmentITCase extends TableProgramsCollectionTestBase 
 
 		Table t = tableEnv1.fromDataSet(CollectionDataSets.get3TupleDataSet(env));
 		// Must fail. Table is bound to different TableEnvironment.
-		tableEnv2.registerTable("MyTable", t);
+		tableEnv2.createTemporaryView("MyTable", t);
 	}
 
 	@Test

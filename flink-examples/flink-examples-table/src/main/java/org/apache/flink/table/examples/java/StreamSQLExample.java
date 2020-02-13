@@ -81,7 +81,7 @@ public class StreamSQLExample {
 		// convert DataStream to Table
 		Table tableA = tEnv.fromDataStream(orderA, "user, product, amount");
 		// register DataStream as Table
-		tEnv.registerDataStream("OrderB", orderB, "user, product, amount");
+		tEnv.createTemporaryView("OrderB", orderB, "user, product, amount");
 
 		// union the two tables
 		Table result = tEnv.sqlQuery("SELECT * FROM " + tableA + " WHERE amount > 2 UNION ALL " +

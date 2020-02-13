@@ -287,7 +287,7 @@ public class HBaseConnectorITCase extends HBaseTestBase {
 		StreamTableEnvironment tEnv = StreamTableEnvironment.create(execEnv, streamSettings);
 
 		DataStream<Row> ds = execEnv.fromCollection(testData1).returns(testTypeInfo1);
-		tEnv.registerDataStream("src", ds);
+		tEnv.createTemporaryView("src", ds);
 		tEnv.registerTableSink("hbase", tableSink);
 
 		String query = "INSERT INTO hbase SELECT ROW(f1c1), ROW(f2c1, f2c2), rowkey, ROW(f3c1, f3c2, f3c3) FROM src";
@@ -342,7 +342,7 @@ public class HBaseConnectorITCase extends HBaseTestBase {
 		StreamTableEnvironment tEnv = StreamTableEnvironment.create(execEnv, streamSettings);
 
 		DataStream<Row> ds = execEnv.fromCollection(testData1).returns(testTypeInfo1);
-		tEnv.registerDataStream("src", ds);
+		tEnv.createTemporaryView("src", ds);
 
 		// register hbase table
 		String quorum = getZookeeperQuorum();

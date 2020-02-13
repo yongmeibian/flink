@@ -219,7 +219,7 @@ public interface StreamTableEnvironment extends TableEnvironment {
 	 * <pre>
 	 * {@code
 	 *   DataStream<Tuple2<String, Long>> stream = ...
-	 *   Table tab = tableEnv.fromDataStream(stream, $("a"), $("b").rowtime());
+	 *   Table tab = tableEnv.fromDataStream(stream, $("a"), $("b").as("name"), $("timestamp").rowtime());
 	 * }
 	 * </pre>
 	 *
@@ -333,7 +333,7 @@ public interface StreamTableEnvironment extends TableEnvironment {
 	 * <pre>
 	 * {@code
 	 *   DataStream<Tuple2<String, Long>> stream = ...
-	 *   tableEnv.createTemporaryView("cat.db.myTable", stream, $("a"), $("b").rowtime())
+	 *   tableEnv.createTemporaryView("cat.db.myTable", stream, $("a"), $("b").as("name"), $("timestamp").rowtime())
 	 * }
 	 * </pre>
 	 *
