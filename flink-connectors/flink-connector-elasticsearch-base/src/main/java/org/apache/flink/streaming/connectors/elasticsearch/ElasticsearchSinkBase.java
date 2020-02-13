@@ -29,6 +29,7 @@ import org.apache.flink.streaming.api.functions.sink.RichSinkFunction;
 import org.apache.flink.util.InstantiationUtil;
 
 import org.elasticsearch.action.ActionRequest;
+import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkProcessor;
 import org.elasticsearch.action.bulk.BulkRequest;
@@ -407,10 +408,15 @@ public abstract class ElasticsearchSinkBase<T, C extends AutoCloseable> extends 
 							LOG.error("Failed Elasticsearch item request: {}", itemResponse.getFailureMessage(), failure);
 
 							restStatus = itemResponse.getFailure().getStatus();
-							if (restStatus == null) {
-								failureHandler.onFailure(request.requests().get(i), failure, -1, failureRequestIndexer);
+							DocWriteRequest<?> docWriteRequest = request.requests().get(i);
+							if (!(docWriteRequest instanceof ActionRequest)) {
+								continue;
+							}
+
+							if (restStatus == null ) {
+								failureHandler.onFailure((ActionRequest) docWriteRequest, failure, -1, failureRequestIndexer);
 							} else {
-								failureHandler.onFailure(request.requests().get(i), failure, restStatus.getStatus(), failureRequestIndexer);
+								failureHandler.onFailure((ActionRequest) docWriteRequest, failure, restStatus.getStatus(), failureRequestIndexer);
 							}
 						}
 					}
@@ -431,8 +437,10 @@ public abstract class ElasticsearchSinkBase<T, C extends AutoCloseable> extends 
 			LOG.error("Failed Elasticsearch bulk request: {}", failure.getMessage(), failure);
 
 			try {
-				for (ActionRequest action : request.requests()) {
-					failureHandler.onFailure(action, failure, -1, failureRequestIndexer);
+				for (DocWriteRequest<?> action : request.requests()) {
+					if (action instanceof ActionRequest) {
+						failureHandler.onFailure((ActionRequest) action, failure, -1, failureRequestIndexer);
+					}
 				}
 			} catch (Throwable t) {
 				// fail the sink and skip the rest of the items
