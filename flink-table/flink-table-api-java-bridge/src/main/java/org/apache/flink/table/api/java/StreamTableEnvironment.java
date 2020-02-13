@@ -294,7 +294,7 @@ public interface StreamTableEnvironment extends TableEnvironment {
 	 * @param dataStream The {@link DataStream} to register.
 	 * @param fields The field names of the registered view.
 	 * @param <T> The type of the {@link DataStream} to register.
-	 * @deprecated use {@link #createTemporaryView(String, DataStream, String)}
+	 * @deprecated use {@link #createTemporaryView(String, DataStream, Expression...)}
 	 */
 	@Deprecated
 	<T> void registerDataStream(String name, DataStream<T> dataStream, String fields);

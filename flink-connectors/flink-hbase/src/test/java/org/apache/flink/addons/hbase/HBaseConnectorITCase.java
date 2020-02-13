@@ -66,6 +66,7 @@ import java.util.Map;
 import scala.Option;
 
 import static org.apache.flink.addons.hbase.util.PlannerType.OLD_PLANNER;
+import static org.apache.flink.table.api.Expressions.$;
 import static org.apache.flink.table.descriptors.ConnectorDescriptorValidator.CONNECTOR_PROPERTY_VERSION;
 import static org.apache.flink.table.descriptors.ConnectorDescriptorValidator.CONNECTOR_TYPE;
 import static org.apache.flink.table.descriptors.ConnectorDescriptorValidator.CONNECTOR_VERSION;
@@ -428,7 +429,7 @@ public class HBaseConnectorITCase extends HBaseTestBase {
 
 		// prepare a source table
 		DataStream<Row> ds = streamEnv.fromCollection(testData2).returns(testTypeInfo2);
-		Table in = streamTableEnv.fromDataStream(ds, "a, b, c");
+		Table in = streamTableEnv.fromDataStream(ds, $("a"), $("b"), $("c"));
 		streamTableEnv.registerTable("src", in);
 
 		Map<String, String> tableProperties = hbaseTableProperties();
@@ -469,11 +470,11 @@ public class HBaseConnectorITCase extends HBaseTestBase {
 		// prepare a source table
 		String srcTableName = "src";
 		DataStream<Row> ds = streamEnv.fromCollection(testData2).returns(testTypeInfo2);
-		Table in = streamTableEnv.fromDataStream(ds, "a, b, c, proc.proctime");
+		Table in = streamTableEnv.fromDataStream(ds, $("a"), $("b"), $("c"), $("proc").proctime());
 		streamTableEnv.registerTable(srcTableName, in);
 
 		Map<String, String> tableProperties = hbaseTableProperties();
-		TableSource source = TableFactoryService
+		TableSource<?> source = TableFactoryService
 			.find(HBaseTableFactory.class, tableProperties)
 			.createTableSource(tableProperties);
 		streamTableEnv.registerTableSource("hbaseLookup", source);

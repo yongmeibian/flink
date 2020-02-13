@@ -27,6 +27,7 @@ import org.apache.flink.streaming.api.TimeCharacteristic
 import org.apache.flink.streaming.api.environment.LocalStreamEnvironment
 import org.apache.flink.streaming.api.functions.source.SourceFunction
 import org.apache.flink.streaming.api.scala.StreamExecutionEnvironment
+import org.apache.flink.table.api.Expressions.ApiExpression
 import org.apache.flink.table.api.internal.{TableEnvImpl, TableEnvironmentImpl, TableImpl, BatchTableEnvImpl => _}
 import org.apache.flink.table.api.java.internal.{BatchTableEnvironmentImpl => JavaBatchTableEnvironmentImpl, StreamTableEnvironmentImpl => JavaStreamTableEnvironmentImpl}
 import org.apache.flink.table.api.scala._
@@ -39,6 +40,7 @@ import org.apache.flink.table.functions.{AggregateFunction, ScalarFunction, Tabl
 import org.apache.flink.table.module.ModuleManager
 import org.apache.flink.table.operations.{DataSetQueryOperation, JavaDataStreamQueryOperation, ScalaDataStreamQueryOperation}
 import org.apache.flink.table.planner.StreamPlanner
+
 import org.junit.Assert.assertEquals
 import org.junit.rules.ExpectedException
 import org.junit.{ComparisonFailure, Rule}
@@ -361,9 +363,9 @@ case class StreamTableTestUtil(
     table
   }
 
-  def addJavaTable[T](typeInfo: TypeInformation[T], name: String, fields: String): Table = {
+  def addJavaTable[T](typeInfo: TypeInformation[T], name: String, fields: ApiExpression*): Table = {
     val stream = javaEnv.addSource(new EmptySource[T], typeInfo)
-    val table = javaTableEnv.fromDataStream(stream, fields)
+    val table = javaTableEnv.fromDataStream(stream, fields: _*)
     javaTableEnv.registerTable(name, table)
     table
   }

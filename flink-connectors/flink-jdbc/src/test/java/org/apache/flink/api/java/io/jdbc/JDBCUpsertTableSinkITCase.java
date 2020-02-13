@@ -43,6 +43,7 @@ import java.util.List;
 
 import static org.apache.flink.api.java.io.jdbc.JDBCTestBase.DRIVER_CLASS;
 import static org.apache.flink.api.java.io.jdbc.JDBCUpsertOutputFormatTest.check;
+import static org.apache.flink.table.api.Expressions.$;
 
 /**
  * IT case for {@link JDBCUpsertTableSink}.
@@ -146,11 +147,12 @@ public class JDBCUpsertTableSinkITCase extends AbstractTestBase {
 		StreamTableEnvironment tEnv = StreamTableEnvironment.create(env);
 
 		Table t = tEnv.fromDataStream(get4TupleDataStream(env).assignTimestampsAndWatermarks(
-				new AscendingTimestampExtractor<Tuple4<Integer, Long, String, Timestamp>>() {
-					@Override
-					public long extractAscendingTimestamp(Tuple4<Integer, Long, String, Timestamp> element) {
-						return element.f0;
-					}}), "id, num, text, ts");
+			new AscendingTimestampExtractor<Tuple4<Integer, Long, String, Timestamp>>() {
+				@Override
+				public long extractAscendingTimestamp(Tuple4<Integer, Long, String, Timestamp> element) {
+					return element.f0;
+				}
+			}), $("id"), $("num"), $("text"), $("ts"));
 
 		tEnv.createTemporaryView("T", t);
 		tEnv.sqlUpdate(
@@ -188,7 +190,7 @@ public class JDBCUpsertTableSinkITCase extends AbstractTestBase {
 		env.getConfig().setParallelism(1);
 		StreamTableEnvironment tEnv = StreamTableEnvironment.create(env);
 
-		Table t = tEnv.fromDataStream(get4TupleDataStream(env), "id, num, text, ts");
+		Table t = tEnv.fromDataStream(get4TupleDataStream(env), $("id"), $("num"), $("text"), $("ts"));
 
 		tEnv.registerTable("T", t);
 
