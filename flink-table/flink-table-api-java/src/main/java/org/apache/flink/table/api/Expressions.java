@@ -23,13 +23,16 @@ import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.table.api.internal.BaseExpressions;
 import org.apache.flink.table.expressions.Expression;
 import org.apache.flink.table.expressions.ExpressionVisitor;
+import org.apache.flink.table.expressions.ResolvedExpression;
 import org.apache.flink.table.expressions.TimePointUnit;
 import org.apache.flink.table.expressions.UnresolvedCallExpression;
 import org.apache.flink.table.expressions.utils.ApiExpressionUtils;
 import org.apache.flink.table.functions.BuiltInFunctionDefinitions;
 import org.apache.flink.table.functions.FunctionDefinition;
+import org.apache.flink.table.functions.UserDefinedFunction;
 import org.apache.flink.table.types.DataType;
 import org.apache.flink.table.types.utils.TypeConversions;
+import org.apache.flink.table.types.utils.ValueDataTypeConverter;
 
 import java.time.Duration;
 import java.time.Period;
@@ -41,13 +44,33 @@ import static org.apache.flink.table.expressions.utils.ApiExpressionUtils.object
 import static org.apache.flink.table.expressions.utils.ApiExpressionUtils.valueLiteral;
 
 /**
- * Entry point for a Java Table Expression DSL.
+ * Entry point of the Table API Expression DSL such as: {@code $("myField").plus(10).abs()}
+ *
+ * <p>This class contains static methods for referencing table columns, creating literals,
+ * and building more complex {@link Expression} chains. {@link ApiExpression ApiExpressions} are
+ * pure API entities that are further translated into {@link ResolvedExpression ResolvedExpressions}
+ * under the hood.
+ *
+ * <p>For fluent definition of expressions and easier readability, we recommend to add a
+ * star import to the methods of this class:
+ *
+ * <pre>
+ * import static org.apache.flink.table.api.Expressions.*;
+ * </pre>
+ *
+ * <p>Check the documentation for more programming language specific APIs, for example, by using
+ * Scala implicits.
  */
 @PublicEvolving
 public final class Expressions {
-
 	/**
-	 * Creates an unresolved reference to a table's column.
+	 * Creates an unresolved reference to a table's field.
+	 *
+	 * <p>Example
+	 * <pre>{@code
+	 *   tab.select($("key"), $("value"))
+	 * }
+	 * </pre>
 	 */
 	//CHECKSTYLE.OFF: MethodName
 	public static ApiExpression $(String name) {
@@ -56,7 +79,18 @@ public final class Expressions {
 	//CHECKSTYLE.ON: MethodName
 
 	/**
-	 * Creates a SQL literal. The data type is derived from the Java class.
+	 * Creates a SQL literal.
+	 *
+	 * <p>The data type is derived from the object's class and its value.
+	 *
+	 * <p>For example:
+	 * <ul>
+	 *     <li>{@code lit(12)} leads to {@code INT}</li>
+	 *     <li>{@code lit("abc")} leads to {@code CHAR(3)}</li>
+	 *     <li>{@code lit(new BigDecimal("123.45"))} leads to {@code DECIMAL(5, 2)}</li>
+	 * </ul>
+	 *
+	 * <p>See {@link ValueDataTypeConverter} for a list of supported literal values.
 	 */
 	public static ApiExpression lit(Object v) {
 		return new ApiExpression(valueLiteral(v));
@@ -64,6 +98,10 @@ public final class Expressions {
 
 	/**
 	 * Creates a SQL literal of a given {@link DataType}.
+	 *
+	 * <p>The method {@link #lit(Object)} is preferred as it extracts the {@link DataType} automatically.
+	 * Use this method only when necessary. The class of {@code v} must be supported according to the
+	 * {@link org.apache.flink.table.types.logical.LogicalType#supportsInputConversion(Class)}.
 	 */
 	public static ApiExpression lit(Object v, DataType dataType) {
 		return new ApiExpression(valueLiteral(v, dataType));
@@ -72,6 +110,12 @@ public final class Expressions {
 	/**
 	 * Indicates a range from 'start' to 'end', which can be used in columns
 	 * selection.
+	 *
+	 * <p>Example:
+	 * <pre>{@code
+	 * Table table = ...
+	 * table.withColumns(range(b, c))
+	 * }</pre>
 	 *
 	 * @see #withColumns(Object, Object...)
 	 * @see #withoutColumns(Object, Object...)
@@ -82,6 +126,12 @@ public final class Expressions {
 
 	/**
 	 * Indicates an index based range, which can be used in columns selection.
+	 *
+	 * <p>Example:
+	 * <pre>{@code
+	 * Table table = ...
+	 * table.withColumns(range(3, 4))
+	 * }</pre>
 	 *
 	 * @see #withColumns(Object, Object...)
 	 * @see #withoutColumns(Object, Object...)
@@ -180,7 +230,15 @@ public final class Expressions {
 	 *
 	 * <p>It evaluates: leftEnd >= rightStart && rightEnd >= leftStart
 	 *
-	 * <p>e.g. temporalOverlaps("2:55:00".toTime, 1.hour, "3:30:00".toTime, 2.hour) leads to true
+	 * <p>e.g.
+	 * <pre>{@code
+	 * temporalOverlaps(
+	 *      lit("2:55:00").toTime(),
+	 *      interval(Duration.ofHour(1)),
+	 *      lit("3:30:00").toTime(),
+	 *      interval(Duration.ofHour(2))
+	 * }</pre>
+	 * leads to true
 	 */
 	public static ApiExpression temporalOverlaps(
 			Object leftTimePoint,
@@ -200,7 +258,7 @@ public final class Expressions {
 	 * The format must be compatible with MySQL's date formatting syntax as used by the
 	 * date_parse function.
 	 *
-	 * <p>For example dataFormat('time, "%Y, %d %M") results in strings formatted as "2017, 05 May".
+	 * <p>For example {@code dataFormat($("time"), "%Y, %d %M")} results in strings formatted as "2017, 05 May".
 	 *
 	 * @param timestamp The timestamp to format as string.
 	 * @param format The format of the string.
@@ -218,8 +276,8 @@ public final class Expressions {
 	/**
 	 * Returns the (signed) number of {@link TimePointUnit} between timePoint1 and timePoint2.
 	 *
-	 * <p>For example, {@code timestampDiff(TimePointUnit.DAY, '2016-06-15'.toDate, '2016-06-18'.toDate} leads
-	 * to 3.
+	 * <p>For example, {@code timestampDiff(TimePointUnit.DAY, lit("2016-06-15").toDate(), lit("2016-06-18").toDate()}
+	 * leads to 3.
 	 *
 	 * @param timePointUnit The unit to compute diff.
 	 * @param timePoint1 The first point in time.
@@ -263,6 +321,17 @@ public final class Expressions {
 
 	/**
 	 * Creates a map of expressions.
+	 *
+	 * <pre>{@code
+	 *  table.select(
+	 *      map(
+	 *          "key1", 1,
+	 *          "key2", 2,
+	 *          "key3", 3
+	 *      ))
+	 * }</pre>
+	 *
+	 * <p>Note keys and values should have the same types for all entries.
 	 */
 	public static ApiExpression map(Object key, Object value, Object... tail) {
 		return apiCall(BuiltInFunctionDefinitions.MAP, Stream.concat(
@@ -420,10 +489,10 @@ public final class Expressions {
 
 	/**
 	 * @deprecated This method will be removed in future versions as it uses the old type system.
-	 * It is recommended to use {@link #nullOf(DataType)} instead which uses the new type
-	 * system based on {@link DataTypes}. Please make sure to use either the old or the new
-	 * type system consistently to avoid unintended behavior. See the website
-	 * documentation for more information.
+	 *             It is recommended to use {@link #nullOf(DataType)} instead which uses the new type
+	 *             system based on {@link DataTypes}. Please make sure to use either the old or the new
+	 *             type system consistently to avoid unintended behavior. See the website
+	 *             documentation for more information.
 	 */
 	public static ApiExpression nullOf(TypeInformation<?> typeInfo) {
 		return nullOf(TypeConversions.fromLegacyInfoToDataType(typeInfo));
@@ -510,11 +579,12 @@ public final class Expressions {
 	}
 
 	/**
-	 * A call to an inline function. For functions registered in a catalog use {@link #call(String, Object...)}.
+	 * A call to an unregistered, inline function. For functions that have been registered before and
+	 * are identified by a name, use {@link #call(String, Object...)}.
 	 */
-	public static ApiExpression call(FunctionDefinition scalarFunction, Object... params) {
+	public static ApiExpression call(UserDefinedFunction function, Object... params) {
 		return apiCall(
-			scalarFunction,
+			function,
 			Arrays.stream(params).map(ApiExpressionUtils::objectToExpression).toArray(Expression[]::new));
 	}
 
@@ -525,7 +595,7 @@ public final class Expressions {
 	/**
 	 * Java API class that gives access to expressions operations.
 	 */
-	public static final class ApiExpression extends BaseExpressions<Object, ApiExpression> implements Expression {
+	static final class ApiExpression extends BaseExpressions<Object, ApiExpression> implements Expression {
 		private final Expression wrappedExpression;
 
 		@Override
@@ -535,7 +605,7 @@ public final class Expressions {
 
 		private ApiExpression(Expression wrappedExpression) {
 			if (wrappedExpression instanceof ApiExpression) {
-				throw new UnsupportedOperationException("This is a bug. Please file a JIRA.");
+				throw new UnsupportedOperationException("This is a bug. Please file an issue.");
 			}
 			this.wrappedExpression = wrappedExpression;
 		}

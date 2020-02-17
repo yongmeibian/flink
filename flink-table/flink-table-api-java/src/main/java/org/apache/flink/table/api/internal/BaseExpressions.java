@@ -21,6 +21,7 @@ package org.apache.flink.table.api.internal;
 import org.apache.flink.annotation.PublicEvolving;
 import org.apache.flink.api.common.typeinfo.SqlTimeTypeInfo;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
+import org.apache.flink.table.api.Expressions;
 import org.apache.flink.table.api.Table;
 import org.apache.flink.table.expressions.Expression;
 import org.apache.flink.table.expressions.TimeIntervalUnit;
@@ -37,6 +38,7 @@ import static org.apache.flink.table.expressions.utils.ApiExpressionUtils.typeLi
 import static org.apache.flink.table.expressions.utils.ApiExpressionUtils.unresolvedCall;
 import static org.apache.flink.table.expressions.utils.ApiExpressionUtils.valueLiteral;
 import static org.apache.flink.table.types.utils.TypeConversions.fromLegacyInfoToDataType;
+
 //CHECKSTYLE.OFF: AvoidStarImport|ImportOrder
 import static org.apache.flink.table.functions.BuiltInFunctionDefinitions.*;
 //CHECKSTYLE.ON: AvoidStarImport|ImportOrder
@@ -44,21 +46,28 @@ import static org.apache.flink.table.functions.BuiltInFunctionDefinitions.*;
 /**
  * These are Java and Scala common operations that can be used to construct an {@link Expression} AST for
  * expression operations.
+ *
+ * @param <InType>  The accepted type of input expressions, it is {@code Expression} for Scala and
+ *                  {@code Object} for Java. Generally the expression DSL works on expressions, the
+ *                  reason why Java accepts Object is to remove cumbersome call to {@code lit()} for
+ *                  literals. Scala alleviates this problem via implicit conversions.
+ * @param <OutType> The produced type of the DSL. It is {@code ApiExpression} for Java and {@code Expression}
+ *                  for Scala. In scala the infix operations are included via implicit conversions. In Java
+ *                  we introduced a wrapper that enables the operations without pulling them through the whole stack.
  */
 @PublicEvolving
-public abstract class BaseExpressions<InT, OutT> {
+public abstract class BaseExpressions<InType, OutType> {
 	protected abstract Expression toExpr();
 
-	protected abstract OutT toApiSpecificExpression(Expression expression);
+	protected abstract OutType toApiSpecificExpression(Expression expression);
 
 	/**
 	 * Specifies a name for an expression i.e. a field.
 	 *
 	 * @param name       name for one field
 	 * @param extraNames additional names if the expression expands to multiple fields
-	 * @return field with an alias
 	 */
-	public OutT as(String name, String... extraNames) {
+	public OutType as(String name, String... extraNames) {
 		return toApiSpecificExpression(ApiExpressionUtils.unresolvedCall(
 			BuiltInFunctionDefinitions.AS,
 			Stream.concat(
@@ -68,86 +77,92 @@ public abstract class BaseExpressions<InT, OutT> {
 	}
 
 	/**
-	 * Boolean AND in three-valued logic.
+	 * Boolean AND in three-valued logic. This is an infix notation. See also
+	 * {@link Expressions#and(Object, Object, Object...)} for prefix notation with multiple arguments.
+	 *
+	 * @see org.apache.flink.table.api.Expressions#and(Object, Object, Object...)
 	 */
-	public OutT and(InT other) {
+	public OutType and(InType other) {
 		return toApiSpecificExpression(unresolvedCall(AND, toExpr(), objectToExpression(other)));
 	}
 
 	/**
-	 * Boolean OR in three-valued logic.
+	 * Boolean OR in three-valued logic. This is an infix notation. See also
+	 * {@link Expressions#or(Object, Object, Object...)} for prefix notation with multiple arguments.
+	 *
+	 * @see org.apache.flink.table.api.Expressions#or(Object, Object, Object...)
 	 */
-	public OutT or(InT other) {
+	public OutType or(InType other) {
 		return toApiSpecificExpression(unresolvedCall(OR, toExpr(), objectToExpression(other)));
 	}
 
 	/**
 	 * Greater than.
 	 */
-	public OutT isGreater(InT other) {
+	public OutType isGreater(InType other) {
 		return toApiSpecificExpression(unresolvedCall(GREATER_THAN, toExpr(), objectToExpression(other)));
 	}
 
 	/**
 	 * Greater than or equal.
 	 */
-	public OutT isGreaterOrEqual(InT other) {
+	public OutType isGreaterOrEqual(InType other) {
 		return toApiSpecificExpression(unresolvedCall(GREATER_THAN_OR_EQUAL, toExpr(), objectToExpression(other)));
 	}
 
 	/**
 	 * Less than.
 	 */
-	public OutT isLess(InT other) {
+	public OutType isLess(InType other) {
 		return toApiSpecificExpression(unresolvedCall(LESS_THAN, toExpr(), objectToExpression(other)));
 	}
 
 	/**
 	 * Less than or equal.
 	 */
-	public OutT isLessOrEqual(InT other) {
+	public OutType isLessOrEqual(InType other) {
 		return toApiSpecificExpression(unresolvedCall(LESS_THAN_OR_EQUAL, toExpr(), objectToExpression(other)));
 	}
 
 	/**
 	 * Equals.
 	 */
-	public OutT isEqual(InT other) {
+	public OutType isEqual(InType other) {
 		return toApiSpecificExpression(unresolvedCall(EQUALS, toExpr(), objectToExpression(other)));
 	}
 
 	/**
 	 * Not equal.
 	 */
-	public OutT isNotEqual(InT other) {
+	public OutType isNotEqual(InType other) {
 		return toApiSpecificExpression(unresolvedCall(NOT_EQUALS, toExpr(), objectToExpression(other)));
 	}
 
 	/**
 	 * Returns left plus right.
 	 */
-	public OutT plus(InT other) {
+	public OutType plus(InType other) {
 		return toApiSpecificExpression(unresolvedCall(PLUS, toExpr(), objectToExpression(other)));
 	}
 
 	/**
 	 * Returns left minus right.
 	 */
-	public OutT minus(InT other) {
+	public OutType minus(InType other) {
 		return toApiSpecificExpression(unresolvedCall(MINUS, toExpr(), objectToExpression(other)));
 	}
 
 	/**
 	 * Returns left divided by right.
 	 */
-	public OutT dividedBy(InT other) {
+	public OutType dividedBy(InType other) {
 		return toApiSpecificExpression(unresolvedCall(DIVIDE, toExpr(), objectToExpression(other)));
 	}
 
 	/**
 	 * Returns left multiplied by right.
 	 */
-	public OutT multipliedBy(InT other) {
+	public OutType multipliedBy(InType other) {
 		return toApiSpecificExpression(unresolvedCall(TIMES, toExpr(), objectToExpression(other)));
 	}
 
@@ -157,9 +172,8 @@ public abstract class BaseExpressions<InT, OutT> {
 	 *
 	 * @param lowerBound numeric or comparable expression
 	 * @param upperBound numeric or comparable expression
-	 * @return boolean or null
 	 */
-	public OutT between(InT lowerBound, InT upperBound) {
+	public OutType between(InType lowerBound, InType upperBound) {
 		return toApiSpecificExpression(unresolvedCall(
 			BETWEEN,
 			toExpr(),
@@ -174,9 +188,8 @@ public abstract class BaseExpressions<InT, OutT> {
 	 *
 	 * @param lowerBound numeric or comparable expression
 	 * @param upperBound numeric or comparable expression
-	 * @return boolean or null
 	 */
-	public OutT notBetween(InT lowerBound, InT upperBound) {
+	public OutType notBetween(InType lowerBound, InType upperBound) {
 		return toApiSpecificExpression(unresolvedCall(
 			NOT_BETWEEN,
 			toExpr(),
@@ -187,42 +200,42 @@ public abstract class BaseExpressions<InT, OutT> {
 	/**
 	 * Returns true if the given expression is null.
 	 */
-	public OutT isNull() {
+	public OutType isNull() {
 		return toApiSpecificExpression(unresolvedCall(IS_NULL, toExpr()));
 	}
 
 	/**
 	 * Returns true if the given expression is not null.
 	 */
-	public OutT isNotNull() {
+	public OutType isNotNull() {
 		return toApiSpecificExpression(unresolvedCall(IS_NOT_NULL, toExpr()));
 	}
 
 	/**
 	 * Returns true if given boolean expression is true. False otherwise (for null and false).
 	 */
-	public OutT isTrue() {
+	public OutType isTrue() {
 		return toApiSpecificExpression(unresolvedCall(IS_TRUE, toExpr()));
 	}
 
 	/**
 	 * Returns true if given boolean expression is false. False otherwise (for null and true).
 	 */
-	public OutT isFalse() {
+	public OutType isFalse() {
 		return toApiSpecificExpression(unresolvedCall(IS_FALSE, toExpr()));
 	}
 
 	/**
 	 * Returns true if given boolean expression is not true (for null and false). False otherwise.
 	 */
-	public OutT isNotTrue() {
+	public OutType isNotTrue() {
 		return toApiSpecificExpression(unresolvedCall(IS_NOT_TRUE, toExpr()));
 	}
 
 	/**
 	 * Returns true if given boolean expression is not false (for null and true). False otherwise.
 	 */
-	public OutT isNotFalse() {
+	public OutType isNotFalse() {
 		return toApiSpecificExpression(unresolvedCall(IS_NOT_FALSE, toExpr()));
 	}
 
@@ -234,12 +247,12 @@ public abstract class BaseExpressions<InT, OutT> {
 	 * <pre>
 	 * {@code
 	 * orders
-	 * .groupBy('a)
-	 * .select('a, 'b.sum.distinct as 'd)
+	 *  .groupBy($("a"))
+	 *  .select($("a"), $("b").sum().distinct().as("d"))
 	 * }
 	 * </pre>
 	 */
-	public OutT distinct() {
+	public OutType distinct() {
 		return toApiSpecificExpression(unresolvedCall(DISTINCT, toExpr()));
 	}
 
@@ -247,7 +260,7 @@ public abstract class BaseExpressions<InT, OutT> {
 	 * Returns the sum of the numeric field across all input values.
 	 * If all values are null, null is returned.
 	 */
-	public OutT sum() {
+	public OutType sum() {
 		return toApiSpecificExpression(unresolvedCall(SUM, toExpr()));
 	}
 
@@ -255,70 +268,70 @@ public abstract class BaseExpressions<InT, OutT> {
 	 * Returns the sum of the numeric field across all input values.
 	 * If all values are null, 0 is returned.
 	 */
-	public OutT sum0() {
+	public OutType sum0() {
 		return toApiSpecificExpression(unresolvedCall(SUM0, toExpr()));
 	}
 
 	/**
 	 * Returns the minimum value of field across all input values.
 	 */
-	public OutT min() {
+	public OutType min() {
 		return toApiSpecificExpression(unresolvedCall(MIN, toExpr()));
 	}
 
 	/**
 	 * Returns the maximum value of field across all input values.
 	 */
-	public OutT max() {
+	public OutType max() {
 		return toApiSpecificExpression(unresolvedCall(MAX, toExpr()));
 	}
 
 	/**
 	 * Returns the number of input rows for which the field is not null.
 	 */
-	public OutT count() {
+	public OutType count() {
 		return toApiSpecificExpression(unresolvedCall(COUNT, toExpr()));
 	}
 
 	/**
 	 * Returns the average (arithmetic mean) of the numeric field across all input values.
 	 */
-	public OutT avg() {
+	public OutType avg() {
 		return toApiSpecificExpression(unresolvedCall(AVG, toExpr()));
 	}
 
 	/**
 	 * Returns the population standard deviation of an expression (the square root of varPop()).
 	 */
-	public OutT stddevPop() {
+	public OutType stddevPop() {
 		return toApiSpecificExpression(unresolvedCall(STDDEV_POP, toExpr()));
 	}
 
 	/**
 	 * Returns the sample standard deviation of an expression (the square root of varSamp()).
 	 */
-	public OutT stddevSamp() {
+	public OutType stddevSamp() {
 		return toApiSpecificExpression(unresolvedCall(STDDEV_SAMP, toExpr()));
 	}
 
 	/**
 	 * Returns the population standard variance of an expression.
 	 */
-	public OutT varPop() {
+	public OutType varPop() {
 		return toApiSpecificExpression(unresolvedCall(VAR_POP, toExpr()));
 	}
 
 	/**
 	 * Returns the sample variance of a given expression.
 	 */
-	public OutT varSamp() {
+	public OutType varSamp() {
 		return toApiSpecificExpression(unresolvedCall(VAR_SAMP, toExpr()));
 	}
 
 	/**
 	 * Returns multiset aggregate of a given expression.
 	 */
-	public OutT collect() {
+	public OutType collect() {
 		return toApiSpecificExpression(unresolvedCall(COLLECT, toExpr()));
 	}
 
@@ -326,40 +339,34 @@ public abstract class BaseExpressions<InT, OutT> {
 	 * Converts a value to a given data type.
 	 *
 	 * <p>e.g. "42".cast(DataTypes.INT()) leads to 42.
-	 *
-	 * @return casted expression
 	 */
-	public OutT cast(DataType toType) {
+	public OutType cast(DataType toType) {
 		return toApiSpecificExpression(unresolvedCall(CAST, toExpr(), typeLiteral(toType)));
 	}
 
 	/**
 	 * @deprecated This method will be removed in future versions as it uses the old type system. It
-	 * is recommended to use {@link #cast(DataType)} instead which uses the new type system
-	 * based on {@link org.apache.flink.table.api.DataTypes}. Please make sure to use either the old
-	 * or the new type system consistently to avoid unintended behavior. See the website documentation
-	 * for more information.
+	 *             is recommended to use {@link #cast(DataType)} instead which uses the new type system
+	 *             based on {@link org.apache.flink.table.api.DataTypes}. Please make sure to use either the old
+	 *             or the new type system consistently to avoid unintended behavior. See the website documentation
+	 *             for more information.
 	 */
 	@Deprecated
-	public OutT cast(TypeInformation<?> toType) {
+	public OutType cast(TypeInformation<?> toType) {
 		return toApiSpecificExpression(unresolvedCall(CAST, toExpr(), typeLiteral(fromLegacyInfoToDataType(toType))));
 	}
 
 	/**
 	 * Specifies ascending order of an expression i.e. a field for orderBy unresolvedCall.
-	 *
-	 * @return ascend expression
 	 */
-	public OutT asc() {
+	public OutType asc() {
 		return toApiSpecificExpression(unresolvedCall(ORDER_ASC, toExpr()));
 	}
 
 	/**
 	 * Specifies descending order of an expression i.e. a field for orderBy unresolvedCall.
-	 *
-	 * @return descend expression
 	 */
-	public OutT desc() {
+	public OutType desc() {
 		return toApiSpecificExpression(unresolvedCall(ORDER_DESC, toExpr()));
 	}
 
@@ -373,7 +380,7 @@ public abstract class BaseExpressions<InT, OutT> {
 	 * <p>e.g. "42".in(1, 2, 3) leads to false.
 	 */
 	@SafeVarargs
-	public final OutT in(InT... elements) {
+	public final OutType in(InType... elements) {
 		Expression[] args = Stream.concat(
 			Stream.of(toExpr()),
 			Arrays.stream(elements).map(ApiExpressionUtils::objectToExpression))
@@ -387,14 +394,14 @@ public abstract class BaseExpressions<InT, OutT> {
 	 *
 	 * <p>Note: This operation is not supported in a streaming environment yet.
 	 */
-	public OutT in(Table table) {
+	public OutType in(Table table) {
 		return toApiSpecificExpression(unresolvedCall(IN, toExpr(), tableRef(table.toString(), table)));
 	}
 
 	/**
 	 * Returns the start time (inclusive) of a window when applied on a window reference.
 	 */
-	public OutT start() {
+	public OutType start() {
 		return toApiSpecificExpression(unresolvedCall(WINDOW_START, toExpr()));
 	}
 
@@ -403,7 +410,7 @@ public abstract class BaseExpressions<InT, OutT> {
 	 *
 	 * <p>e.g. if a window ends at 10:59:59.999 this property will return 11:00:00.000.
 	 */
-	public OutT end() {
+	public OutType end() {
 		return toApiSpecificExpression(unresolvedCall(WINDOW_END, toExpr()));
 	}
 
@@ -412,182 +419,182 @@ public abstract class BaseExpressions<InT, OutT> {
 	/**
 	 * Calculates the remainder of division the given number by another one.
 	 */
-	public OutT mod(InT other) {
+	public OutType mod(InType other) {
 		return toApiSpecificExpression(unresolvedCall(MOD, toExpr(), objectToExpression(other)));
 	}
 
 	/**
 	 * Calculates the Euler's number raised to the given power.
 	 */
-	public OutT exp() {
+	public OutType exp() {
 		return toApiSpecificExpression(unresolvedCall(EXP, toExpr()));
 	}
 
 	/**
 	 * Calculates the base 10 logarithm of the given value.
 	 */
-	public OutT log10() {
+	public OutType log10() {
 		return toApiSpecificExpression(unresolvedCall(LOG10, toExpr()));
 	}
 
 	/**
 	 * Calculates the base 2 logarithm of the given value.
 	 */
-	public OutT log2() {
+	public OutType log2() {
 		return toApiSpecificExpression(unresolvedCall(LOG2, toExpr()));
 	}
 
 	/**
 	 * Calculates the natural logarithm of the given value.
 	 */
-	public OutT ln() {
+	public OutType ln() {
 		return toApiSpecificExpression(unresolvedCall(LN, toExpr()));
 	}
 
 	/**
 	 * Calculates the natural logarithm of the given value.
 	 */
-	public OutT log() {
+	public OutType log() {
 		return toApiSpecificExpression(unresolvedCall(LOG, toExpr()));
 	}
 
 	/**
 	 * Calculates the logarithm of the given value to the given base.
 	 */
-	public OutT log(InT base) {
+	public OutType log(InType base) {
 		return toApiSpecificExpression(unresolvedCall(LOG, objectToExpression(base), toExpr()));
 	}
 
 	/**
 	 * Calculates the given number raised to the power of the other value.
 	 */
-	public OutT power(InT other) {
+	public OutType power(InType other) {
 		return toApiSpecificExpression(unresolvedCall(POWER, toExpr(), objectToExpression(other)));
 	}
 
 	/**
 	 * Calculates the hyperbolic cosine of a given value.
 	 */
-	public OutT cosh() {
+	public OutType cosh() {
 		return toApiSpecificExpression(unresolvedCall(COSH, toExpr()));
 	}
 
 	/**
 	 * Calculates the square root of a given value.
 	 */
-	public OutT sqrt() {
+	public OutType sqrt() {
 		return toApiSpecificExpression(unresolvedCall(SQRT, toExpr()));
 	}
 
 	/**
 	 * Calculates the absolute value of given value.
 	 */
-	public OutT abs() {
+	public OutType abs() {
 		return toApiSpecificExpression(unresolvedCall(ABS, toExpr()));
 	}
 
 	/**
 	 * Calculates the largest integer less than or equal to a given number.
 	 */
-	public OutT floor() {
+	public OutType floor() {
 		return toApiSpecificExpression(unresolvedCall(FLOOR, toExpr()));
 	}
 
 	/**
 	 * Calculates the hyperbolic sine of a given value.
 	 */
-	public OutT sinh() {
+	public OutType sinh() {
 		return toApiSpecificExpression(unresolvedCall(SINH, toExpr()));
 	}
 
 	/**
 	 * Calculates the smallest integer greater than or equal to a given number.
 	 */
-	public OutT ceil() {
+	public OutType ceil() {
 		return toApiSpecificExpression(unresolvedCall(CEIL, toExpr()));
 	}
 
 	/**
 	 * Calculates the sine of a given number.
 	 */
-	public OutT sin() {
+	public OutType sin() {
 		return toApiSpecificExpression(unresolvedCall(SIN, toExpr()));
 	}
 
 	/**
 	 * Calculates the cosine of a given number.
 	 */
-	public OutT cos() {
+	public OutType cos() {
 		return toApiSpecificExpression(unresolvedCall(COS, toExpr()));
 	}
 
 	/**
 	 * Calculates the tangent of a given number.
 	 */
-	public OutT tan() {
+	public OutType tan() {
 		return toApiSpecificExpression(unresolvedCall(TAN, toExpr()));
 	}
 
 	/**
 	 * Calculates the cotangent of a given number.
 	 */
-	public OutT cot() {
+	public OutType cot() {
 		return toApiSpecificExpression(unresolvedCall(COT, toExpr()));
 	}
 
 	/**
 	 * Calculates the arc sine of a given number.
 	 */
-	public OutT asin() {
+	public OutType asin() {
 		return toApiSpecificExpression(unresolvedCall(ASIN, toExpr()));
 	}
 
 	/**
 	 * Calculates the arc cosine of a given number.
 	 */
-	public OutT acos() {
+	public OutType acos() {
 		return toApiSpecificExpression(unresolvedCall(ACOS, toExpr()));
 	}
 
 	/**
 	 * Calculates the arc tangent of a given number.
 	 */
-	public OutT atan() {
+	public OutType atan() {
 		return toApiSpecificExpression(unresolvedCall(ATAN, toExpr()));
 	}
 
 	/**
 	 * Calculates the hyperbolic tangent of a given number.
 	 */
-	public OutT tanh() {
+	public OutType tanh() {
 		return toApiSpecificExpression(unresolvedCall(TANH, toExpr()));
 	}
 
 	/**
 	 * Converts numeric from radians to degrees.
 	 */
-	public OutT degrees() {
+	public OutType degrees() {
 		return toApiSpecificExpression(unresolvedCall(DEGREES, toExpr()));
 	}
 
 	/**
 	 * Converts numeric from degrees to radians.
 	 */
-	public OutT radians() {
+	public OutType radians() {
 		return toApiSpecificExpression(unresolvedCall(RADIANS, toExpr()));
 	}
 
 	/**
 	 * Calculates the signum of a given number.
 	 */
-	public OutT sign() {
+	public OutType sign() {
 		return toApiSpecificExpression(unresolvedCall(SIGN, toExpr()));
 	}
 
 	/**
 	 * Rounds the given number to integer places right to the decimal point.
 	 */
-	public OutT round(InT places) {
+	public OutType round(InType places) {
 		return toApiSpecificExpression(unresolvedCall(ROUND, toExpr(), objectToExpression(places)));
 	}
 
@@ -595,7 +602,7 @@ public abstract class BaseExpressions<InT, OutT> {
 	 * Returns a string representation of an integer numeric value in binary format. Returns null if
 	 * numeric is null. E.g. "4" leads to "100", "12" leads to "1100".
 	 */
-	public OutT bin() {
+	public OutType bin() {
 		return toApiSpecificExpression(unresolvedCall(BIN, toExpr()));
 	}
 
@@ -606,7 +613,7 @@ public abstract class BaseExpressions<InT, OutT> {
 	 * <p>E.g. a numeric 20 leads to "14", a numeric 100 leads to "64", and a string "hello,world" leads
 	 * to "68656c6c6f2c776f726c64".
 	 */
-	public OutT hex() {
+	public OutType hex() {
 		return toApiSpecificExpression(unresolvedCall(HEX, toExpr()));
 	}
 
@@ -616,7 +623,7 @@ public abstract class BaseExpressions<InT, OutT> {
 	 * n can be negative to cause n digits left of the decimal point of the value to become zero.
 	 * E.g. truncate(42.345, 2) to 42.34.
 	 */
-	public OutT truncate(InT n) {
+	public OutType truncate(InType n) {
 		return toApiSpecificExpression(unresolvedCall(TRUNCATE, toExpr(), objectToExpression(n)));
 	}
 
@@ -624,7 +631,7 @@ public abstract class BaseExpressions<InT, OutT> {
 	 * Returns a number of truncated to 0 decimal places.
 	 * E.g. truncate(42.345) to 42.0.
 	 */
-	public OutT truncate() {
+	public OutType truncate() {
 		return toApiSpecificExpression(unresolvedCall(TRUNCATE, toExpr()));
 	}
 
@@ -635,9 +642,8 @@ public abstract class BaseExpressions<InT, OutT> {
 	 *
 	 * @param beginIndex first character of the substring (starting at 1, inclusive)
 	 * @param length number of characters of the substring
-	 * @return substring
 	 */
-	public OutT substring(InT beginIndex, InT length) {
+	public OutType substring(InType beginIndex, InType length) {
 		return toApiSpecificExpression(unresolvedCall(SUBSTRING, toExpr(), objectToExpression(beginIndex), objectToExpression(length)));
 	}
 
@@ -645,18 +651,15 @@ public abstract class BaseExpressions<InT, OutT> {
 	 * Creates a substring of the given string beginning at the given index to the end.
 	 *
 	 * @param beginIndex first character of the substring (starting at 1, inclusive)
-	 * @return substring
 	 */
-	public OutT substring(InT beginIndex) {
+	public OutType substring(InType beginIndex) {
 		return toApiSpecificExpression(unresolvedCall(SUBSTRING, toExpr(), objectToExpression(beginIndex)));
 	}
 
 	/**
 	 * Removes leading space characters from the given string.
-	 *
-	 * @return trimmed string
 	 */
-	public OutT trimLeading() {
+	public OutType trimLeading() {
 		return toApiSpecificExpression(unresolvedCall(
 			TRIM,
 			valueLiteral(true),
@@ -669,9 +672,8 @@ public abstract class BaseExpressions<InT, OutT> {
 	 * Removes leading characters from the given string.
 	 *
 	 * @param character string containing the character
-	 * @return trimmed string
 	 */
-	public OutT trimLeading(InT character) {
+	public OutType trimLeading(InType character) {
 		return toApiSpecificExpression(unresolvedCall(
 			TRIM,
 			valueLiteral(true),
@@ -682,10 +684,8 @@ public abstract class BaseExpressions<InT, OutT> {
 
 	/**
 	 * Removes trailing space characters from the given string.
-	 *
-	 * @return trimmed string
 	 */
-	public OutT trimTrailing() {
+	public OutType trimTrailing() {
 		return toApiSpecificExpression(unresolvedCall(
 			TRIM,
 			valueLiteral(false),
@@ -698,9 +698,8 @@ public abstract class BaseExpressions<InT, OutT> {
 	 * Removes trailing characters from the given string.
 	 *
 	 * @param character string containing the character
-	 * @return trimmed string
 	 */
-	public OutT trimTrailing(InT character) {
+	public OutType trimTrailing(InType character) {
 		return toApiSpecificExpression(unresolvedCall(
 			TRIM,
 			valueLiteral(false),
@@ -711,10 +710,8 @@ public abstract class BaseExpressions<InT, OutT> {
 
 	/**
 	 * Removes leading and trailing space characters from the given string.
-	 *
-	 * @return trimmed string
 	 */
-	public OutT trim() {
+	public OutType trim() {
 		return toApiSpecificExpression(unresolvedCall(
 			TRIM,
 			valueLiteral(true),
@@ -727,9 +724,8 @@ public abstract class BaseExpressions<InT, OutT> {
 	 * Removes leading and trailing characters from the given string.
 	 *
 	 * @param character string containing the character
-	 * @return trimmed string
 	 */
-	public OutT trim(InT character) {
+	public OutType trim(InType character) {
 		return toApiSpecificExpression(unresolvedCall(
 			TRIM,
 			valueLiteral(true),
@@ -742,14 +738,14 @@ public abstract class BaseExpressions<InT, OutT> {
 	 * Returns a new string which replaces all the occurrences of the search target
 	 * with the replacement string (non-overlapping).
 	 */
-	public OutT replace(InT search, InT replacement) {
+	public OutType replace(InType search, InType replacement) {
 		return toApiSpecificExpression(unresolvedCall(REPLACE, toExpr(), objectToExpression(search), objectToExpression(replacement)));
 	}
 
 	/**
 	 * Returns the length of a string.
 	 */
-	public OutT charLength() {
+	public OutType charLength() {
 		return toApiSpecificExpression(unresolvedCall(CHAR_LENGTH, toExpr()));
 	}
 
@@ -757,7 +753,7 @@ public abstract class BaseExpressions<InT, OutT> {
 	 * Returns all of the characters in a string in upper case using the rules of
 	 * the default locale.
 	 */
-	public OutT upperCase() {
+	public OutType upperCase() {
 		return toApiSpecificExpression(unresolvedCall(UPPER, toExpr()));
 	}
 
@@ -765,7 +761,7 @@ public abstract class BaseExpressions<InT, OutT> {
 	 * Returns all of the characters in a string in lower case using the rules of
 	 * the default locale.
 	 */
-	public OutT lowerCase() {
+	public OutType lowerCase() {
 		return toApiSpecificExpression(unresolvedCall(LOWER, toExpr()));
 	}
 
@@ -773,7 +769,7 @@ public abstract class BaseExpressions<InT, OutT> {
 	 * Converts the initial letter of each word in a string to uppercase.
 	 * Assumes a string containing only [A-Za-z0-9], everything else is treated as whitespace.
 	 */
-	public OutT initCap() {
+	public OutType initCap() {
 		return toApiSpecificExpression(unresolvedCall(INIT_CAP, toExpr()));
 	}
 
@@ -782,7 +778,7 @@ public abstract class BaseExpressions<InT, OutT> {
 	 *
 	 * <p>e.g. "Jo_n%" matches all strings that start with "Jo(arbitrary letter)n"
 	 */
-	public OutT like(InT pattern) {
+	public OutType like(InType pattern) {
 		return toApiSpecificExpression(unresolvedCall(LIKE, toExpr(), objectToExpression(pattern)));
 	}
 
@@ -791,7 +787,7 @@ public abstract class BaseExpressions<InT, OutT> {
 	 *
 	 * <p>e.g. "A+" matches all strings that consist of at least one A
 	 */
-	public OutT similar(InT pattern) {
+	public OutType similar(InType pattern) {
 		return toApiSpecificExpression(unresolvedCall(SIMILAR, toExpr(), objectToExpression(pattern)));
 	}
 
@@ -801,7 +797,7 @@ public abstract class BaseExpressions<InT, OutT> {
 	 *
 	 * <p>e.g. "a".position("bbbbba") leads to 6
 	 */
-	public OutT position(InT haystack) {
+	public OutType position(InType haystack) {
 		return toApiSpecificExpression(unresolvedCall(POSITION, toExpr(), objectToExpression(haystack)));
 	}
 
@@ -811,7 +807,7 @@ public abstract class BaseExpressions<InT, OutT> {
 	 *
 	 * <p>e.g. "hi".lpad(4, '??') returns "??hi",  "hi".lpad(1, '??') returns "h"
 	 */
-	public OutT lpad(InT len, InT pad) {
+	public OutType lpad(InType len, InType pad) {
 		return toApiSpecificExpression(unresolvedCall(LPAD, toExpr(), objectToExpression(len), objectToExpression(pad)));
 	}
 
@@ -821,7 +817,7 @@ public abstract class BaseExpressions<InT, OutT> {
 	 *
 	 * <p>e.g. "hi".rpad(4, '??') returns "hi??",  "hi".rpad(1, '??') returns "h"
 	 */
-	public OutT rpad(InT len, InT pad) {
+	public OutType rpad(InType len, InType pad) {
 		return toApiSpecificExpression(unresolvedCall(RPAD, toExpr(), objectToExpression(len), objectToExpression(pad)));
 	}
 
@@ -837,7 +833,7 @@ public abstract class BaseExpressions<InT, OutT> {
 	 * .select('c, 'a, 'a.count over 'w, 'a.sum over 'w)
 	 * }</pre>
 	 */
-	public OutT over(InT alias) {
+	public OutType over(InType alias) {
 		return toApiSpecificExpression(unresolvedCall(OVER, toExpr(), objectToExpression(alias)));
 	}
 
@@ -846,7 +842,7 @@ public abstract class BaseExpressions<InT, OutT> {
 	 *
 	 * <p>e.g. "xxxxxtest".overlay("xxxx", 6) leads to "xxxxxxxxx"
 	 */
-	public OutT overlay(InT newString, InT starting) {
+	public OutType overlay(InType newString, InType starting) {
 		return toApiSpecificExpression(unresolvedCall(
 			OVERLAY,
 			toExpr(),
@@ -860,7 +856,7 @@ public abstract class BaseExpressions<InT, OutT> {
 	 *
 	 * <p>e.g. "xxxxxtest".overlay("xxxx", 6, 2) leads to "xxxxxxxxxst"
 	 */
-	public OutT overlay(InT newString, InT starting, InT length) {
+	public OutType overlay(InType newString, InType starting, InType length) {
 		return toApiSpecificExpression(unresolvedCall(
 			OVERLAY,
 			toExpr(),
@@ -873,7 +869,7 @@ public abstract class BaseExpressions<InT, OutT> {
 	 * Returns a string with all substrings that match the regular expression consecutively
 	 * being replaced.
 	 */
-	public OutT regexpReplace(InT regex, InT replacement) {
+	public OutType regexpReplace(InType regex, InType replacement) {
 		return toApiSpecificExpression(unresolvedCall(
 			REGEXP_REPLACE,
 			toExpr(),
@@ -885,7 +881,7 @@ public abstract class BaseExpressions<InT, OutT> {
 	 * Returns a string extracted with a specified regular expression and a regex match group
 	 * index.
 	 */
-	public OutT regexpExtract(InT regex, InT extractIndex) {
+	public OutType regexpExtract(InType regex, InType extractIndex) {
 		return toApiSpecificExpression(unresolvedCall(
 			REGEXP_EXTRACT,
 			toExpr(),
@@ -896,42 +892,42 @@ public abstract class BaseExpressions<InT, OutT> {
 	/**
 	 * Returns a string extracted with a specified regular expression.
 	 */
-	public OutT regexpExtract(InT regex) {
+	public OutType regexpExtract(InType regex) {
 		return toApiSpecificExpression(unresolvedCall(REGEXP_EXTRACT, toExpr(), objectToExpression(regex)));
 	}
 
 	/**
 	 * Returns the base string decoded with base64.
 	 */
-	public OutT fromBase64() {
+	public OutType fromBase64() {
 		return toApiSpecificExpression(unresolvedCall(FROM_BASE64, toExpr()));
 	}
 
 	/**
 	 * Returns the base64-encoded result of the input string.
 	 */
-	public OutT toBase64() {
+	public OutType toBase64() {
 		return toApiSpecificExpression(unresolvedCall(TO_BASE64, toExpr()));
 	}
 
 	/**
 	 * Returns a string that removes the left whitespaces from the given string.
 	 */
-	public OutT ltrim() {
+	public OutType ltrim() {
 		return toApiSpecificExpression(unresolvedCall(LTRIM, toExpr()));
 	}
 
 	/**
 	 * Returns a string that removes the right whitespaces from the given string.
 	 */
-	public OutT rtrim() {
+	public OutType rtrim() {
 		return toApiSpecificExpression(unresolvedCall(RTRIM, toExpr()));
 	}
 
 	/**
 	 * Returns a string that repeats the base string n times.
 	 */
-	public OutT repeat(InT n) {
+	public OutType repeat(InType n) {
 		return toApiSpecificExpression(unresolvedCall(REPEAT, toExpr(), objectToExpression(n)));
 	}
 
@@ -940,7 +936,7 @@ public abstract class BaseExpressions<InT, OutT> {
 	/**
 	 * Parses a date string in the form "yyyy-MM-dd" to a SQL Date.
 	 */
-	public OutT toDate() {
+	public OutType toDate() {
 		return toApiSpecificExpression(unresolvedCall(
 			CAST,
 			toExpr(),
@@ -950,7 +946,7 @@ public abstract class BaseExpressions<InT, OutT> {
 	/**
 	 * Parses a time string in the form "HH:mm:ss" to a SQL Time.
 	 */
-	public OutT toTime() {
+	public OutType toTime() {
 		return toApiSpecificExpression(unresolvedCall(
 			CAST,
 			toExpr(),
@@ -960,7 +956,7 @@ public abstract class BaseExpressions<InT, OutT> {
 	/**
 	 * Parses a timestamp string in the form "yyyy-MM-dd HH:mm:ss[.SSS]" to a SQL Timestamp.
 	 */
-	public OutT toTimestamp() {
+	public OutType toTimestamp() {
 		return toApiSpecificExpression(unresolvedCall(
 			CAST,
 			toExpr(),
@@ -972,7 +968,7 @@ public abstract class BaseExpressions<InT, OutT> {
 	 *
 	 * <p>e.g. "2006-06-05".toDate.extract(DAY) leads to 5
 	 */
-	public OutT extract(TimeIntervalUnit timeIntervalUnit) {
+	public OutType extract(TimeIntervalUnit timeIntervalUnit) {
 		return toApiSpecificExpression(unresolvedCall(EXTRACT, valueLiteral(timeIntervalUnit), toExpr()));
 	}
 
@@ -981,7 +977,7 @@ public abstract class BaseExpressions<InT, OutT> {
 	 *
 	 * <p>e.g. "12:44:31".toDate.floor(MINUTE) leads to 12:44:00
 	 */
-	public OutT floor(TimeIntervalUnit timeIntervalUnit) {
+	public OutType floor(TimeIntervalUnit timeIntervalUnit) {
 		return toApiSpecificExpression(unresolvedCall(FLOOR, valueLiteral(timeIntervalUnit), toExpr()));
 	}
 
@@ -990,7 +986,7 @@ public abstract class BaseExpressions<InT, OutT> {
 	 *
 	 * <p>e.g. "12:44:31".toDate.ceil(MINUTE) leads to 12:45:00
 	 */
-	public OutT ceil(TimeIntervalUnit timeIntervalUnit) {
+	public OutType ceil(TimeIntervalUnit timeIntervalUnit) {
 		return toApiSpecificExpression(unresolvedCall(
 			CEIL,
 			valueLiteral(timeIntervalUnit),
@@ -1004,9 +1000,8 @@ public abstract class BaseExpressions<InT, OutT> {
 	 * returns it's value.
 	 *
 	 * @param name name of the field (similar to Flink's field expressions)
-	 * @return value of the field
 	 */
-	public OutT get(String name) {
+	public OutType get(String name) {
 		return toApiSpecificExpression(unresolvedCall(GET, toExpr(), valueLiteral(name)));
 	}
 
@@ -1015,9 +1010,8 @@ public abstract class BaseExpressions<InT, OutT> {
 	 * returns it's value.
 	 *
 	 * @param index position of the field
-	 * @return value of the field
 	 */
-	public OutT get(int index) {
+	public OutType get(int index) {
 		return toApiSpecificExpression(unresolvedCall(GET, toExpr(), valueLiteral(index)));
 	}
 
@@ -1025,7 +1019,7 @@ public abstract class BaseExpressions<InT, OutT> {
 	 * Converts a Flink composite type (such as Tuple, POJO, etc.) and all of its direct subtypes
 	 * into a flat representation where every subtype is a separate field.
 	 */
-	public OutT flatten() {
+	public OutType flatten() {
 		return toApiSpecificExpression(unresolvedCall(FLATTEN, toExpr()));
 	}
 
@@ -1033,28 +1027,23 @@ public abstract class BaseExpressions<InT, OutT> {
 	 * Accesses the element of an array or map based on a key or an index (starting at 1).
 	 *
 	 * @param index key or position of the element (array index starting at 1)
-	 * @return value of the element
 	 */
-	public OutT at(InT index) {
+	public OutType at(InType index) {
 		return toApiSpecificExpression(unresolvedCall(AT, toExpr(), objectToExpression(index)));
 	}
 
 	/**
 	 * Returns the number of elements of an array or number of entries of a map.
-	 *
-	 * @return number of elements or entries
 	 */
-	public OutT cardinality() {
+	public OutType cardinality() {
 		return toApiSpecificExpression(unresolvedCall(CARDINALITY, toExpr()));
 	}
 
 	/**
 	 * Returns the sole element of an array with a single element. Returns null if the array is
 	 * empty. Throws an exception if the array has more than one element.
-	 *
-	 * @return the first and only element of an array with a single element
 	 */
-	public OutT element() {
+	public OutType element() {
 		return toApiSpecificExpression(unresolvedCall(ARRAY_ELEMENT, toExpr()));
 	}
 
@@ -1064,7 +1053,7 @@ public abstract class BaseExpressions<InT, OutT> {
 	 * Declares a field as the rowtime attribute for indicating, accessing, and working in
 	 * Flink's event time.
 	 */
-	public OutT rowtime() {
+	public OutType rowtime() {
 		return toApiSpecificExpression(unresolvedCall(ROWTIME, toExpr()));
 	}
 
@@ -1072,7 +1061,7 @@ public abstract class BaseExpressions<InT, OutT> {
 	 * Declares a field as the proctime attribute for indicating, accessing, and working in
 	 * Flink's processing time.
 	 */
-	public OutT proctime() {
+	public OutType proctime() {
 		return toApiSpecificExpression(unresolvedCall(PROCTIME, toExpr()));
 	}
 
@@ -1083,7 +1072,7 @@ public abstract class BaseExpressions<InT, OutT> {
 	 *
 	 * @return string of 32 hexadecimal digits or null
 	 */
-	public OutT md5() {
+	public OutType md5() {
 		return toApiSpecificExpression(unresolvedCall(MD5, toExpr()));
 	}
 
@@ -1092,7 +1081,7 @@ public abstract class BaseExpressions<InT, OutT> {
 	 *
 	 * @return string of 40 hexadecimal digits or null
 	 */
-	public OutT sha1() {
+	public OutType sha1() {
 		return toApiSpecificExpression(unresolvedCall(SHA1, toExpr()));
 	}
 
@@ -1101,7 +1090,7 @@ public abstract class BaseExpressions<InT, OutT> {
 	 *
 	 * @return string of 56 hexadecimal digits or null
 	 */
-	public OutT sha224() {
+	public OutType sha224() {
 		return toApiSpecificExpression(unresolvedCall(SHA224, toExpr()));
 	}
 
@@ -1110,7 +1099,7 @@ public abstract class BaseExpressions<InT, OutT> {
 	 *
 	 * @return string of 64 hexadecimal digits or null
 	 */
-	public OutT sha256() {
+	public OutType sha256() {
 		return toApiSpecificExpression(unresolvedCall(SHA256, toExpr()));
 	}
 
@@ -1119,7 +1108,7 @@ public abstract class BaseExpressions<InT, OutT> {
 	 *
 	 * @return string of 96 hexadecimal digits or null
 	 */
-	public OutT sha384() {
+	public OutType sha384() {
 		return toApiSpecificExpression(unresolvedCall(SHA384, toExpr()));
 	}
 
@@ -1128,7 +1117,7 @@ public abstract class BaseExpressions<InT, OutT> {
 	 *
 	 * @return string of 128 hexadecimal digits or null
 	 */
-	public OutT sha512() {
+	public OutType sha512() {
 		return toApiSpecificExpression(unresolvedCall(SHA512, toExpr()));
 	}
 
@@ -1139,7 +1128,7 @@ public abstract class BaseExpressions<InT, OutT> {
 	 * @param hashLength bit length of the result (either 224, 256, 384, or 512)
 	 * @return string or null if one of the arguments is null.
 	 */
-	public OutT sha2(InT hashLength) {
+	public OutType sha2(InType hashLength) {
 		return toApiSpecificExpression(unresolvedCall(SHA2, toExpr(), objectToExpression(hashLength)));
 	}
 }
