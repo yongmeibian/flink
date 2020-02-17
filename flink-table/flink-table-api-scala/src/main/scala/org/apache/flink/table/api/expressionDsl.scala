@@ -19,7 +19,6 @@ package org.apache.flink.table.api
 
 import org.apache.flink.annotation.PublicEvolving
 import org.apache.flink.api.common.typeinfo.TypeInformation
-import org.apache.flink.table.api.Expressions.ApiExpression
 import org.apache.flink.table.api.internal.BaseExpressions
 import org.apache.flink.table.expressions._
 import org.apache.flink.table.expressions.utils.ApiExpressionUtils
