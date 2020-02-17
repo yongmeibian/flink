@@ -18,6 +18,7 @@
 
 package org.apache.flink.table.expressions.resolver.rules;
 
+import org.apache.flink.annotation.Internal;
 import org.apache.flink.table.api.Expressions;
 import org.apache.flink.table.expressions.Expression;
 import org.apache.flink.table.expressions.utils.ApiExpressionUtils;
@@ -28,6 +29,7 @@ import java.util.stream.Collectors;
 /**
  * Unwraps all {@link Expressions.ApiExpression}.
  */
+@Internal
 final class UnwrapApiExpressionRule implements ResolverRule {
 	@Override
 	public List<Expression> apply(
