@@ -149,7 +149,7 @@ trait ImplicitExpressionOperations extends BaseExpressions[Expression, Expressio
     * Ternary conditional operator that decides which of two other expressions should be
     * based on a evaluated boolean condition.
     *
-    * e.g. (42 > 5).?("A", "B") leads to "A"
+    * e.g. ($"f0" > 5).?("A", "B") leads to "A"
     *
     * @param ifTrue expression to be evaluated if condition holds
     * @param ifFalse expression to be evaluated if condition does not hold

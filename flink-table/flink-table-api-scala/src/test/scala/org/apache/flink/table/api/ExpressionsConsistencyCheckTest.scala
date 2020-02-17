@@ -32,6 +32,21 @@ import java.lang.reflect.Modifier
 
 import scala.collection.JavaConverters._
 
+/**
+ * We test that all methods are either available or have equivalents in both Scala and Java
+ * expression DSL's
+ *
+ * If there are methods that do not map exactly in both APIs but have equivalent
+ * methods add those to `explicitScalaToJavaStaticMethodsMapping`(for static methods
+ * [[ImplicitExpressionConversions]]/[[Expressions]]) or `explicitScalaToJavaMapping`
+ * (for infix methods [[ApiExpression]]/[[ImplicitExpressionOperations]]).
+ * If equally named methods are not found the test will check if a mapping exists.
+ * This is a bidirectional mapping.
+ *
+ * If there are methods that should not have an equivalent in the other API add those to a
+ * corresponding list of exclude (`excludedStaticScalaMethods`, `excludedScalaMethods`,
+ * `excludedStaticJavaMethods`, `excludedJavaMethods`).
+ */
 class ExpressionsConsistencyCheckTest {
 
   // we cannot get class of package object
@@ -72,7 +87,7 @@ class ExpressionsConsistencyCheckTest {
   val excludedStaticScalaMethods = Set(
 
     //-----------------------------------------------------------------------------------
-    //  Scala implicit conversions to WithOperations
+    //  Scala implicit conversions to ImplicitExpressionOperations
     //-----------------------------------------------------------------------------------
     "WithOperations",
     "apiExpressionToExpression",
