@@ -423,7 +423,7 @@ public final class Expressions {
 	 * Returns the string that results from concatenating the arguments and separator.
 	 * Returns NULL If the separator is NULL.
 	 *
-	 * <p>Note: this user-public static ApiExpressionined function does not skip empty strings. However, it does skip any NULL
+	 * <p>Note: this function does not skip empty strings. However, it does skip any NULL
 	 * values after the separator argument.
 	 */
 	public static ApiExpression concatWs(Object separator, Object string, Object... strings) {
@@ -495,7 +495,7 @@ public final class Expressions {
 	 * <p>A range can either be index-based or name-based. Indices start at 1 and boundaries are
 	 * inclusive.
 	 *
-	 * <p>e.g. withColumns('b to 'c) or withColumns('*)
+	 * <p>e.g. in Scala: withColumns(range("b", "c")) or withoutColumns($("*"))
 	 */
 	public static ApiExpression withColumns(Object head, Object... tail) {
 		return apiCallAtLeastOneArgument(BuiltInFunctionDefinitions.WITH_COLUMNS, head, tail);
@@ -509,14 +509,36 @@ public final class Expressions {
 	 * <p>A range can either be index-based or name-based. Indices start at 1 and boundaries are
 	 * inclusive.
 	 *
-	 * <p>e.g. withoutColumns('b to 'c) or withoutColumns('c)
+	 * <p>e.g. withoutColumns(range("b", "c")) or withoutColumns($("c"))
 	 */
 	public static ApiExpression withoutColumns(Object head, Object... tail) {
 		return apiCallAtLeastOneArgument(BuiltInFunctionDefinitions.WITHOUT_COLUMNS, head, tail);
 	}
 
 	/**
-	 * A call to a function that will be looked up in a catalog.
+	 * A call to a function that will be looked up in a catalog. There are two kinds of functions:
+	 * <ul>
+	 *     <li>System functions - which are identified with one part names</li>
+	 *     <li>Catalog functions - which are identified always with three parts names
+	 *     (catalog, database, function)</li>
+	 * </ul>
+	 *
+	 * <p>Moreover each function can either be a temporary function or permanent one
+	 * (which is stored in an external catalog).
+	 *
+	 * <p>Based on that two properties the resolution order for looking up a function based on
+	 * the provided {@code functionName} is following:
+	 * <ul>
+	 *     <li>Temporary system function</li>
+	 *     <li>System function</li>
+	 *     <li>Temporary catalog function</li>
+	 *     <li>Catalog function</li>
+	 * </ul>
+	 *
+	 * @see TableEnvironment#useCatalog(String)
+	 * @see TableEnvironment#useDatabase(String)
+	 * @see TableEnvironment#createTemporaryFunction
+	 * @see TableEnvironment#createTemporarySystemFunction
 	 */
 	public static ApiExpression call(String functionName, Object... params) {
 		return new ApiExpression(ApiExpressionUtils.lookupCall(
