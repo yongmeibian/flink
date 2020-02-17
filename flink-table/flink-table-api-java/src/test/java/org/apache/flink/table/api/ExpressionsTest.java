@@ -46,7 +46,7 @@ public class ExpressionsTest extends TestLogger {
 
 	@Test
 	public void testIntervalDurationOfDifferentResolution() {
-		Expressions.ApiExpression literal = Expressions.interval(Duration.ofDays(3).plusSeconds(23).plusMillis(300));
+		ApiExpression literal = Expressions.interval(Duration.ofDays(3).plusSeconds(23).plusMillis(300));
 
 		assertThat(literal.toExpr(), equalTo(new ValueLiteralExpression(
 			259223300L, // 3 days + 23 seconds + 300 millis
@@ -56,7 +56,7 @@ public class ExpressionsTest extends TestLogger {
 
 	@Test
 	public void testIntervalDurationOfMillis() {
-		Expressions.ApiExpression literal = Expressions.interval(Duration.ofMillis(100));
+		ApiExpression literal = Expressions.interval(Duration.ofMillis(100));
 
 		assertThat(literal.toExpr(), equalTo(new ValueLiteralExpression(
 			100L,
@@ -72,7 +72,7 @@ public class ExpressionsTest extends TestLogger {
 
 	@Test
 	public void testIntervalPeriodOfDifferentResolution() {
-		Expressions.ApiExpression literal = Expressions.interval(Period.ofYears(1).plusMonths(3));
+		ApiExpression literal = Expressions.interval(Period.ofYears(1).plusMonths(3));
 
 		assertThat(literal.toExpr(), equalTo(new ValueLiteralExpression(
 			15,
@@ -82,7 +82,7 @@ public class ExpressionsTest extends TestLogger {
 
 	@Test
 	public void testIntervalPeriodOfMonths() {
-		Expressions.ApiExpression literal = Expressions.interval(Period.ofMonths(4));
+		ApiExpression literal = Expressions.interval(Period.ofMonths(4));
 
 		assertThat(literal.toExpr(), equalTo(new ValueLiteralExpression(
 			4,

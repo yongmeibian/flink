@@ -20,9 +20,7 @@ package org.apache.flink.table.api;
 
 import org.apache.flink.annotation.PublicEvolving;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
-import org.apache.flink.table.api.internal.BaseExpressions;
 import org.apache.flink.table.expressions.Expression;
-import org.apache.flink.table.expressions.ExpressionVisitor;
 import org.apache.flink.table.expressions.ResolvedExpression;
 import org.apache.flink.table.expressions.TimePointUnit;
 import org.apache.flink.table.expressions.UnresolvedCallExpression;
@@ -591,44 +589,5 @@ public final class Expressions {
 		).map(ApiExpressionUtils::objectToExpression)
 			.collect(Collectors.toList());
 		return new ApiExpression(new UnresolvedCallExpression(functionDefinition, arguments));
-	}
-
-	/**
-	 * Java API class that gives access to expressions operations.
-	 */
-	public static final class ApiExpression extends BaseExpressions<Object, ApiExpression> implements Expression {
-		private final Expression wrappedExpression;
-
-		@Override
-		public String asSummaryString() {
-			return wrappedExpression.asSummaryString();
-		}
-
-		private ApiExpression(Expression wrappedExpression) {
-			if (wrappedExpression instanceof ApiExpression) {
-				throw new UnsupportedOperationException("This is a bug. Please file an issue.");
-			}
-			this.wrappedExpression = wrappedExpression;
-		}
-
-		@Override
-		public Expression toExpr() {
-			return wrappedExpression;
-		}
-
-		@Override
-		protected ApiExpression toApiSpecificExpression(Expression expression) {
-			return new ApiExpression(expression);
-		}
-
-		@Override
-		public List<Expression> getChildren() {
-			return wrappedExpression.getChildren();
-		}
-
-		@Override
-		public <R> R accept(ExpressionVisitor<R> visitor) {
-			return wrappedExpression.accept(visitor);
-		}
 	}
 }

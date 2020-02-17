@@ -19,7 +19,7 @@
 package org.apache.flink.table.expressions.resolver.rules;
 
 import org.apache.flink.annotation.Internal;
-import org.apache.flink.table.api.Expressions;
+import org.apache.flink.table.api.ApiExpression;
 import org.apache.flink.table.expressions.UnresolvedReferenceExpression;
 
 /**
@@ -64,7 +64,7 @@ public final class ResolverRules {
 	public static final ResolverRule QUALIFY_BUILT_IN_FUNCTIONS = new QualifyBuiltInFunctionsRule();
 
 	/**
-	 * Unwraps all {@link Expressions.ApiExpression}.
+	 * Unwraps all {@link ApiExpression}.
 	 */
 	public static final ResolverRule UNWRAP_API_EXPRESSION = new UnwrapApiExpressionRule();
 

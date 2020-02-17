@@ -19,7 +19,7 @@
 package org.apache.flink.table.expressions.resolver;
 
 import org.apache.flink.annotation.Internal;
-import org.apache.flink.table.api.Expressions;
+import org.apache.flink.table.api.ApiExpression;
 import org.apache.flink.table.api.ValidationException;
 import org.apache.flink.table.catalog.FunctionLookup;
 import org.apache.flink.table.catalog.UnresolvedIdentifier;
@@ -68,8 +68,8 @@ public class LookupCallResolver extends ApiExpressionDefaultVisitor<Expression> 
 	public Expression visitNonApiExpression(Expression other) {
 		// LookupCallResolver might be called outside of ExpressionResolver, thus we need to additionally
 		// handle the ApiExpressions here
-		if (other instanceof Expressions.ApiExpression) {
-			return ((Expressions.ApiExpression) other).toExpr().accept(this);
+		if (other instanceof ApiExpression) {
+			return ((ApiExpression) other).toExpr().accept(this);
 		} else {
 			return defaultMethod(other);
 		}

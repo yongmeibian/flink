@@ -20,8 +20,7 @@ package org.apache.flink.table.expressions.utils;
 
 import org.apache.flink.annotation.Internal;
 import org.apache.flink.table.api.DataTypes;
-import org.apache.flink.table.api.Expressions;
-import org.apache.flink.table.api.Expressions.ApiExpression;
+import org.apache.flink.table.api.ApiExpression;
 import org.apache.flink.table.api.Table;
 import org.apache.flink.table.api.ValidationException;
 import org.apache.flink.table.expressions.CallExpression;
@@ -59,7 +58,7 @@ public final class ApiExpressionUtils {
 	}
 
 	public static Expression objectToExpression(Object expression) {
-		if (expression instanceof Expressions.ApiExpression) {
+		if (expression instanceof ApiExpression) {
 			return ((ApiExpression) expression).toExpr();
 		} else if (expression instanceof Expression) {
 			return (Expression) expression;
