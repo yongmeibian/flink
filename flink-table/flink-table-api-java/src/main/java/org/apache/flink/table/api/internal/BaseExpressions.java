@@ -201,7 +201,7 @@ public abstract class BaseExpressions<InType, OutType> {
 	 * Ternary conditional operator that decides which of two other expressions should be evaluated
 	 * based on a evaluated boolean condition.
 	 *
-	 * <p>e.g. lit(42).isGreater(5).then("A", "B") leads to "A"
+	 * <p>e.g. $("f0").isGreater(5).then("A", "B") leads to "A"
 	 *
 	 * @param ifTrue expression to be evaluated if condition holds
 	 * @param ifFalse expression to be evaluated if condition does not hold

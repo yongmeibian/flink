@@ -485,7 +485,7 @@ public final class Expressions {
 	 * Ternary conditional operator that decides which of two other expressions should be evaluated
 	 * based on a evaluated boolean condition.
 	 *
-	 * <p>e.g. ifThenElse(42 > 5, "A", "B") leads to "A"
+	 * <p>e.g. ifThenElse($("f0") > 5, "A", "B") leads to "A"
 	 *
 	 * @param condition boolean condition
 	 * @param ifTrue expression to be evaluated if condition holds
