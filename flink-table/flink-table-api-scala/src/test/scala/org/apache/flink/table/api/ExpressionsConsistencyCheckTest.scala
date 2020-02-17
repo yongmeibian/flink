@@ -154,6 +154,8 @@ class ExpressionsConsistencyCheckTest {
 
     // not supported in java
     "unary_$plus", // unary_+
+
+    // in java we use static minus()
     "unary_$minus", // unary_-
 
     //-----------------------------------------------------------------------------------
@@ -188,15 +190,14 @@ class ExpressionsConsistencyCheckTest {
   )
 
   val excludedStaticJavaMethods = Set(
-    // in scala we use implicit conversions
-    "lit",
-
     // in scala users should use "A" to "B"
     "range",
 
     // users should use 1.rows, 123.millis, 3.years
-    "interval",
-    "rowInterval"
+    "rowInterval",
+
+    //users should use unary_-
+    "minus"
   )
 
   val excludedJavaMethods = Set(

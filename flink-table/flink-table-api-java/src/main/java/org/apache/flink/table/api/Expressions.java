@@ -420,6 +420,13 @@ public final class Expressions {
 	}
 
 	/**
+	 * Returns negative numeric.
+	 */
+	public static ApiExpression minus(Object v) {
+		return apiCall(BuiltInFunctionDefinitions.MINUS_PREFIX, v);
+	}
+
+	/**
 	 * Returns the string that results from concatenating the arguments and separator.
 	 * Returns NULL If the separator is NULL.
 	 *

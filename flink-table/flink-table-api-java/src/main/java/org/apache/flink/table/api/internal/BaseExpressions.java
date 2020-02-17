@@ -198,6 +198,23 @@ public abstract class BaseExpressions<InType, OutType> {
 	}
 
 	/**
+	 * Ternary conditional operator that decides which of two other expressions should be evaluated
+	 * based on a evaluated boolean condition.
+	 *
+	 * <p>e.g. lit(42).isGreater(5).then("A", "B") leads to "A"
+	 *
+	 * @param ifTrue expression to be evaluated if condition holds
+	 * @param ifFalse expression to be evaluated if condition does not hold
+	 */
+	public OutType then(InType ifTrue, InType ifFalse) {
+		return toApiSpecificExpression(unresolvedCall(
+			IF,
+			toExpr(),
+			objectToExpression(ifTrue),
+			objectToExpression(ifFalse)));
+	}
+
+	/**
 	 * Returns true if the given expression is null.
 	 */
 	public OutType isNull() {
@@ -377,7 +394,7 @@ public abstract class BaseExpressions<InType, OutType> {
 	 * <p>If the testing set contains null, the result will be null if the element can not be found
 	 * and true if it can be found. If the element is null, the result is always null.
 	 *
-	 * <p>e.g. "42".in(1, 2, 3) leads to false.
+	 * <p>e.g. lit("42").in(1, 2, 3) leads to false.
 	 */
 	@SafeVarargs
 	public final OutType in(InType... elements) {
