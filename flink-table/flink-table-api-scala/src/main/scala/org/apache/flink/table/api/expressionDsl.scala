@@ -31,7 +31,7 @@ import org.apache.flink.table.types.DataType
 import java.lang.{Boolean => JBoolean, Byte => JByte, Double => JDouble, Float => JFloat, Integer => JInteger, Long => JLong, Short => JShort}
 import java.math.{BigDecimal => JBigDecimal}
 import java.sql.{Date, Time, Timestamp}
-import java.time.{LocalDate, LocalDateTime, LocalTime}
+import java.time.{Duration, LocalDate, LocalDateTime, LocalTime, Period}
 
 import _root_.scala.language.implicitConversions
 
@@ -104,7 +104,7 @@ trait ImplicitExpressionOperations extends BaseExpressions[Expression, Expressio
   /**
     * Returns negative numeric.
     */
-  def unary_- : Expression = unresolvedCall(MINUS_PREFIX, expr)
+  def unary_- : Expression = Expressions.minus(expr)
 
   /**
     * Returns numeric.
@@ -594,6 +594,67 @@ trait ImplicitExpressionConversions {
   // ----------------------------------------------------------------------------------------------
   // Implicit expressions in prefix notation
   // ----------------------------------------------------------------------------------------------
+
+  /**
+   * Creates a SQL literal.
+   *
+   * The data type is derived from the object's class and its value.
+   *
+   * For example:
+   *
+   *  - `lit(12)`` leads to `INT`
+   *  - `lit("abc")`` leads to `CHAR(3)`
+   *  - `lit(new BigDecimal("123.45"))` leads to `DECIMAL(5, 2)`
+   *
+   * See [[org.apache.flink.table.types.utils.ValueDataTypeConverter]] for a list of supported
+   * literal values.
+   */
+  def lit(v: Any): Expression = Expressions.lit(v)
+
+  /**
+   * Creates a SQL literal of a given [[DataType]].
+   *
+   * The method [[lit(Object)]] is preferred as it extracts the [[DataType]]
+   * automatically. The class of `v` must be supported according to the
+   * [[org.apache.flink.table.types.logical.LogicalType#supportsInputConversion(Class)]].
+   */
+  def lit(v: Any, dataType: DataType): Expression = Expressions.lit(v, dataType)
+
+  /**
+   * A call to a function that will be looked up in a catalog. There are two kinds of functions:
+   *
+   *  - System functions - which are identified with one part names
+   *  - Catalog functions - which are identified always with three parts names
+   *    (catalog, database, function)
+   *
+   * Moreover each function can either be a temporary function or permanent one
+   * (which is stored in an external catalog).
+   *
+   * Based on that two properties the resolution order for looking up a function based on
+   * the provided `functionName` is following:
+   *
+   *  - Temporary system function
+   *  - System function
+   *  - Temporary catalog function
+   *  - Catalog function
+   *
+   *
+   * @see TableEnvironment#useCatalog(String)
+   * @see TableEnvironment#useDatabase(String)
+   * @see TableEnvironment#createTemporaryFunction
+   * @see TableEnvironment#createTemporarySystemFunction
+   */
+  def call(functionName: String, params: Expression*): Expression = Expressions.call(
+    functionName,
+    params: _*)
+
+  /**
+   * A call to an unregistered, inline function. For functions that have been registered before and
+   * are identified by a name, use [[call(String, Object...)]].
+   */
+  def call(function: UserDefinedFunction, params: Expression*): Expression = Expressions.call(
+    function,
+    params: _*)
 
   /**
     * Returns the current SQL date in UTC time zone.
