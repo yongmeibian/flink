@@ -36,6 +36,7 @@ import org.apache.flink.table.types.utils.ValueDataTypeConverter;
 
 import java.util.Arrays;
 import java.util.List;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static org.apache.flink.table.expressions.utils.ApiExpressionUtils.objectToExpression;
@@ -142,22 +143,14 @@ public final class Expressions {
 	 * Boolean AND in three-valued logic.
 	 */
 	public static ApiExpression and(Object predicate0, Object predicate1, Object... predicates) {
-		return apiCall(BuiltInFunctionDefinitions.AND, Stream.concat(
-			Stream.of(predicate0, predicate1),
-			Stream.of(predicates)
-		).map(ApiExpressionUtils::objectToExpression)
-			.toArray(Expression[]::new));
+		return apiCallAtLeastTwoArgument(BuiltInFunctionDefinitions.AND, predicate0, predicate1, predicates);
 	}
 
 	/**
 	 * Boolean OR in three-valued logic.
 	 */
 	public static ApiExpression or(Object predicate0, Object predicate1, Object... predicates) {
-		return apiCall(BuiltInFunctionDefinitions.OR, Stream.concat(
-			Stream.of(predicate0, predicate1),
-			Stream.of(predicates)
-		).map(ApiExpressionUtils::objectToExpression)
-			.toArray(Expression[]::new));
+		return apiCallAtLeastTwoArgument(BuiltInFunctionDefinitions.OR, predicate0, predicate1, predicates);
 	}
 
 	/**
@@ -245,10 +238,10 @@ public final class Expressions {
 			Object rightTemporal) {
 		return apiCall(
 			BuiltInFunctionDefinitions.TEMPORAL_OVERLAPS,
-			objectToExpression(leftTimePoint),
-			objectToExpression(leftTemporal),
-			objectToExpression(rightTimePoint),
-			objectToExpression(rightTemporal));
+			leftTimePoint,
+			leftTemporal,
+			rightTimePoint,
+			rightTemporal);
 	}
 
 	/**
@@ -265,10 +258,7 @@ public final class Expressions {
 	public static ApiExpression dateFormat(
 			Object timestamp,
 			Object format) {
-		return apiCall(
-			BuiltInFunctionDefinitions.DATE_FORMAT,
-			objectToExpression(timestamp),
-			objectToExpression(format));
+		return apiCall(BuiltInFunctionDefinitions.DATE_FORMAT, timestamp, format);
 	}
 
 	/**
@@ -286,35 +276,21 @@ public final class Expressions {
 			TimePointUnit timePointUnit,
 			Object timePoint1,
 			Object timePoint2) {
-		return apiCall(
-			BuiltInFunctionDefinitions.TIMESTAMP_DIFF,
-			valueLiteral(timePointUnit),
-			objectToExpression(timePoint1),
-			objectToExpression(timePoint2));
+		return apiCall(BuiltInFunctionDefinitions.TIMESTAMP_DIFF, valueLiteral(timePointUnit), timePoint1, timePoint2);
 	}
 
 	/**
 	 * Creates an array of literals.
 	 */
 	public static ApiExpression array(Object head, Object... tail) {
-		return apiCall(
-			BuiltInFunctionDefinitions.ARRAY,
-			Stream.concat(
-				Stream.of(head),
-				Stream.of(tail)
-			).map(ApiExpressionUtils::objectToExpression)
-				.toArray(Expression[]::new));
+		return apiCallAtLeastOneArgument(BuiltInFunctionDefinitions.ARRAY, head, tail);
 	}
 
 	/**
 	 * Creates a row of expressions.
 	 */
 	public static ApiExpression row(Object head, Object... tail) {
-		return apiCall(BuiltInFunctionDefinitions.ROW, Stream.concat(
-			Stream.of(head),
-			Stream.of(tail)
-		).map(ApiExpressionUtils::objectToExpression)
-			.toArray(Expression[]::new));
+		return apiCallAtLeastOneArgument(BuiltInFunctionDefinitions.ROW, head, tail);
 	}
 
 	/**
@@ -332,11 +308,7 @@ public final class Expressions {
 	 * <p>Note keys and values should have the same types for all entries.
 	 */
 	public static ApiExpression map(Object key, Object value, Object... tail) {
-		return apiCall(BuiltInFunctionDefinitions.MAP, Stream.concat(
-			Stream.of(key, value),
-			Stream.of(tail)
-		).map(ApiExpressionUtils::objectToExpression)
-			.toArray(Expression[]::new));
+		return apiCallAtLeastTwoArgument(BuiltInFunctionDefinitions.MAP, key, value, tail);
 	}
 
 	/**
@@ -401,20 +373,14 @@ public final class Expressions {
 	 * Returns NULL if any argument is NULL.
 	 */
 	public static ApiExpression concat(Object string, Object... strings) {
-		return apiCall(
-			BuiltInFunctionDefinitions.CONCAT,
-			Stream.concat(
-				Stream.of(string),
-				Stream.of(strings)
-			).map(ApiExpressionUtils::objectToExpression)
-				.toArray(Expression[]::new));
+		return apiCallAtLeastOneArgument(BuiltInFunctionDefinitions.CONCAT, string, strings);
 	}
 
 	/**
 	 * Calculates the arc tangent of a given coordinate.
 	 */
 	public static ApiExpression atan2(Object y, Object x) {
-		return apiCall(BuiltInFunctionDefinitions.ATAN2, objectToExpression(y), objectToExpression(x));
+		return apiCallAtLeastOneArgument(BuiltInFunctionDefinitions.ATAN2, y, x);
 	}
 
 	/**
@@ -423,13 +389,9 @@ public final class Expressions {
 	 *
 	 * <p>Note: this function does not skip empty strings. However, it does skip any NULL
 	 * values after the separator argument.
-	 **/
+	 */
 	public static ApiExpression concatWs(Object separator, Object string, Object... strings) {
-		return apiCall(BuiltInFunctionDefinitions.CONCAT_WS, Stream.concat(
-			Stream.of(separator, string),
-			Stream.of(strings)
-		).map(ApiExpressionUtils::objectToExpression)
-			.toArray(Expression[]::new));
+		return apiCallAtLeastTwoArgument(BuiltInFunctionDefinitions.CONCAT_WS, separator, string, strings);
 	}
 
 	/**
@@ -466,14 +428,14 @@ public final class Expressions {
 	 * Calculates the logarithm of the given value.
 	 */
 	public static ApiExpression log(Object value) {
-		return apiCall(BuiltInFunctionDefinitions.LOG, objectToExpression(value));
+		return apiCall(BuiltInFunctionDefinitions.LOG, value);
 	}
 
 	/**
 	 * Calculates the logarithm of the given value to the given base.
 	 */
 	public static ApiExpression log(Object base, Object value) {
-		return apiCall(BuiltInFunctionDefinitions.LOG, objectToExpression(base), objectToExpression(value));
+		return apiCall(BuiltInFunctionDefinitions.LOG, base, value);
 	}
 
 	/**
@@ -487,11 +449,7 @@ public final class Expressions {
 	 * @param ifFalse expression to be evaluated if condition does not hold
 	 */
 	public static ApiExpression ifThenElse(Object condition, Object ifTrue, Object ifFalse) {
-		return apiCall(
-			BuiltInFunctionDefinitions.IF,
-			objectToExpression(condition),
-			objectToExpression(ifTrue),
-			objectToExpression(ifFalse));
+		return apiCall(BuiltInFunctionDefinitions.IF, condition, ifTrue, ifFalse);
 	}
 
 	/**
@@ -504,13 +462,7 @@ public final class Expressions {
 	 * <p>e.g. in Scala: withColumns(range("b", "c")) or withoutColumns($("*"))
 	 */
 	public static ApiExpression withColumns(Object head, Object... tail) {
-		return apiCall(
-			BuiltInFunctionDefinitions.WITH_COLUMNS,
-			Stream.concat(
-				Stream.of(head),
-				Stream.of(tail)
-			).map(ApiExpressionUtils::objectToExpression)
-				.toArray(Expression[]::new));
+		return apiCallAtLeastOneArgument(BuiltInFunctionDefinitions.WITH_COLUMNS, head, tail);
 	}
 
 	/**
@@ -524,13 +476,7 @@ public final class Expressions {
 	 * <p>e.g. withoutColumns(range("b", "c")) or withoutColumns($("c"))
 	 */
 	public static ApiExpression withoutColumns(Object head, Object... tail) {
-		return apiCall(
-			BuiltInFunctionDefinitions.WITHOUT_COLUMNS,
-			Stream.concat(
-				Stream.of(head),
-				Stream.of(tail)
-			).map(ApiExpressionUtils::objectToExpression)
-				.toArray(Expression[]::new));
+		return apiCallAtLeastOneArgument(BuiltInFunctionDefinitions.WITHOUT_COLUMNS, head, tail);
 	}
 
 	/**
@@ -569,13 +515,39 @@ public final class Expressions {
 	 * are identified by a name, use {@link #call(String, Object...)}.
 	 */
 	public static ApiExpression call(UserDefinedFunction function, Object... params) {
-		return apiCall(
-			function,
-			Arrays.stream(params).map(ApiExpressionUtils::objectToExpression).toArray(Expression[]::new));
+		return apiCall(function, params);
 	}
 
-	private static ApiExpression apiCall(FunctionDefinition functionDefinition, Expression... args) {
-		return new ApiExpression(new UnresolvedCallExpression(functionDefinition, Arrays.asList(args)));
+	private static ApiExpression apiCall(FunctionDefinition functionDefinition, Object... args) {
+		List<Expression> arguments =
+			Stream.of(args)
+				.map(ApiExpressionUtils::objectToExpression)
+				.collect(Collectors.toList());
+		return new ApiExpression(new UnresolvedCallExpression(functionDefinition, arguments));
+	}
+
+	private static ApiExpression apiCallAtLeastOneArgument(FunctionDefinition functionDefinition,
+			Object arg0,
+			Object... args) {
+		List<Expression> arguments = Stream.concat(
+			Stream.of(arg0),
+			Stream.of(args)
+		).map(ApiExpressionUtils::objectToExpression)
+			.collect(Collectors.toList());
+		return new ApiExpression(new UnresolvedCallExpression(functionDefinition, arguments));
+	}
+
+	private static ApiExpression apiCallAtLeastTwoArgument(
+			FunctionDefinition functionDefinition,
+			Object arg0,
+			Object arg1,
+			Object... args) {
+		List<Expression> arguments = Stream.concat(
+			Stream.of(arg0, arg1),
+			Stream.of(args)
+		).map(ApiExpressionUtils::objectToExpression)
+			.collect(Collectors.toList());
+		return new ApiExpression(new UnresolvedCallExpression(functionDefinition, arguments));
 	}
 
 	/**
