@@ -595,7 +595,7 @@ public final class Expressions {
 	/**
 	 * Java API class that gives access to expressions operations.
 	 */
-	static final class ApiExpression extends BaseExpressions<Object, ApiExpression> implements Expression {
+	public static final class ApiExpression extends BaseExpressions<Object, ApiExpression> implements Expression {
 		private final Expression wrappedExpression;
 
 		@Override
