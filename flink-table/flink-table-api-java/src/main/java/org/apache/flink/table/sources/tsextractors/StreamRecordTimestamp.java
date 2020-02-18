@@ -23,7 +23,7 @@ import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.table.descriptors.Rowtime;
 import org.apache.flink.table.expressions.Expression;
 import org.apache.flink.table.expressions.ResolvedFieldReference;
-import org.apache.flink.table.expressions.utils.ApiExpressionUtils;
+import org.apache.flink.table.expressions.ApiExpressionUtils;
 
 import java.util.HashMap;
 import java.util.Map;

@@ -33,7 +33,7 @@ import org.apache.flink.table.expressions.ExpressionUtils;
 import org.apache.flink.table.expressions.UnresolvedCallExpression;
 import org.apache.flink.table.expressions.UnresolvedReferenceExpression;
 import org.apache.flink.table.expressions.utils.ApiExpressionDefaultVisitor;
-import org.apache.flink.table.expressions.utils.ApiExpressionUtils;
+import org.apache.flink.table.expressions.ApiExpressionUtils;
 import org.apache.flink.table.functions.BuiltInFunctionDefinitions;
 import org.apache.flink.table.types.AtomicDataType;
 import org.apache.flink.table.types.DataType;
