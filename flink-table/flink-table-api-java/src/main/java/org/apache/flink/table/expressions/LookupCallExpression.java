@@ -39,7 +39,7 @@ public final class LookupCallExpression implements Expression {
 
 	private final List<Expression> args;
 
-	public LookupCallExpression(String unresolvedFunction, List<Expression> args) {
+	LookupCallExpression(String unresolvedFunction, List<Expression> args) {
 		this.unresolvedName = Preconditions.checkNotNull(unresolvedFunction);
 		this.args = Preconditions.checkNotNull(args)
 			.stream()

@@ -51,7 +51,7 @@ public final class UnresolvedCallExpression implements Expression {
 
 	private final List<Expression> args;
 
-	public UnresolvedCallExpression(
+	UnresolvedCallExpression(
 			FunctionIdentifier functionIdentifier,
 			FunctionDefinition functionDefinition,
 			List<Expression> args) {
@@ -65,7 +65,7 @@ public final class UnresolvedCallExpression implements Expression {
 			.collect(Collectors.toList());
 	}
 
-	public UnresolvedCallExpression(
+	UnresolvedCallExpression(
 			FunctionDefinition functionDefinition,
 			List<Expression> args) {
 		this.functionIdentifier = null;
