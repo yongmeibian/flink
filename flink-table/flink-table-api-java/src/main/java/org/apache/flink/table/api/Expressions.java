@@ -20,11 +20,10 @@ package org.apache.flink.table.api;
 
 import org.apache.flink.annotation.PublicEvolving;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
+import org.apache.flink.table.expressions.ApiExpressionUtils;
 import org.apache.flink.table.expressions.Expression;
 import org.apache.flink.table.expressions.ResolvedExpression;
 import org.apache.flink.table.expressions.TimePointUnit;
-import org.apache.flink.table.expressions.UnresolvedCallExpression;
-import org.apache.flink.table.expressions.ApiExpressionUtils;
 import org.apache.flink.table.functions.BuiltInFunctionDefinitions;
 import org.apache.flink.table.functions.FunctionDefinition;
 import org.apache.flink.table.functions.UserDefinedFunction;
@@ -38,6 +37,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static org.apache.flink.table.expressions.ApiExpressionUtils.objectToExpression;
+import static org.apache.flink.table.expressions.ApiExpressionUtils.unresolvedCall;
 import static org.apache.flink.table.expressions.ApiExpressionUtils.valueLiteral;
 
 /**
@@ -528,7 +528,7 @@ public final class Expressions {
 			Stream.of(args)
 				.map(ApiExpressionUtils::objectToExpression)
 				.collect(Collectors.toList());
-		return new ApiExpression(new UnresolvedCallExpression(functionDefinition, arguments));
+		return new ApiExpression(unresolvedCall(functionDefinition, arguments));
 	}
 
 	private static ApiExpression apiCallAtLeastOneArgument(FunctionDefinition functionDefinition,
@@ -539,7 +539,7 @@ public final class Expressions {
 			Stream.of(args)
 		).map(ApiExpressionUtils::objectToExpression)
 			.collect(Collectors.toList());
-		return new ApiExpression(new UnresolvedCallExpression(functionDefinition, arguments));
+		return new ApiExpression(unresolvedCall(functionDefinition, arguments));
 	}
 
 	private static ApiExpression apiCallAtLeastTwoArgument(
@@ -552,6 +552,6 @@ public final class Expressions {
 			Stream.of(args)
 		).map(ApiExpressionUtils::objectToExpression)
 			.collect(Collectors.toList());
-		return new ApiExpression(new UnresolvedCallExpression(functionDefinition, arguments));
+		return new ApiExpression(unresolvedCall(functionDefinition, arguments));
 	}
 }

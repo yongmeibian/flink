@@ -20,8 +20,8 @@ package org.apache.flink.table.api
 import org.apache.flink.annotation.PublicEvolving
 import org.apache.flink.api.common.typeinfo.TypeInformation
 import org.apache.flink.table.api.internal.BaseExpressions
-import org.apache.flink.table.expressions.{ApiExpressionUtils, _}
-import org.apache.flink.table.expressions.utils.ApiExpressionUtils._
+import org.apache.flink.table.expressions.ApiExpressionUtils._
+import org.apache.flink.table.expressions._
 import org.apache.flink.table.functions.BuiltInFunctionDefinitions._
 import org.apache.flink.table.functions.{ScalarFunction, TableFunction, UserDefinedAggregateFunction, UserDefinedFunctionHelper, _}
 import org.apache.flink.table.types.DataType
@@ -29,7 +29,7 @@ import org.apache.flink.table.types.DataType
 import java.lang.{Boolean => JBoolean, Byte => JByte, Double => JDouble, Float => JFloat, Integer => JInteger, Long => JLong, Short => JShort}
 import java.math.{BigDecimal => JBigDecimal}
 import java.sql.{Date, Time, Timestamp}
-import java.time.{Duration, LocalDate, LocalDateTime, LocalTime, Period}
+import java.time._
 
 import _root_.scala.language.implicitConversions
 
