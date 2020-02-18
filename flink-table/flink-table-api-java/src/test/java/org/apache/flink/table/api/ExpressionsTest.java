@@ -18,15 +18,21 @@
 
 package org.apache.flink.table.api;
 
+import org.apache.flink.table.expressions.Expression;
 import org.apache.flink.table.expressions.ValueLiteralExpression;
-import org.apache.flink.util.TestLogger;
 
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
+import org.junit.runner.RunWith;
+import org.junit.runners.Parameterized;
 
 import java.time.Duration;
 import java.time.Period;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Optional;
+import java.util.function.Supplier;
 
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.junit.Assert.assertThat;
@@ -34,59 +40,112 @@ import static org.junit.Assert.assertThat;
 /**
  * Tests for Java Expressions DSL.
  */
-public class ExpressionsTest extends TestLogger {
+@RunWith(Parameterized.class)
+public class ExpressionsTest {
 	@Rule
 	public ExpectedException thrown = ExpectedException.none();
 
-	@Test
-	public void testIntervalDurationDoesNotFitIntoLong() {
-		thrown.expect(ValidationException.class);
-		Expressions.interval(Duration.ofSeconds(Long.MAX_VALUE).plusMillis(1));
+	@Parameterized.Parameter
+	public TestSpec testSpec;
+
+	@Parameterized.Parameters(name = "{0}")
+	public static Collection<TestSpec> parameters() {
+		return Arrays.asList(
+			TestSpec.expression(
+				"testIntervalDurationDoesNotFitIntoLong",
+				() -> Expressions.interval(Duration.ofSeconds(Long.MAX_VALUE).plusMillis(1))
+			).expectExceptionMessage(""),
+
+			TestSpec.expression(
+				"testIntervalDurationOfDifferentResolution",
+				() -> Expressions.interval(Duration.ofDays(3).plusSeconds(23).plusMillis(300))
+			).expect(new ValueLiteralExpression(
+				259223300L, // 3 days + 23 seconds + 300 millis
+				DataTypes.INTERVAL(DataTypes.SECOND(3)).bridgedTo(Long.class)
+			)),
+
+			TestSpec.expression(
+				"testIntervalDurationOfMillis",
+				() -> Expressions.interval(Duration.ofMillis(100))
+			).expect(new ValueLiteralExpression(
+				100L,
+				DataTypes.INTERVAL(DataTypes.SECOND(3)).bridgedTo(Long.class)
+			)),
+
+			TestSpec.expression(
+				"testIntervalPeriodDoesNotFitIntoInt",
+				() -> Expressions.interval(Period.ofYears(2).plusMonths(Integer.MAX_VALUE))
+			).expectExceptionMessage(""),
+
+			TestSpec.expression(
+				"testIntervalPeriodOfDifferentResolution",
+				() -> Expressions.interval(Period.ofYears(1).plusMonths(3))
+			).expect(new ValueLiteralExpression(
+				15,
+				DataTypes.INTERVAL(DataTypes.MONTH()).bridgedTo(Integer.class)
+			)),
+
+			TestSpec.expression(
+				"testIntervalPeriodOfMonths",
+				() -> Expressions.interval(Period.ofMonths(4))
+			).expect(new ValueLiteralExpression(
+				4,
+				DataTypes.INTERVAL(DataTypes.MONTH()).bridgedTo(Integer.class)
+			))
+		);
 	}
 
 	@Test
-	public void testIntervalDurationOfDifferentResolution() {
-		ApiExpression literal = Expressions.interval(Duration.ofDays(3).plusSeconds(23).plusMillis(300));
+	public void testExpression() {
+		testSpec.getExceptionMessage().ifPresent(message -> {
+				thrown.expect(ValidationException.class);
+				thrown.expectMessage(message);
+			}
+		);
 
-		assertThat(literal.toExpr(), equalTo(new ValueLiteralExpression(
-			259223300L, // 3 days + 23 seconds + 300 millis
-			DataTypes.INTERVAL(DataTypes.SECOND(3)).bridgedTo(Long.class)
-		)));
+		assertThat(testSpec.getTestedExpression(), equalTo(testSpec.getExpectedExpression()));
 	}
 
-	@Test
-	public void testIntervalDurationOfMillis() {
-		ApiExpression literal = Expressions.interval(Duration.ofMillis(100));
+	private static class TestSpec {
+		private final Supplier<ApiExpression> testedExpression;
+		private Expression expectedExpression = null;
+		private String exceptionMessage = null;
+		private final String description;
 
-		assertThat(literal.toExpr(), equalTo(new ValueLiteralExpression(
-			100L,
-			DataTypes.INTERVAL(DataTypes.SECOND(3)).bridgedTo(Long.class)
-		)));
-	}
+		public TestSpec(Supplier<ApiExpression> testedExpression, String description) {
+			this.testedExpression = testedExpression;
+			this.description = description;
+		}
 
-	@Test
-	public void testIntervalPeriodDoesNotFitIntoInt() {
-		thrown.expect(ValidationException.class);
-		Expressions.interval(Period.ofYears(2).plusMonths(Integer.MAX_VALUE));
-	}
+		public static TestSpec expression(String description, Supplier<ApiExpression> expression) {
+			return new TestSpec(expression, description);
+		}
 
-	@Test
-	public void testIntervalPeriodOfDifferentResolution() {
-		ApiExpression literal = Expressions.interval(Period.ofYears(1).plusMonths(3));
+		public TestSpec expect(Expression expected) {
+			this.expectedExpression = expected;
+			return this;
+		}
 
-		assertThat(literal.toExpr(), equalTo(new ValueLiteralExpression(
-			15,
-			DataTypes.INTERVAL(DataTypes.MONTH()).bridgedTo(Integer.class)
-		)));
-	}
+		public TestSpec expectExceptionMessage(String message) {
+			this.exceptionMessage = message;
+			return this;
+		}
 
-	@Test
-	public void testIntervalPeriodOfMonths() {
-		ApiExpression literal = Expressions.interval(Period.ofMonths(4));
+		public Expression getTestedExpression() {
+			return testedExpression.get().toExpr();
+		}
 
-		assertThat(literal.toExpr(), equalTo(new ValueLiteralExpression(
-			4,
-			DataTypes.INTERVAL(DataTypes.MONTH()).bridgedTo(Integer.class)
-		)));
+		public Expression getExpectedExpression() {
+			return expectedExpression;
+		}
+
+		public Optional<String> getExceptionMessage() {
+			return Optional.ofNullable(exceptionMessage);
+		}
+
+		@Override
+		public String toString() {
+			return description;
+		}
 	}
 }
