@@ -16,22 +16,13 @@
  * limitations under the License.
  */
 
-package org.apache.flink.table.expressions.utils;
+package org.apache.flink.table.expressions;
 
 import org.apache.flink.annotation.Internal;
-import org.apache.flink.table.api.DataTypes;
 import org.apache.flink.table.api.ApiExpression;
+import org.apache.flink.table.api.DataTypes;
 import org.apache.flink.table.api.Table;
 import org.apache.flink.table.api.ValidationException;
-import org.apache.flink.table.expressions.CallExpression;
-import org.apache.flink.table.expressions.Expression;
-import org.apache.flink.table.expressions.ExpressionUtils;
-import org.apache.flink.table.expressions.LookupCallExpression;
-import org.apache.flink.table.expressions.TableReferenceExpression;
-import org.apache.flink.table.expressions.TypeLiteralExpression;
-import org.apache.flink.table.expressions.UnresolvedCallExpression;
-import org.apache.flink.table.expressions.UnresolvedReferenceExpression;
-import org.apache.flink.table.expressions.ValueLiteralExpression;
 import org.apache.flink.table.functions.BuiltInFunctionDefinition;
 import org.apache.flink.table.functions.FunctionDefinition;
 import org.apache.flink.table.functions.FunctionKind;

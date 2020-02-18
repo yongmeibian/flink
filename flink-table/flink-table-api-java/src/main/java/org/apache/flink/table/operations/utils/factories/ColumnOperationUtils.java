@@ -24,7 +24,7 @@ import org.apache.flink.table.expressions.Expression;
 import org.apache.flink.table.expressions.UnresolvedCallExpression;
 import org.apache.flink.table.expressions.UnresolvedReferenceExpression;
 import org.apache.flink.table.expressions.utils.ApiExpressionDefaultVisitor;
-import org.apache.flink.table.expressions.utils.ApiExpressionUtils;
+import org.apache.flink.table.expressions.ApiExpressionUtils;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -33,7 +33,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 import static java.lang.String.format;
-import static org.apache.flink.table.expressions.utils.ApiExpressionUtils.unresolvedRef;
+import static org.apache.flink.table.expressions.ApiExpressionUtils.unresolvedRef;
 import static org.apache.flink.table.functions.BuiltInFunctionDefinitions.AS;
 import static org.apache.flink.table.operations.utils.OperationExpressionsUtils.extractName;
 
