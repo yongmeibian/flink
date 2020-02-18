@@ -19,8 +19,8 @@
 package org.apache.flink.table.api
 
 import org.apache.flink.table.api.Expressions._
-import org.apache.flink.table.expressions.Expression
 import org.apache.flink.table.expressions.ApiExpressionUtils.{unresolvedCall, unresolvedRef, valueLiteral}
+import org.apache.flink.table.expressions.Expression
 import org.apache.flink.table.functions.BuiltInFunctionDefinitions.{EQUALS, PLUS, TRIM}
 
 import org.hamcrest.CoreMatchers
@@ -157,29 +157,6 @@ class ExpressionsConsistencyCheckTest {
 
     // in java we use static minus()
     "unary_$minus", // unary_-
-
-    //-----------------------------------------------------------------------------------
-    //  Interval conversion - deprecated in favor of interval(int, Resolution), interval(String,
-    //  Resolution, Resolution)
-    //-----------------------------------------------------------------------------------
-    "years",
-    "weeks",
-    "minute",
-    "milli",
-    "seconds",
-    "year",
-    "quarter",
-    "hour",
-    "minutes",
-    "week",
-    "hours",
-    "second",
-    "millis",
-    "quarters",
-    "day",
-    "days",
-    "month",
-    "months",
 
     //-----------------------------------------------------------------------------------
     //  Internal methods

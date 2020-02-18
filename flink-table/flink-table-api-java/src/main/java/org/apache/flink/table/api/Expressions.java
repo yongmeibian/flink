@@ -327,18 +327,19 @@ public final class Expressions {
 	 * Equivalent to {@code lit(Duration)}.
 	 */
 	public static ApiExpression interval(Duration duration) {
-		try {
-			if (duration.getNano() % 1_000 != 0) {
-				throw new ValidationException("For now only intervals of millisecond precision are supported.");
-			}
-			long totalMillis = duration.toMillis();
-			return new ApiExpression(valueLiteral(
-				totalMillis,
-				DataTypes.INTERVAL(DataTypes.SECOND(3)).bridgedTo(Long.class)));
-		} catch (ArithmeticException ex) {
-			throw new ValidationException(
-				"For now only intervals of up to Long.MAX_VALUE milliseconds are supported.", ex);
-		}
+		return new ApiExpression(valueLiteral(duration));
+//		try {
+//			if (duration.getNano() % 1_000 != 0) {
+//				throw new ValidationException("For now only intervals of millisecond precision are supported.");
+//			}
+//			long totalMillis = duration.toMillis();
+//			return new ApiExpression(valueLiteral(
+//				totalMillis,
+//				DataTypes.INTERVAL(DataTypes.SECOND(3)).bridgedTo(Long.class)));
+//		} catch (ArithmeticException ex) {
+//			throw new ValidationException(
+//				"For now only intervals of up to Long.MAX_VALUE milliseconds are supported.", ex);
+//		}
 	}
 
 	/**
@@ -346,13 +347,14 @@ public final class Expressions {
 	 * Equivalent to {@code lit(Duration)}.
 	 */
 	public static ApiExpression interval(Period period) {
-		long totalMonths = period.toTotalMonths();
-		if (totalMonths > Integer.MAX_VALUE) {
-			throw new ValidationException("For now only intervals of up to INTEGER.MAX_VALUE months are supported.");
-		}
-		return new ApiExpression(valueLiteral(
-			(int) totalMonths,
-			DataTypes.INTERVAL(DataTypes.MONTH()).bridgedTo(Integer.class)));
+		return new ApiExpression(valueLiteral(period));
+//		long totalMonths = period.toTotalMonths();
+//		if (totalMonths > Integer.MAX_VALUE) {
+//			throw new ValidationException("For now only intervals of up to INTEGER.MAX_VALUE months are supported.");
+//		}
+//		return new ApiExpression(valueLiteral(
+//			(int) totalMonths,
+//			DataTypes.INTERVAL(DataTypes.MONTH()).bridgedTo(Integer.class)));
 	}
 
 	/**

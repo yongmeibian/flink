@@ -23,17 +23,23 @@ import org.apache.flink.api.common.typeinfo.SqlTimeTypeInfo;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.table.api.Expressions;
 import org.apache.flink.table.api.Table;
+import org.apache.flink.table.expressions.ApiExpressionUtils;
 import org.apache.flink.table.expressions.Expression;
 import org.apache.flink.table.expressions.TimeIntervalUnit;
-import org.apache.flink.table.expressions.ApiExpressionUtils;
 import org.apache.flink.table.functions.BuiltInFunctionDefinitions;
 import org.apache.flink.table.types.DataType;
 
 import java.util.Arrays;
 import java.util.stream.Stream;
 
+import static org.apache.flink.table.expressions.ApiExpressionUtils.MILLIS_PER_DAY;
+import static org.apache.flink.table.expressions.ApiExpressionUtils.MILLIS_PER_HOUR;
+import static org.apache.flink.table.expressions.ApiExpressionUtils.MILLIS_PER_MINUTE;
+import static org.apache.flink.table.expressions.ApiExpressionUtils.MILLIS_PER_SECOND;
 import static org.apache.flink.table.expressions.ApiExpressionUtils.objectToExpression;
 import static org.apache.flink.table.expressions.ApiExpressionUtils.tableRef;
+import static org.apache.flink.table.expressions.ApiExpressionUtils.toMilliInterval;
+import static org.apache.flink.table.expressions.ApiExpressionUtils.toMonthInterval;
 import static org.apache.flink.table.expressions.ApiExpressionUtils.typeLiteral;
 import static org.apache.flink.table.expressions.ApiExpressionUtils.unresolvedCall;
 import static org.apache.flink.table.expressions.ApiExpressionUtils.valueLiteral;
@@ -1080,6 +1086,134 @@ public abstract class BaseExpressions<InType, OutType> {
 	 */
 	public OutType proctime() {
 		return toApiSpecificExpression(unresolvedCall(PROCTIME, toExpr()));
+	}
+
+	/**
+	 * Creates an interval of the given number of years.
+	 *
+	 * <p>The produced expression is of type {@code DataTypes.INTERVAL}
+	 */
+	public OutType year() {
+		return toApiSpecificExpression(toMonthInterval(toExpr(), 12));
+	}
+
+	/**
+	 * Creates an interval of the given number of years.
+	 */
+	public OutType years() {
+		return year();
+	}
+
+	/**
+	 * Creates an interval of the given number of quarters.
+	 */
+	public OutType quarter() {
+		return toApiSpecificExpression(toMonthInterval(toExpr(), 3));
+	}
+
+	/**
+	 * Creates an interval of the given number of quarters.
+	 */
+	public OutType quarters() {
+		return quarter();
+	}
+
+	/**
+	 * Creates an interval of the given number of months.
+	 */
+	public OutType month() {
+		return toApiSpecificExpression(toMonthInterval(toExpr(), 1));
+	}
+
+	/**
+	 * Creates an interval of the given number of months.
+	 */
+	public OutType months() {
+		return month();
+	}
+
+	/**
+	 * Creates an interval of the given number of weeks.
+	 */
+	public OutType week() {
+		return toApiSpecificExpression(toMilliInterval(toExpr(), 7 * MILLIS_PER_DAY));
+	}
+
+	/**
+	 * Creates an interval of the given number of weeks.
+	 */
+	public OutType weeks() {
+		return week();
+	}
+
+	/**
+	 * Creates an interval of the given number of days.
+	 */
+	public OutType day() {
+		return toApiSpecificExpression(toMilliInterval(toExpr(), MILLIS_PER_DAY));
+	}
+
+	/**
+	 * Creates an interval of the given number of days.
+	 */
+	public OutType days() {
+		return day();
+	}
+
+	/**
+	 * Creates an interval of the given number of hours.
+	 */
+	public OutType hour() {
+		return toApiSpecificExpression(toMilliInterval(toExpr(), MILLIS_PER_HOUR));
+	}
+
+	/**
+	 * Creates an interval of the given number of hours.
+	 */
+	public OutType hours() {
+		return hour();
+	}
+
+	/**
+	 * Creates an interval of the given number of minutes.
+	 */
+	public OutType minute() {
+		return toApiSpecificExpression(toMilliInterval(toExpr(), MILLIS_PER_MINUTE));
+	}
+
+	/**
+	 * Creates an interval of the given number of minutes.
+	 */
+	public OutType minutes() {
+		return minute();
+	}
+
+	/**
+	 * Creates an interval of the given number of seconds.
+	 */
+	public OutType second() {
+		return toApiSpecificExpression(toMilliInterval(toExpr(), MILLIS_PER_SECOND));
+	}
+
+	/**
+	 * Creates an interval of the given number of seconds.
+	 */
+	public OutType seconds() {
+		return second();
+	}
+
+	/**
+	 * Creates an interval of the given number of milliseconds.
+	 */
+	public OutType milli() {
+		return toApiSpecificExpression(toMilliInterval(toExpr(), 1));
+	}
+
+	/**
+	 * Creates an interval of the given number of milliseconds.
+	 */
+	public OutType millis() {
+		return milli();
 	}
 
 	// Hash functions
