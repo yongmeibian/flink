@@ -101,7 +101,9 @@ public final class ApiExpressionUtils {
 			FunctionIdentifier functionIdentifier,
 			FunctionDefinition functionDefinition,
 			List<Expression> args) {
-		return new UnresolvedCallExpression(functionIdentifier, functionDefinition,
+		return new UnresolvedCallExpression(
+			functionIdentifier,
+			functionDefinition,
 			args.stream()
 				.map(ApiExpressionUtils::unwrapFromApi)
 				.collect(Collectors.toList()));

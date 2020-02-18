@@ -30,6 +30,7 @@ import org.apache.flink.table.expressions.Expression;
 import org.apache.flink.table.expressions.ResolvedExpression;
 import org.apache.flink.table.expressions.UnresolvedCallExpression;
 import org.apache.flink.table.expressions.ValueLiteralExpression;
+import org.apache.flink.table.functions.AggregateFunction;
 import org.apache.flink.table.functions.AggregateFunctionDefinition;
 import org.apache.flink.table.functions.BuiltInFunctionDefinition;
 import org.apache.flink.table.functions.BuiltInFunctionDefinitions;
@@ -178,9 +179,18 @@ final class ResolveCallByArgumentsRule implements ResolverRule {
 				final TypeInference inference = builtInDefinition.getTypeInference(resolutionContext.typeFactory());
 				if (inference.getOutputTypeStrategy() != TypeStrategies.MISSING) {
 					return Optional.of(inference);
+				} else {
+					return Optional.empty();
 				}
+			} else if (definition instanceof ScalarFunctionDefinition ||
+				definition instanceof TableFunctionDefinition ||
+				definition instanceof AggregateFunctionDefinition ||
+				definition instanceof AggregateFunction ||
+				definition instanceof TableAggregateFunctionDefinition) {
+				return Optional.empty();
 			}
-			return Optional.empty();
+
+			return Optional.of(definition.getTypeInference(resolutionContext.typeFactory()));
 		}
 
 		private ResolvedExpression runTypeInference(
