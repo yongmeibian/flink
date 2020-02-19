@@ -33,12 +33,16 @@ import org.apache.flink.table.expressions.CallExpression;
 import org.apache.flink.table.expressions.Expression;
 import org.apache.flink.table.expressions.FieldReferenceExpression;
 import org.apache.flink.table.expressions.ResolvedExpression;
+import org.apache.flink.table.expressions.ValueLiteralExpression;
+import org.apache.flink.table.functions.BuiltInFunctionDefinition;
+import org.apache.flink.table.functions.BuiltInFunctionDefinitions;
 import org.apache.flink.table.functions.FunctionDefinition;
 import org.apache.flink.table.functions.FunctionIdentifier;
 import org.apache.flink.table.functions.ScalarFunction;
 import org.apache.flink.table.operations.CatalogQueryOperation;
 import org.apache.flink.table.operations.QueryOperation;
 import org.apache.flink.table.types.DataType;
+import org.apache.flink.table.types.inference.TypeInferenceUtil;
 import org.apache.flink.table.types.logical.LogicalType;
 import org.apache.flink.table.types.logical.utils.LogicalTypeParser;
 
@@ -53,20 +57,110 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 import static org.apache.flink.table.api.Expressions.$;
 import static org.apache.flink.table.api.Expressions.call;
+import static org.apache.flink.table.api.Expressions.range;
+import static org.apache.flink.table.api.Expressions.withColumns;
 import static org.apache.flink.table.expressions.ApiExpressionUtils.valueLiteral;
 import static org.apache.flink.table.types.utils.TypeConversions.fromLogicalToDataType;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.junit.Assert.assertThat;
 
+/**
+ * This test supports only a subset of builtin functions because those functions still depend on
+ * planner expressions for argument validation and type inference. Supported builtin functions are:
+ *
+ * <p>- BuiltinFunctionDefinitions.EQUALS
+ * - BuiltinFunctionDefinitions.IS_NULL
+ *
+ * <p>Pseudo functions that are executed during expression resolution e.g.:
+ * - BuiltinFunctionDefinitions.WITH_COLUMNS
+ * - BuiltinFunctionDefinitions.WITHOUT_COLUMNS
+ * - BuiltinFunctionDefinitions.RANGE_TO
+ * - BuiltinFunctionDefinitions.FLATTEN
+ *
+ * <p>This test supports only a simplified identifier parsing logic. It does not support escaping.
+ * It just naively splits on dots. The proper logic comes with a planner implementation which is not
+ * available in the API module.
+ */
 @RunWith(Parameterized.class)
 public class ExpressionResolverTest {
 
 	@Parameterized.Parameters(name = "{0}")
 	public static Collection<TestSpec> parameters() {
 		return Arrays.asList(
+			TestSpec.test("Columns range")
+				.inputSchemas(
+					TableSchema.builder()
+						.field("f0", DataTypes.BIGINT())
+						.field("f1", DataTypes.STRING())
+						.field("f2", DataTypes.SMALLINT())
+						.build()
+				)
+				.select(withColumns(range("f1", "f2")), withColumns(range(1, 2)))
+				.equalTo(
+					new FieldReferenceExpression("f1", DataTypes.STRING(), 0, 1),
+					new FieldReferenceExpression("f2", DataTypes.SMALLINT(), 0, 2),
+					new FieldReferenceExpression("f0", DataTypes.BIGINT(), 0, 0),
+					new FieldReferenceExpression("f1", DataTypes.STRING(), 0, 1)
+				),
+
+			TestSpec.test("Flatten call")
+				.inputSchemas(
+					TableSchema.builder()
+						.field("f0", DataTypes.ROW(
+							DataTypes.FIELD("n0", DataTypes.BIGINT()),
+							DataTypes.FIELD("n1", DataTypes.STRING())
+						))
+						.build()
+				)
+				.select($("f0").flatten())
+				.equalTo(
+					new CallExpression(
+						FunctionIdentifier.of("get"),
+						BuiltInFunctionDefinitions.GET,
+						Arrays.asList(
+							new FieldReferenceExpression("f0", DataTypes.ROW(
+								DataTypes.FIELD("n0", DataTypes.BIGINT()),
+								DataTypes.FIELD("n1", DataTypes.STRING())
+							), 0, 0),
+							new ValueLiteralExpression("n0")
+						),
+						DataTypes.BIGINT()
+					),
+					new CallExpression(
+						FunctionIdentifier.of("get"),
+						BuiltInFunctionDefinitions.GET,
+						Arrays.asList(
+							new FieldReferenceExpression("f0", DataTypes.ROW(
+								DataTypes.FIELD("n0", DataTypes.BIGINT()),
+								DataTypes.FIELD("n1", DataTypes.STRING())
+							), 0, 0),
+							new ValueLiteralExpression("n1")
+						),
+						DataTypes.STRING()
+					)),
+
+			TestSpec.test("Builtin function calls")
+				.inputSchemas(
+					TableSchema.builder()
+						.field("f0", DataTypes.INT())
+						.field("f1", DataTypes.STRING())
+						.build()
+				)
+				.select($("f0").isEqual($("f1")))
+				.equalTo(new CallExpression(
+					FunctionIdentifier.of("equals"),
+					BuiltInFunctionDefinitions.EQUALS,
+					Arrays.asList(
+						new FieldReferenceExpression("f0", DataTypes.INT(), 0, 0),
+						new FieldReferenceExpression("f1", DataTypes.STRING(), 0, 1)
+					),
+					DataTypes.BOOLEAN()
+				)),
+
 			TestSpec.test("Lookup calls")
 				.inputSchemas(
 					TableSchema.builder()
@@ -82,14 +176,29 @@ public class ExpressionResolverTest {
 					DataTypes.INT().notNull().bridgedTo(int.class)
 				)),
 
-			TestSpec.test("Deeply nested calls")
+			TestSpec.test("Catalog calls")
+				.inputSchemas(
+					TableSchema.builder()
+						.field("f0", DataTypes.INT())
+						.build()
+				)
+				.lookupFunction(ObjectIdentifier.of("cat", "db", "func"), new ScalarFunc())
+				.select(call("cat.db.func", 1, $("f0")))
+				.equalTo(new CallExpression(
+					FunctionIdentifier.of(ObjectIdentifier.of("cat", "db", "func")),
+					new ScalarFunc(),
+					Arrays.asList(valueLiteral(1), new FieldReferenceExpression("f0", DataTypes.INT(), 0, 0)),
+					DataTypes.INT().notNull().bridgedTo(int.class)
+				)),
+
+			TestSpec.test("Deeply nested user defined calls")
 				.inputSchemas(
 					TableSchema.builder()
 						.field("f0", DataTypes.INT())
 						.build()
 				)
 				.lookupFunction("func", new ScalarFunc())
-				.select(call(new ScalarFunc(), call("func", 1, $("f0"))))
+				.select(call("func", call(new ScalarFunc(), call("func", 1, $("f0")))))
 				.equalTo(
 					new CallExpression(
 						FunctionIdentifier.of("func"),
@@ -117,8 +226,10 @@ public class ExpressionResolverTest {
 
 	@Test
 	public void testResolvingExpressions() {
+		List<ResolvedExpression> resolvedExpressions = testSpec.getResolver()
+			.resolve(Arrays.asList(testSpec.expressions));
 		assertThat(
-			testSpec.getResolver().resolve(Arrays.asList(testSpec.expressions)),
+			resolvedExpressions,
 			equalTo(testSpec.expectedExpressions));
 	}
 
@@ -144,7 +255,7 @@ public class ExpressionResolverTest {
 		private TableSchema[] schemas;
 		private Expression[] expressions;
 		private List<ResolvedExpression> expectedExpressions;
-		private Map<String, FunctionDefinition> functions = new HashMap<>();
+		private Map<FunctionIdentifier, FunctionDefinition> functions = new HashMap<>();
 
 		private TestSpec(String description) {
 			this.description = description;
@@ -160,7 +271,12 @@ public class ExpressionResolverTest {
 		}
 
 		public TestSpec lookupFunction(String name, FunctionDefinition functionDefinition) {
-			functions.put(name, functionDefinition);
+			functions.put(FunctionIdentifier.of(name), functionDefinition);
+			return this;
+		}
+
+		public TestSpec lookupFunction(ObjectIdentifier identifier, FunctionDefinition functionDefinition) {
+			functions.put(FunctionIdentifier.of(identifier), functionDefinition);
 			return this;
 		}
 
@@ -191,28 +307,70 @@ public class ExpressionResolverTest {
 
 				@Override
 				public <T> DataType createDataType(Class<T> clazz) {
-					return null;
+					throw new UnsupportedOperationException("Not supported in the test");
 				}
 
 				@Override
 				public <T> DataType createRawDataType(Class<T> clazz) {
-					return null;
+					throw new UnsupportedOperationException("Not supported in the test");
 				}
 			};
 			FunctionLookup functionLookup = new FunctionLookup() {
 				@Override
 				public Optional<Result> lookupFunction(UnresolvedIdentifier identifier) {
-					return Optional.ofNullable(functions.get(identifier.getObjectName()))
-						.map(func -> new Result(FunctionIdentifier.of(identifier.getObjectName()), func));
+					final FunctionIdentifier functionIdentifier;
+					if (identifier.getCatalogName().isPresent() && identifier.getDatabaseName().isPresent()) {
+						functionIdentifier = FunctionIdentifier.of(
+							ObjectIdentifier.of(
+								identifier.getCatalogName().get(),
+								identifier.getDatabaseName().get(),
+								identifier.getObjectName()));
+					} else {
+						functionIdentifier = FunctionIdentifier.of(identifier.getObjectName());
+					}
+
+					return Optional.ofNullable(functions.get(functionIdentifier))
+						.map(func -> new Result(functionIdentifier, func));
+				}
+
+				@Override
+				public Result lookupBuiltInFunction(BuiltInFunctionDefinition definition) {
+					return new Result(
+						FunctionIdentifier.of(definition.getName()),
+						definition
+					);
 				}
 
 				@Override
 				public PlannerTypeInferenceUtil getPlannerTypeInferenceUtil() {
-					return null;
+					return (unresolvedCall, resolvedArgs) -> {
+						FunctionDefinition functionDefinition = unresolvedCall.getFunctionDefinition();
+						if (functionDefinition.equals(BuiltInFunctionDefinitions.EQUALS)) {
+							return new TypeInferenceUtil.Result(
+								resolvedArgs.stream()
+									.map(ResolvedExpression::getOutputDataType)
+									.collect(Collectors.toList()),
+								null,
+								DataTypes.BOOLEAN()
+							);
+						} else if (functionDefinition.equals(BuiltInFunctionDefinitions.IS_NULL)) {
+							return new TypeInferenceUtil.Result(
+								resolvedArgs.stream()
+									.map(ResolvedExpression::getOutputDataType)
+									.collect(Collectors.toList()),
+								null,
+								DataTypes.BOOLEAN()
+							);
+						}
+
+						throw new IllegalArgumentException(
+							"Unsupported builtin function in the test: " + unresolvedCall);
+					};
 				}
 			};
 			return ExpressionResolver.resolverFor(
 				new TableConfig(),
+				str -> UnresolvedIdentifier.of(str.split("\\.")), // this is a simplified version for the test
 				name -> Optional.empty(),
 				functionLookup,
 				dataTypeFactory,

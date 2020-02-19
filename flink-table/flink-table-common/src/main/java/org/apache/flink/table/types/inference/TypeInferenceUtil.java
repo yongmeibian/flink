@@ -447,11 +447,6 @@ public final class TypeInferenceUtil {
 			.inferInputTypes(adaptedCallContext, true)
 			.orElseThrow(() -> new ValidationException("Invalid input arguments."));
 
-		// input must not contain unknown types at this point
-		if (inferredDataTypes.stream().anyMatch(TypeInferenceUtil::isUnknown)) {
-			throw new ValidationException("Invalid use of untyped NULL in arguments.");
-		}
-
 		adaptedCallContext.setExpectedArguments(inferredDataTypes);
 
 		return adaptedCallContext;

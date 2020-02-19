@@ -20,6 +20,7 @@ package org.apache.flink.table.api;
 
 import org.apache.flink.annotation.PublicEvolving;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
+import org.apache.flink.table.catalog.DataTypeFactory;
 import org.apache.flink.table.expressions.ApiExpressionUtils;
 import org.apache.flink.table.expressions.Expression;
 import org.apache.flink.table.expressions.ResolvedExpression;
@@ -519,6 +520,9 @@ public final class Expressions {
 	/**
 	 * A call to an unregistered, inline function. For functions that have been registered before and
 	 * are identified by a name, use {@link #call(String, Object...)}.
+	 *
+	 * <p><b>NOTE:</b>This call uses the new type inference stack. It means it will use the result of
+	 * {@link UserDefinedFunction#getTypeInference(DataTypeFactory)} method call.
 	 */
 	public static ApiExpression call(UserDefinedFunction function, Object... params) {
 		return apiCall(function, params);
