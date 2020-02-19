@@ -38,6 +38,7 @@ import java.util.stream.Stream;
 
 import static org.apache.flink.table.expressions.ApiExpressionUtils.objectToExpression;
 import static org.apache.flink.table.expressions.ApiExpressionUtils.unresolvedCall;
+import static org.apache.flink.table.expressions.ApiExpressionUtils.unresolvedRef;
 import static org.apache.flink.table.expressions.ApiExpressionUtils.valueLiteral;
 
 /**
@@ -118,7 +119,7 @@ public final class Expressions {
 	 * @see #withoutColumns(Object, Object...)
 	 */
 	public static ApiExpression range(String start, String end) {
-		return apiCall(BuiltInFunctionDefinitions.RANGE_TO, valueLiteral(start), valueLiteral(end));
+		return apiCall(BuiltInFunctionDefinitions.RANGE_TO, unresolvedRef(start), unresolvedRef(end));
 	}
 
 	/**
