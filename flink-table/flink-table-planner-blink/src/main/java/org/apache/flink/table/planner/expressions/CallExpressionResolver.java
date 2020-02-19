@@ -44,6 +44,11 @@ public class CallExpressionResolver {
 		FlinkContext context = unwrapContext(relBuilder.getCluster());
 		this.resolver = ExpressionResolver.resolverFor(
 				context.getTableConfig(),
+				str -> {
+					// Declarative functions should never produce LookupCallExpression,
+					// therefore we should never need to parse identifiers
+					throw new UnsupportedOperationException("Parsing identifiers is not supported at this location.");
+				},
 				name -> Optional.empty(),
 				context.getFunctionCatalog(),
 				context.getCatalogManager().getDataTypeFactory())

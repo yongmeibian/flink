@@ -23,9 +23,10 @@ import org.apache.flink.api.common.typeinfo.TypeInformation
 import org.apache.flink.table.api._
 import org.apache.flink.table.calcite.{CalciteParser, FlinkPlannerImpl, FlinkRelBuilder}
 import org.apache.flink.table.catalog._
-import org.apache.flink.table.catalog.exceptions.{DatabaseAlreadyExistException, DatabaseNotEmptyException, DatabaseNotExistException, FunctionAlreadyExistException, FunctionNotExistException}
+import org.apache.flink.table.catalog.exceptions.{TableNotExistException => _, _}
 import org.apache.flink.table.delegation.Parser
 import org.apache.flink.table.expressions._
+import org.apache.flink.table.expressions.resolver.LookupCallResolver
 import org.apache.flink.table.expressions.resolver.lookups.TableReferenceLookup
 import org.apache.flink.table.factories.{TableFactoryService, TableFactoryUtil, TableSinkFactory}
 import org.apache.flink.table.functions.{AggregateFunction, ScalarFunction, TableFunction, UserDefinedAggregateFunction, _}
@@ -37,14 +38,16 @@ import org.apache.flink.table.planner.{ParserImpl, PlanningConfigurationBuilder}
 import org.apache.flink.table.sinks.{OverwritableTableSink, PartitionableTableSink, TableSink, TableSinkUtils}
 import org.apache.flink.table.sources.TableSource
 import org.apache.flink.table.util.JavaScalaConversionUtil
+
 import org.apache.calcite.jdbc.CalciteSchemaBuilder.asRootSchema
 import org.apache.calcite.sql.parser.SqlParser
 import org.apache.calcite.tools.FrameworkConfig
-import _root_.java.util.function.{Supplier => JSupplier}
+
+import _root_.java.util.function.{Function => JFunction, Supplier => JSupplier}
 import _root_.java.util.{Optional, HashMap => JHashMap, Map => JMap}
 
-import _root_.scala.collection.JavaConverters._
 import _root_.scala.collection.JavaConversions._
+import _root_.scala.collection.JavaConverters._
 import _root_.scala.util.Try
 
 /**
@@ -66,8 +69,8 @@ abstract class TableEnvImpl(
   functionCatalog.setPlannerTypeInferenceUtil(PlannerTypeInferenceUtilImpl.INSTANCE)
 
   // temporary bridge between API and planner
-  private[flink] val expressionBridge: ExpressionBridge[PlannerExpression] =
-    new ExpressionBridge[PlannerExpression](functionCatalog, PlannerExpressionConverter.INSTANCE)
+  private[flink] val expressionBridge: ExpressionBridge[PlannerExpression] = new
+      ExpressionBridge[PlannerExpression](PlannerExpressionConverter.INSTANCE)
 
   private def tableLookup: TableReferenceLookup = {
     new TableReferenceLookup {
@@ -89,13 +92,6 @@ abstract class TableEnvImpl(
     }
   }
 
-  private[flink] val operationTreeBuilder = OperationTreeBuilder.create(
-    config,
-    functionCatalog,
-    catalogManager.getDataTypeFactory,
-    tableLookup,
-    isStreamingMode)
-
   protected val planningConfigurationBuilder: PlanningConfigurationBuilder =
     new PlanningConfigurationBuilder(
       config,
@@ -115,6 +111,14 @@ abstract class TableEnvImpl(
       override def get(): CalciteParser = planningConfigurationBuilder.createCalciteParser()
     }
   )
+
+  private[flink] val operationTreeBuilder = OperationTreeBuilder.create(
+    config,
+    parser,
+    functionCatalog,
+    catalogManager.getDataTypeFactory,
+    tableLookup,
+    isStreamingMode)
 
   def getConfig: TableConfig = config
 
@@ -647,7 +651,9 @@ abstract class TableEnvImpl(
       this,
       tableOperation,
       operationTreeBuilder,
-      functionCatalog)
+      new LookupCallResolver(functionCatalog, new JFunction[String, UnresolvedIdentifier] {
+        override def apply(t: String): UnresolvedIdentifier = parser.parseIdentifier(t)
+      }))
   }
 
   /**

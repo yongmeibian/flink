@@ -22,6 +22,7 @@ import org.apache.flink.annotation.Internal;
 import org.apache.flink.configuration.ReadableConfig;
 import org.apache.flink.table.catalog.DataTypeFactory;
 import org.apache.flink.table.catalog.FunctionLookup;
+import org.apache.flink.table.catalog.UnresolvedIdentifier;
 import org.apache.flink.table.expressions.Expression;
 import org.apache.flink.table.expressions.LocalReferenceExpression;
 import org.apache.flink.table.expressions.resolver.ExpressionResolver;
@@ -68,6 +69,11 @@ public interface ResolverRule {
 		 * Access to available {@link FunctionDefinition}s.
 		 */
 		FunctionLookup functionLookup();
+
+		/**
+		 * Parses identifier into {@link UnresolvedIdentifier}.
+		 */
+		UnresolvedIdentifier parseIdentifier(String path);
 
 		/**
 		 * Access to {@link DataTypeFactory}.

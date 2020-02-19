@@ -28,6 +28,7 @@ import org.apache.flink.table.planner.plan.nodes.calcite.{LogicalTableAggregate,
 import org.apache.flink.table.planner.plan.utils.AggregateUtil
 import org.apache.flink.table.runtime.operators.rank.{RankRange, RankType}
 import org.apache.flink.table.sinks.TableSink
+
 import org.apache.calcite.plan._
 import org.apache.calcite.rel.RelCollation
 import org.apache.calcite.rel.`type`.{RelDataType, RelDataTypeField}
@@ -58,8 +59,7 @@ class FlinkRelBuilder(
   require(context != null)
 
   private val toRelNodeConverter = {
-    val functionCatalog = context.unwrap(classOf[FlinkContext]).getFunctionCatalog
-    new QueryOperationConverter(this, functionCatalog)
+    new QueryOperationConverter(this)
   }
 
   private val expandFactory: ExpandFactory = {

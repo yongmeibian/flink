@@ -275,9 +275,7 @@ class RexNodeToExpressionConverter(
 
   private def lookupFunction(name: String, operands: Seq[Expression]): Option[Expression] = {
     // TODO we assume only planner expression as a temporary solution to keep the old interfaces
-    val expressionBridge = new ExpressionBridge[PlannerExpression](
-      functionCatalog,
-      PlannerExpressionConverter.INSTANCE)
+    val expressionBridge = new ExpressionBridge[PlannerExpression](PlannerExpressionConverter.INSTANCE)
     JavaScalaConversionUtil.toScala(functionCatalog.lookupFunction(UnresolvedIdentifier.of(name)))
       .flatMap(result =>
         Try(expressionBridge.bridge(
