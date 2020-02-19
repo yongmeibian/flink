@@ -26,6 +26,7 @@ import org.apache.flink.table.api.TableConfig;
 import org.apache.flink.table.api.TableException;
 import org.apache.flink.table.catalog.DataTypeFactory;
 import org.apache.flink.table.catalog.FunctionLookup;
+import org.apache.flink.table.catalog.UnresolvedIdentifier;
 import org.apache.flink.table.expressions.CallExpression;
 import org.apache.flink.table.expressions.Expression;
 import org.apache.flink.table.expressions.LocalReferenceExpression;
@@ -110,6 +111,8 @@ public class ExpressionResolver {
 
 	private final DataTypeFactory typeFactory;
 
+	private final Function<String, UnresolvedIdentifier> identifierParser;
+
 	private final PostResolverFactory postResolverFactory = new PostResolverFactory();
 
 	private final Map<String, LocalReferenceExpression> localReferences;
@@ -118,6 +121,7 @@ public class ExpressionResolver {
 
 	private ExpressionResolver(
 			TableConfig config,
+			Function<String, UnresolvedIdentifier> identifierParser,
 			TableReferenceLookup tableLookup,
 			FunctionLookup functionLookup,
 			DataTypeFactory typeFactory,
@@ -125,6 +129,7 @@ public class ExpressionResolver {
 			List<OverWindow> localOverWindows,
 			List<LocalReferenceExpression> localReferences) {
 		this.config = Preconditions.checkNotNull(config).getConfiguration();
+		this.identifierParser = Preconditions.checkNotNull(identifierParser);
 		this.tableLookup = Preconditions.checkNotNull(tableLookup);
 		this.fieldLookup = Preconditions.checkNotNull(fieldLookup);
 		this.functionLookup = Preconditions.checkNotNull(functionLookup);
@@ -150,6 +155,7 @@ public class ExpressionResolver {
 	 */
 	public static ExpressionResolverBuilder resolverFor(
 			TableConfig config,
+			Function<String, UnresolvedIdentifier> identifierParser,
 			TableReferenceLookup tableCatalog,
 			FunctionLookup functionLookup,
 			DataTypeFactory typeFactory,
@@ -157,6 +163,7 @@ public class ExpressionResolver {
 		return new ExpressionResolverBuilder(
 			inputs,
 			config,
+			identifierParser,
 			tableCatalog,
 			functionLookup,
 			typeFactory);
@@ -284,6 +291,11 @@ public class ExpressionResolver {
 		}
 
 		@Override
+		public UnresolvedIdentifier parseIdentifier(String path) {
+			return identifierParser.apply(path);
+		}
+
+		@Override
 		public DataTypeFactory typeFactory() {
 			return typeFactory;
 		}
@@ -374,6 +386,7 @@ public class ExpressionResolver {
 	public static class ExpressionResolverBuilder {
 
 		private final TableConfig config;
+		private final Function<String, UnresolvedIdentifier> identifierParser;
 		private final List<QueryOperation> queryOperations;
 		private final TableReferenceLookup tableCatalog;
 		private final FunctionLookup functionLookup;
@@ -384,11 +397,13 @@ public class ExpressionResolver {
 		private ExpressionResolverBuilder(
 				QueryOperation[] queryOperations,
 				TableConfig config,
+				Function<String, UnresolvedIdentifier> identifierParser,
 				TableReferenceLookup tableCatalog,
 				FunctionLookup functionLookup,
 				DataTypeFactory typeFactory) {
 			this.config = config;
 			this.queryOperations = Arrays.asList(queryOperations);
+			this.identifierParser = identifierParser;
 			this.tableCatalog = tableCatalog;
 			this.functionLookup = functionLookup;
 			this.typeFactory = typeFactory;
@@ -407,6 +422,7 @@ public class ExpressionResolver {
 		public ExpressionResolver build() {
 			return new ExpressionResolver(
 				config,
+				identifierParser,
 				tableCatalog,
 				functionLookup,
 				typeFactory,

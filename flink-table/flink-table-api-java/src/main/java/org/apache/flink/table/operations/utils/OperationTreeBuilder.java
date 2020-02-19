@@ -28,6 +28,7 @@ import org.apache.flink.table.api.TableException;
 import org.apache.flink.table.api.ValidationException;
 import org.apache.flink.table.catalog.DataTypeFactory;
 import org.apache.flink.table.catalog.FunctionLookup;
+import org.apache.flink.table.delegation.Parser;
 import org.apache.flink.table.expressions.ApiExpressionUtils;
 import org.apache.flink.table.expressions.Expression;
 import org.apache.flink.table.expressions.ExpressionUtils;
@@ -87,6 +88,7 @@ import static org.apache.flink.table.operations.SetQueryOperation.SetQueryOperat
 public final class OperationTreeBuilder {
 
 	private final TableConfig config;
+	private final Parser parser;
 	private final FunctionLookup functionCatalog;
 	private final DataTypeFactory typeFactory;
 	private final TableReferenceLookup tableReferenceLookup;
@@ -104,6 +106,7 @@ public final class OperationTreeBuilder {
 
 	private OperationTreeBuilder(
 			TableConfig config,
+			Parser parser,
 			FunctionLookup functionLookup,
 			DataTypeFactory typeFactory,
 			TableReferenceLookup tableReferenceLookup,
@@ -114,6 +117,7 @@ public final class OperationTreeBuilder {
 			AggregateOperationFactory aggregateOperationFactory,
 			JoinOperationFactory joinOperationFactory) {
 		this.config = config;
+		this.parser = parser;
 		this.functionCatalog = functionLookup;
 		this.typeFactory = typeFactory;
 		this.tableReferenceLookup = tableReferenceLookup;
@@ -123,17 +127,19 @@ public final class OperationTreeBuilder {
 		this.setOperationFactory = setOperationFactory;
 		this.aggregateOperationFactory = aggregateOperationFactory;
 		this.joinOperationFactory = joinOperationFactory;
-		this.lookupResolver = new LookupCallResolver(functionLookup);
+		this.lookupResolver = new LookupCallResolver(functionLookup, parser::parseIdentifier);
 	}
 
 	public static OperationTreeBuilder create(
 			TableConfig config,
+			Parser parser,
 			FunctionLookup functionCatalog,
 			DataTypeFactory typeFactory,
 			TableReferenceLookup tableReferenceLookup,
 			boolean isStreamingMode) {
 		return new OperationTreeBuilder(
 			config,
+			parser,
 			functionCatalog,
 			typeFactory,
 			tableReferenceLookup,
@@ -181,6 +187,7 @@ public final class OperationTreeBuilder {
 
 		ExpressionResolver resolver = ExpressionResolver.resolverFor(
 				config,
+				parser::parseIdentifier,
 				tableReferenceLookup,
 				functionCatalog,
 				typeFactory,
@@ -250,6 +257,7 @@ public final class OperationTreeBuilder {
 
 		ExpressionResolver resolverWithWindowReferences = ExpressionResolver.resolverFor(
 				config,
+				parser::parseIdentifier,
 				tableReferenceLookup,
 				functionCatalog,
 				typeFactory,
@@ -301,6 +309,7 @@ public final class OperationTreeBuilder {
 		ResolvedGroupWindow resolvedWindow = aggregateOperationFactory.createResolvedWindow(window, resolver);
 		ExpressionResolver resolverWithWindowReferences = ExpressionResolver.resolverFor(
 				config,
+				parser::parseIdentifier,
 				tableReferenceLookup,
 				functionCatalog,
 				typeFactory,
@@ -349,6 +358,7 @@ public final class OperationTreeBuilder {
 			boolean correlated) {
 		ExpressionResolver resolver = ExpressionResolver.resolverFor(
 				config,
+				parser::parseIdentifier,
 				tableReferenceLookup,
 				functionCatalog,
 				typeFactory,
@@ -383,6 +393,7 @@ public final class OperationTreeBuilder {
 	public Expression resolveExpression(Expression expression, QueryOperation... tableOperation) {
 		ExpressionResolver resolver = ExpressionResolver.resolverFor(
 			config,
+			parser::parseIdentifier,
 			tableReferenceLookup,
 			functionCatalog,
 			typeFactory,
@@ -689,6 +700,7 @@ public final class OperationTreeBuilder {
 
 		ExpressionResolver resolverWithWindowReferences = ExpressionResolver.resolverFor(
 			config,
+			parser::parseIdentifier,
 			tableReferenceLookup,
 			functionCatalog,
 			typeFactory,
@@ -790,6 +802,7 @@ public final class OperationTreeBuilder {
 	private ExpressionResolver getResolver(QueryOperation child) {
 		return ExpressionResolver.resolverFor(
 				config,
+				parser::parseIdentifier,
 				tableReferenceLookup,
 				functionCatalog,
 				typeFactory,

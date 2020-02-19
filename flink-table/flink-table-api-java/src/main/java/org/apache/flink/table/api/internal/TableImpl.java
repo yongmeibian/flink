@@ -35,7 +35,6 @@ import org.apache.flink.table.api.TableException;
 import org.apache.flink.table.api.TableSchema;
 import org.apache.flink.table.api.ValidationException;
 import org.apache.flink.table.api.WindowGroupedTable;
-import org.apache.flink.table.catalog.FunctionLookup;
 import org.apache.flink.table.expressions.Expression;
 import org.apache.flink.table.expressions.ExpressionParser;
 import org.apache.flink.table.expressions.UnresolvedReferenceExpression;
@@ -89,12 +88,12 @@ public class TableImpl implements Table {
 			TableEnvironment tableEnvironment,
 			QueryOperation operationTree,
 			OperationTreeBuilder operationTreeBuilder,
-			FunctionLookup functionLookup) {
+			LookupCallResolver lookupResolver) {
 		return new TableImpl(
 			tableEnvironment,
 			operationTree,
 			operationTreeBuilder,
-			new LookupCallResolver(functionLookup));
+			lookupResolver);
 	}
 
 	@Override

@@ -56,6 +56,7 @@ import org.apache.flink.table.descriptors.ConnectTableDescriptor;
 import org.apache.flink.table.descriptors.ConnectorDescriptor;
 import org.apache.flink.table.descriptors.StreamTableDescriptor;
 import org.apache.flink.table.expressions.ApiExpressionUtils;
+import org.apache.flink.table.expressions.resolver.LookupCallResolver;
 import org.apache.flink.table.factories.ComponentFactoryService;
 import org.apache.flink.table.functions.AggregateFunction;
 import org.apache.flink.table.functions.AggregateFunctionDefinition;
@@ -162,6 +163,7 @@ public class TableEnvironmentImpl implements TableEnvironment {
 		this.parser = planner.getParser();
 		this.operationTreeBuilder = OperationTreeBuilder.create(
 			tableConfig,
+			parser,
 			functionCatalog,
 			catalogManager.getDataTypeFactory(),
 			path -> {
@@ -1012,6 +1014,7 @@ public class TableEnvironmentImpl implements TableEnvironment {
 			this,
 			tableOperation,
 			operationTreeBuilder,
-			functionCatalog);
+			new LookupCallResolver(functionCatalog, parser::parseIdentifier)
+		);
 	}
 }

@@ -29,6 +29,7 @@ import org.apache.flink.table.expressions.UnresolvedCallExpression;
 import org.apache.flink.table.expressions.utils.ApiExpressionDefaultVisitor;
 
 import java.util.List;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static org.apache.flink.table.expressions.ApiExpressionUtils.unresolvedCall;
@@ -40,13 +41,16 @@ import static org.apache.flink.table.expressions.ApiExpressionUtils.unresolvedCa
 public class LookupCallResolver extends ApiExpressionDefaultVisitor<Expression> {
 
 	private final FunctionLookup functionLookup;
+	private final Function<String, UnresolvedIdentifier> parser;
 
-	public LookupCallResolver(FunctionLookup functionLookup) {
+	public LookupCallResolver(FunctionLookup functionLookup, Function<String, UnresolvedIdentifier> parser) {
 		this.functionLookup = functionLookup;
+		this.parser = parser;
 	}
 
 	public Expression visit(LookupCallExpression lookupCall) {
-		final FunctionLookup.Result result = functionLookup.lookupFunction(UnresolvedIdentifier.of(lookupCall.getUnresolvedName()))
+		UnresolvedIdentifier unresolvedIdentifier = parser.apply(lookupCall.getUnresolvedName());
+		final FunctionLookup.Result result = functionLookup.lookupFunction(unresolvedIdentifier)
 			.orElseThrow(() -> new ValidationException("Undefined function: " + lookupCall.getUnresolvedName()));
 
 		return unresolvedCall(

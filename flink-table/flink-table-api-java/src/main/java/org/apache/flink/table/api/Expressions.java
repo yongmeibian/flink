@@ -510,9 +510,9 @@ public final class Expressions {
 	 * @see TableEnvironment#createTemporaryFunction
 	 * @see TableEnvironment#createTemporarySystemFunction
 	 */
-	public static ApiExpression call(String functionName, Object... params) {
+	public static ApiExpression call(String functionPath, Object... params) {
 		return new ApiExpression(ApiExpressionUtils.lookupCall(
-			functionName,
+			functionPath,
 			Arrays.stream(params).map(ApiExpressionUtils::objectToExpression).toArray(Expression[]::new)));
 	}
 
