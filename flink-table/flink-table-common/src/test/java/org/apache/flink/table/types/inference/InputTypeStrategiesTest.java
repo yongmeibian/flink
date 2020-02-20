@@ -323,12 +323,6 @@ public class InputTypeStrategiesTest {
 				.calledWithArgumentTypes(DataTypes.INT(), DataTypes.STRING(), DataTypes.STRING(), DataTypes.STRING())
 				.expectErrorMessage("Invalid input arguments. Expected signatures are:\nf(i INT, s STRING, var [BOOLEAN | INT]...)"),
 
-			// incomplete inference
-			TestSpec
-				.forStrategy(WILDCARD)
-				.calledWithArgumentTypes(DataTypes.NULL(), DataTypes.STRING(), DataTypes.NULL())
-				.expectErrorMessage("Invalid use of untyped NULL in arguments."),
-
 			// typed arguments help inferring a type
 			TestSpec
 				.forStrategy(WILDCARD)
