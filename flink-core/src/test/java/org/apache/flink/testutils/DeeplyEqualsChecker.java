@@ -90,8 +90,6 @@ public class DeeplyEqualsChecker {
 	private boolean deepEquals0(Object e1, Object e2) {
 		if (e1.getClass().isArray() && e2.getClass().isArray()) {
 			return deepEqualsArray(e1, e2);
-		} else if (e1 instanceof Iterable && e2 instanceof Iterable) {
-			return deepEqualsIterable((Iterable) e1, (Iterable) e2);
 		} else if (e1 instanceof Tuple && e2 instanceof Tuple) {
 			return deepEqualsTuple((Tuple) e1, (Tuple) e2);
 		} else if (e1 instanceof Throwable && e2 instanceof Throwable) {
