@@ -94,8 +94,6 @@ public class DeeplyEqualsChecker {
 			return deepEqualsIterable((Iterable) e1, (Iterable) e2);
 		} else if (e1 instanceof Tuple && e2 instanceof Tuple) {
 			return deepEqualsTuple((Tuple) e1, (Tuple) e2);
-		} else if (e1 instanceof Row && e2 instanceof Row) {
-			return deepEqualsRow((Row) e1, (Row) e2);
 		} else if (e1 instanceof Throwable && e2 instanceof Throwable) {
 			return ((Throwable) e1).getMessage().equals(((Throwable) e2).getMessage());
 		} else {
