@@ -593,7 +593,7 @@ public class Configuration extends ExecutionConfig.GlobalJobParameters
 	@PublicEvolving
 	public String getValue(ConfigOption<?> configOption) {
 		return Optional.ofNullable(getRawValueFromOption(configOption).orElseGet(configOption::defaultValue))
-			.map(String::valueOf)
+			.map(this::convertToString)
 			.orElse(null);
 	}
 
