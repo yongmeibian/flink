@@ -17,7 +17,10 @@
 
 package org.apache.flink.streaming.connectors.gcp.pubsub.common;
 
+import org.apache.flink.annotation.PublicEvolving;
+import org.apache.flink.api.common.serialization.DeserializationSchema;
 import org.apache.flink.api.java.typeutils.ResultTypeQueryable;
+import org.apache.flink.util.Collector;
 
 import com.google.pubsub.v1.PubsubMessage;
 
@@ -30,6 +33,19 @@ import java.io.Serializable;
  * @param <T> The type created by the deserialization schema.
  */
 public interface PubSubDeserializationSchema<T> extends Serializable, ResultTypeQueryable<T> {
+
+	/**
+	 * Initialization method for the schema. It is called before the actual working methods
+	 * {@link #deserialize} and thus suitable for one time setup work.
+	 *
+	 * <p>The provided {@link DeserializationSchema.InitializationContext} can be used to access additional features such as e.g.
+	 * registering user metrics.
+	 *
+	 * @param context Contextual information that can be used during initialization.
+	 */
+	@PublicEvolving
+	default void open(DeserializationSchema.InitializationContext context) throws Exception {
+	}
 
 	/**
 	 * Method to decide whether the element signals the end of the stream. If
@@ -49,4 +65,30 @@ public interface PubSubDeserializationSchema<T> extends Serializable, ResultType
 	 * @return The deserialized message as an object (null if the message cannot be deserialized).
 	 */
 	T deserialize(PubsubMessage message) throws Exception;
+
+	/**
+	 * Deserializes a PubsubMessage.
+	 *
+	 * <p>Can output multiple records through the {@link Collector}. Note that number and size of the
+	 * produced records should be relatively small. Depending on the source implementation records
+	 * can be buffered in memory or collecting records might delay emitting checkpoint barrier.
+	 *
+	 * @param message The message, as a byte array.
+	 * @param out The collector to put the resulting messages.
+	 */
+	@PublicEvolving
+	default void deserialize(PubsubMessage message, Collector<T> out) throws Exception {
+		T deserialize = deserialize(message);
+		if (deserialize != null) {
+			out.collect(deserialize);
+		}
+	}
+
+	/**
+	 * Tear-down method for the user code. It is called after all messages has been processed.
+	 * After this method is called there will be no more invocations to {@link #deserialize}.
+	 */
+	@PublicEvolving
+	default void close() throws Exception {
+	}
 }

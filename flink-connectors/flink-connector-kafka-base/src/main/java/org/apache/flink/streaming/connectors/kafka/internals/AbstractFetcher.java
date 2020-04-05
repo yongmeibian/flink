@@ -341,41 +341,6 @@ public abstract class AbstractFetcher<T, KPH> {
 	// ------------------------------------------------------------------------
 
 	/**
-	 * Emits a record without attaching an existing timestamp to it.
-	 *
-	 * <p>Implementation Note: This method is kept brief to be JIT inlining friendly.
-	 * That makes the fast path efficient, the extended paths are called as separate methods.
-	 *
-	 * @param record The record to emit
-	 * @param partitionState The state of the Kafka partition from which the record was fetched
-	 * @param offset The offset of the record
-	 */
-	protected void emitRecord(T record, KafkaTopicPartitionState<KPH> partitionState, long offset) throws Exception {
-
-		if (record != null) {
-			if (timestampWatermarkMode == NO_TIMESTAMPS_WATERMARKS) {
-				// fast path logic, in case there are no watermarks
-
-				// emit the record, using the checkpoint lock to guarantee
-				// atomicity of record emission and offset state update
-				synchronized (checkpointLock) {
-					sourceContext.collect(record);
-					partitionState.setOffset(offset);
-				}
-			} else if (timestampWatermarkMode == PERIODIC_WATERMARKS) {
-				emitRecordWithTimestampAndPeriodicWatermark(record, partitionState, offset, Long.MIN_VALUE);
-			} else {
-				emitRecordWithTimestampAndPunctuatedWatermark(record, partitionState, offset, Long.MIN_VALUE);
-			}
-		} else {
-			// if the record is null, simply just update the offset state for partition
-			synchronized (checkpointLock) {
-				partitionState.setOffset(offset);
-			}
-		}
-	}
-
-	/**
 	 * Emits a record attaching a timestamp to it.
 	 *
 	 * <p>Implementation Note: This method is kept brief to be JIT inlining friendly.
@@ -386,7 +351,10 @@ public abstract class AbstractFetcher<T, KPH> {
 	 * @param offset The offset of the record
 	 */
 	protected void emitRecordWithTimestamp(
-			T record, KafkaTopicPartitionState<KPH> partitionState, long offset, long timestamp) throws Exception {
+			Iterable<T> record,
+			KafkaTopicPartitionState<KPH> partitionState,
+			long offset,
+			long timestamp) throws Exception {
 
 		if (record != null) {
 			if (timestampWatermarkMode == NO_TIMESTAMPS_WATERMARKS) {
@@ -395,7 +363,9 @@ public abstract class AbstractFetcher<T, KPH> {
 				// emit the record, using the checkpoint lock to guarantee
 				// atomicity of record emission and offset state update
 				synchronized (checkpointLock) {
-					sourceContext.collectWithTimestamp(record, timestamp);
+					for (T t : record) {
+						sourceContext.collectWithTimestamp(t, timestamp);
+					}
 					partitionState.setOffset(offset);
 				}
 			} else if (timestampWatermarkMode == PERIODIC_WATERMARKS) {
@@ -416,24 +386,28 @@ public abstract class AbstractFetcher<T, KPH> {
 	 * also a periodic watermark generator.
 	 */
 	private void emitRecordWithTimestampAndPeriodicWatermark(
-			T record, KafkaTopicPartitionState<KPH> partitionState, long offset, long kafkaEventTimestamp) {
+			Iterable<T> records,
+			KafkaTopicPartitionState<KPH> partitionState,
+			long offset,
+			long kafkaEventTimestamp) {
 		@SuppressWarnings("unchecked")
 		final KafkaTopicPartitionStateWithPeriodicWatermarks<T, KPH> withWatermarksState =
 				(KafkaTopicPartitionStateWithPeriodicWatermarks<T, KPH>) partitionState;
 
-		// extract timestamp - this accesses/modifies the per-partition state inside the
-		// watermark generator instance, so we need to lock the access on the
-		// partition state. concurrent access can happen from the periodic emitter
-		final long timestamp;
-		//noinspection SynchronizationOnLocalVariableOrMethodParameter
-		synchronized (withWatermarksState) {
-			timestamp = withWatermarksState.getTimestampForRecord(record, kafkaEventTimestamp);
-		}
-
 		// emit the record with timestamp, using the usual checkpoint lock to guarantee
 		// atomicity of record emission and offset state update
 		synchronized (checkpointLock) {
-			sourceContext.collectWithTimestamp(record, timestamp);
+			for (T record : records) {
+				// extract timestamp - this accesses/modifies the per-partition state inside the
+				// watermark generator instance, so we need to lock the access on the
+				// partition state. concurrent access can happen from the periodic emitter
+				final long timestamp;
+				//noinspection SynchronizationOnLocalVariableOrMethodParameter
+				synchronized (withWatermarksState) {
+					timestamp = withWatermarksState.getTimestampForRecord(record, kafkaEventTimestamp);
+				}
+				sourceContext.collectWithTimestamp(record, timestamp);
+			}
 			partitionState.setOffset(offset);
 		}
 	}
@@ -443,20 +417,26 @@ public abstract class AbstractFetcher<T, KPH> {
 	 * also a punctuated watermark generator.
 	 */
 	private void emitRecordWithTimestampAndPunctuatedWatermark(
-			T record, KafkaTopicPartitionState<KPH> partitionState, long offset, long kafkaEventTimestamp) {
+			Iterable<T> records,
+			KafkaTopicPartitionState<KPH> partitionState,
+			long offset,
+			long kafkaEventTimestamp) {
 		@SuppressWarnings("unchecked")
 		final KafkaTopicPartitionStateWithPunctuatedWatermarks<T, KPH> withWatermarksState =
 				(KafkaTopicPartitionStateWithPunctuatedWatermarks<T, KPH>) partitionState;
 
 		// only one thread ever works on accessing timestamps and watermarks
 		// from the punctuated extractor
-		final long timestamp = withWatermarksState.getTimestampForRecord(record, kafkaEventTimestamp);
-		final Watermark newWatermark = withWatermarksState.checkAndGetNewWatermark(record, timestamp);
+		Watermark newWatermark = null;
 
 		// emit the record with timestamp, using the usual checkpoint lock to guarantee
 		// atomicity of record emission and offset state update
 		synchronized (checkpointLock) {
-			sourceContext.collectWithTimestamp(record, timestamp);
+			for (T record : records) {
+				final long timestamp = withWatermarksState.getTimestampForRecord(record, kafkaEventTimestamp);
+				newWatermark = withWatermarksState.checkAndGetNewWatermark(record, timestamp);
+				sourceContext.collectWithTimestamp(record, timestamp);
+			}
 			partitionState.setOffset(offset);
 		}
 

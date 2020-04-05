@@ -18,6 +18,8 @@
 package org.apache.flink.api.common.serialization;
 
 import org.apache.flink.annotation.Public;
+import org.apache.flink.annotation.PublicEvolving;
+import org.apache.flink.metrics.MetricGroup;
 
 import java.io.Serializable;
 
@@ -32,6 +34,19 @@ import java.io.Serializable;
 public interface SerializationSchema<T> extends Serializable {
 
 	/**
+	 * Initialization method for the schema. It is called before the actual working methods
+	 * {@link #serialize(Object)} and thus suitable for one time setup work.
+	 *
+	 * <p>The provided {@link InitializationContext} can be used to access additional features such
+	 * as e.g. registering user metrics.
+	 *
+	 * @param context Contextual information that can be used during initialization.
+	 */
+	@PublicEvolving
+	default void open(InitializationContext context) throws Exception {
+	}
+
+	/**
 	 * Serializes the incoming element to a specified type.
 	 *
 	 * @param element
@@ -39,4 +54,23 @@ public interface SerializationSchema<T> extends Serializable {
 	 * @return The serialized element.
 	 */
 	byte[] serialize(T element);
+
+	/**
+	 * Tear-down method for the user code. It is called after all messages has been processed.
+	 * After this method is called there will be no more invocations to {@link #serialize(Object)}.
+	 */
+	@PublicEvolving
+	default void close() throws Exception {
+	}
+
+	/**
+	 * A contextual information provided for {@link #open(InitializationContext)} method. It can be used to:
+	 * <ul>
+	 *     <li>Register user metrics via {@link InitializationContext#getMetricGroup()}</li>
+	 * </ul>
+	 */
+	@PublicEvolving
+	interface InitializationContext {
+		MetricGroup getMetricGroup();
+	}
 }

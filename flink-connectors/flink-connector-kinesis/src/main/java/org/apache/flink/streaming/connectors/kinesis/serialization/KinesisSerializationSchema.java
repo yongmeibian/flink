@@ -18,6 +18,7 @@
 package org.apache.flink.streaming.connectors.kinesis.serialization;
 
 import org.apache.flink.annotation.PublicEvolving;
+import org.apache.flink.api.common.serialization.SerializationSchema;
 
 import java.io.Serializable;
 import java.nio.ByteBuffer;
@@ -29,6 +30,19 @@ import java.nio.ByteBuffer;
  */
 @PublicEvolving
 public interface KinesisSerializationSchema<T> extends Serializable {
+
+	/**
+	 * Initialization method for the schema. It is called before the actual working methods
+	 * {@link #serialize(Object)} and thus suitable for one time setup work.
+	 *
+	 * <p>The provided {@link SerializationSchema.InitializationContext} can be used to access additional features such
+	 * as e.g. registering user metrics.
+	 *
+	 * @param context Contextual information that can be used during initialization.
+	 */
+	default void open(SerializationSchema.InitializationContext context) throws Exception {
+	}
+
 	/**
 	 * Serialize the given element into a ByteBuffer.
 	 *
@@ -45,4 +59,11 @@ public interface KinesisSerializationSchema<T> extends Serializable {
 	 * @return target stream name
 	 */
 	String getTargetStream(T element);
+
+	/**
+	 * Tear-down method for the user code. It is called after all messages has been processed.
+	 * After this method is called there will be no more invocations to {@link #serialize(Object)}.
+	 */
+	default void close() throws Exception {
+	}
 }

@@ -20,6 +20,7 @@ package org.apache.flink.streaming.connectors.kafka;
 import org.apache.flink.annotation.Internal;
 import org.apache.flink.annotation.VisibleForTesting;
 import org.apache.flink.api.common.ExecutionConfig;
+import org.apache.flink.api.common.serialization.DeserializationSchema;
 import org.apache.flink.api.common.state.ListState;
 import org.apache.flink.api.common.state.ListStateDescriptor;
 import org.apache.flink.api.common.state.OperatorStateStore;
@@ -654,6 +655,8 @@ public abstract class FlinkKafkaConsumerBase<T> extends RichParallelSourceFuncti
 				LOG.info("Consumer subtask {} initially has no partitions to read from.",
 					getRuntimeContext().getIndexOfThisSubtask());
 			}
+
+			deserializer.open(() -> FlinkKafkaConsumerBase.this.getRuntimeContext().getMetricGroup());
 		}
 	}
 
@@ -835,6 +838,12 @@ public abstract class FlinkKafkaConsumerBase<T> extends RichParallelSourceFuncti
 			} catch (Exception e) {
 				exception = e;
 			}
+		}
+
+		try {
+			deserializer.close();
+		} catch (Exception e) {
+			exception = ExceptionUtils.firstOrSuppressed(e, exception);
 		}
 
 		try {

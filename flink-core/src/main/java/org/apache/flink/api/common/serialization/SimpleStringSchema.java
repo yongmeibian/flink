@@ -81,6 +81,10 @@ public class SimpleStringSchema implements DeserializationSchema<String>, Serial
 	}
 
 	@Override
+	public void close() throws Exception {
+	}
+
+	@Override
 	public byte[] serialize(String element) {
 		return element.getBytes(charset);
 	}

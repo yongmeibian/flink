@@ -20,6 +20,7 @@ package org.apache.flink.streaming.connectors.kinesis.serialization;
 import org.apache.flink.annotation.PublicEvolving;
 import org.apache.flink.api.common.serialization.DeserializationSchema;
 import org.apache.flink.api.java.typeutils.ResultTypeQueryable;
+import org.apache.flink.util.Collector;
 
 import java.io.IOException;
 import java.io.Serializable;
@@ -33,6 +34,19 @@ import java.io.Serializable;
  */
 @PublicEvolving
 public interface KinesisDeserializationSchema<T> extends Serializable, ResultTypeQueryable<T> {
+
+	/**
+	 * Initialization method for the schema. It is called before the actual working methods
+	 * {@link #deserialize} and thus suitable for one time setup work.
+	 *
+	 * <p>The provided {@link DeserializationSchema.InitializationContext} can be used to access additional features such as e.g.
+	 * registering user metrics.
+	 *
+	 * @param context Contextual information that can be used during initialization.
+	 */
+	@PublicEvolving
+	default void open(DeserializationSchema.InitializationContext context) throws Exception {
+	}
 
 	/**
 	 * Deserializes a Kinesis record's bytes. If the record cannot be deserialized, {@code null}
@@ -50,6 +64,44 @@ public interface KinesisDeserializationSchema<T> extends Serializable, ResultTyp
 	 * @throws IOException
 	 */
 	T deserialize(byte[] recordValue, String partitionKey, String seqNum, long approxArrivalTimestamp, String stream, String shardId) throws IOException;
+
+	/**
+	 * Deserializes the byte message.
+	 *
+	 * <p>Can output multiple records through the {@link Collector}. Note that number and size of the
+	 * produced records should be relatively small. Depending on the source implementation records
+	 * can be buffered in memory or collecting records might delay emitting checkpoint barrier.
+	 *
+	 * @param recordValue the record's value as a byte array
+	 * @param partitionKey the record's partition key at the time of writing
+	 * @param seqNum the sequence number of this record in the Kinesis shard
+	 * @param approxArrivalTimestamp the server-side timestamp of when Kinesis received and stored the record
+	 * @param stream the name of the Kinesis stream that this record was sent to
+	 * @param shardId The identifier of the shard the record was sent to
+	 * @param out The collector to put the resulting messages.
+	 */
+	@PublicEvolving
+	default void deserialize(
+			byte[] recordValue,
+			String partitionKey,
+			String seqNum,
+			long approxArrivalTimestamp,
+			String stream,
+			String shardId,
+			Collector<T> out) throws IOException {
+		T deserialize = deserialize(recordValue, partitionKey, seqNum, approxArrivalTimestamp, stream, shardId);
+		if (deserialize != null) {
+			out.collect(deserialize);
+		}
+	}
+
+	/**
+	 * Tear-down method for the user code. It is called after all messages has been processed.
+	 * After this method is called there will be no more invocations to {@link #deserialize}.
+	 */
+	@PublicEvolving
+	default void close() throws Exception {
+	}
 
 	/**
 	 * Method to decide whether the element signals the end of the stream. If
