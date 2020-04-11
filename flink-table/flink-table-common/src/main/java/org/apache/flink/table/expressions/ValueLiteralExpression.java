@@ -60,7 +60,7 @@ public final class ValueLiteralExpression implements ResolvedExpression {
 	private final DataType dataType;
 
 	public ValueLiteralExpression(Object value) {
-		this(value, deriveDataTypeFromValue(value));
+		this(value, deriveDataTypeFromValue(value).notNull());
 	}
 
 	public ValueLiteralExpression(Object value, DataType dataType) {
@@ -241,6 +241,11 @@ public final class ValueLiteralExpression implements ResolvedExpression {
 			}
 			return;
 		}
+
+		if (logicalType.isNullable()) {
+			throw new ValidationException("Data type for non null literals must not be nullable.");
+		}
+
 		final Class<?> candidate = value.getClass();
 		// ensure value and data type match
 		if (!dataType.getConversionClass().isAssignableFrom(candidate)) {

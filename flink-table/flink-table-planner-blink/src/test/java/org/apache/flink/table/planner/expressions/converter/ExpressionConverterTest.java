@@ -18,11 +18,9 @@
 
 package org.apache.flink.table.planner.expressions.converter;
 
-import org.apache.flink.table.api.DataTypes;
 import org.apache.flink.table.api.TableConfig;
 import org.apache.flink.table.catalog.CatalogManager;
 import org.apache.flink.table.catalog.FunctionCatalog;
-import org.apache.flink.table.expressions.ValueLiteralExpression;
 import org.apache.flink.table.module.ModuleManager;
 import org.apache.flink.table.planner.delegation.PlannerContext;
 import org.apache.flink.table.planner.plan.metadata.MetadataTestUtil;
@@ -39,6 +37,8 @@ import org.junit.Assert;
 import org.junit.Test;
 
 import java.util.Arrays;
+
+import static org.apache.flink.table.expressions.ApiExpressionUtils.valueLiteral;
 
 /**
  * Test for {@link ExpressionConverter}.
@@ -65,15 +65,15 @@ public class ExpressionConverterTest {
 
 	@Test
 	public void testLiteral() {
-		RexNode rex = converter.visit(new ValueLiteralExpression((byte) 1, DataTypes.TINYINT()));
+		RexNode rex = converter.visit(valueLiteral((byte) 1));
 		Assert.assertEquals(1, (int) ((RexLiteral) rex).getValueAs(Integer.class));
 		Assert.assertEquals(SqlTypeName.TINYINT, rex.getType().getSqlTypeName());
 
-		rex = converter.visit(new ValueLiteralExpression((short) 1, DataTypes.SMALLINT()));
+		rex = converter.visit(valueLiteral((short) 1));
 		Assert.assertEquals(1, (int) ((RexLiteral) rex).getValueAs(Integer.class));
 		Assert.assertEquals(SqlTypeName.SMALLINT, rex.getType().getSqlTypeName());
 
-		rex = converter.visit(new ValueLiteralExpression(1, DataTypes.INT()));
+		rex = converter.visit(valueLiteral(1));
 		Assert.assertEquals(1, (int) ((RexLiteral) rex).getValueAs(Integer.class));
 		Assert.assertEquals(SqlTypeName.INTEGER, rex.getType().getSqlTypeName());
 	}

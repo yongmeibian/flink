@@ -82,10 +82,10 @@ public class ExpressionTest {
 		assertEquals(
 			new ValueLiteralExpression(
 				new String[][]{null, null, {"1", "2", "3", "Dog's"}},
-				DataTypes.ARRAY(DataTypes.ARRAY(DataTypes.STRING()))),
+				DataTypes.ARRAY(DataTypes.ARRAY(DataTypes.STRING())).notNull()),
 			new ValueLiteralExpression(
 				new String[][]{null, null, {"1", "2", "3", "Dog's"}},
-				DataTypes.ARRAY(DataTypes.ARRAY(DataTypes.STRING())))
+				DataTypes.ARRAY(DataTypes.ARRAY(DataTypes.STRING())).notNull())
 		);
 
 		assertEquals(
@@ -109,7 +109,7 @@ public class ExpressionTest {
 			"[null, null, ['1', '2', '3', 'Dog''s']]",
 			new ValueLiteralExpression(
 					new String[][]{null, null, {"1", "2", "3", "Dog's"}},
-					DataTypes.ARRAY(DataTypes.ARRAY(DataTypes.STRING())))
+					DataTypes.ARRAY(DataTypes.ARRAY(DataTypes.STRING())).notNull())
 				.toString());
 
 		final Map<String, Integer> map = new LinkedHashMap<>();
@@ -120,13 +120,13 @@ public class ExpressionTest {
 			"{key1=1, key2=2, key3=3}",
 			new ValueLiteralExpression(
 					map,
-					DataTypes.MAP(DataTypes.STRING(), DataTypes.INT()))
+					DataTypes.MAP(DataTypes.STRING(), DataTypes.INT()).notNull())
 				.toString());
 		assertEquals(
 			"{key1=1, key2=2, key3=3}",
 			new ValueLiteralExpression(
 					map,
-					DataTypes.MULTISET(DataTypes.STRING()))
+					DataTypes.MULTISET(DataTypes.STRING()).notNull())
 				.toString());
 	}
 
@@ -135,7 +135,7 @@ public class ExpressionTest {
 		thrown.expect(ValidationException.class);
 		thrown.expectMessage("does not support a value literal of class 'java.lang.Integer'");
 
-		new ValueLiteralExpression(12, DataTypes.TINYINT());
+		new ValueLiteralExpression(12, DataTypes.TINYINT().notNull());
 	}
 
 	@Test
@@ -196,6 +196,12 @@ public class ExpressionTest {
 	// --------------------------------------------------------------------------------------------
 
 	private static Expression createExpressionTree(Integer nestedValue) {
+		final ValueLiteralExpression nestedLiteral;
+		if (nestedValue != null) {
+			nestedLiteral = new ValueLiteralExpression(nestedValue, DataTypes.INT().notNull());
+		} else {
+			nestedLiteral = new ValueLiteralExpression(null, DataTypes.INT());
+		}
 		return new CallExpression(
 			AND,
 			asList(
@@ -206,7 +212,7 @@ public class ExpressionTest {
 						new FieldReferenceExpression("field", DataTypes.INT(), 0, 0),
 						new CallExpression(
 							new ScalarFunctionDefinition("dummy", DUMMY_FUNCTION),
-							singletonList(new ValueLiteralExpression(nestedValue, DataTypes.INT())),
+							singletonList(nestedLiteral),
 							DataTypes.INT()
 						)
 					),
