@@ -38,8 +38,8 @@ import org.apache.flink.table.types.utils.TypeConversions
 import org.apache.flink.types.Row
 
 import _root_.java.lang.{Boolean => JBoolean}
-import _root_.java.util.TimeZone
 import _root_.java.util.concurrent.atomic.AtomicInteger
+import _root_.java.util.{TimeZone, List => JList}
 
 import _root_.scala.collection.JavaConverters._
 import _root_.scala.collection.mutable
@@ -150,6 +150,7 @@ final class TestingAppendBaseRowSink(
 
   def getAppendResults: List[String] = getResults
 
+  def getJavaAppendResults: JList[String] = getResults.asJava
 }
 
 final class TestingAppendSink(tz: TimeZone) extends AbstractExactlyOnceSink[Row] {
@@ -369,6 +370,8 @@ final class TestingAppendTableSink(tz: TimeZone) extends AppendStreamTableSink[R
   override def getFieldTypes: Array[TypeInformation[_]] = fTypes
 
   def getAppendResults: List[String] = sink.getAppendResults
+
+  def getJavaAppendResults: JList[String] = sink.getAppendResults.asJava
 
   def getResults: List[String] = sink.getAppendResults
 }
