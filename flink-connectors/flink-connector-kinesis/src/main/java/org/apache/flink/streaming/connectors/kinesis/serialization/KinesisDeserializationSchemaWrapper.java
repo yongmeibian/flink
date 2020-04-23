@@ -20,6 +20,7 @@ package org.apache.flink.streaming.connectors.kinesis.serialization;
 import org.apache.flink.annotation.Internal;
 import org.apache.flink.api.common.serialization.DeserializationSchema;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
+import org.apache.flink.util.Collector;
 
 import java.io.IOException;
 
@@ -41,7 +42,12 @@ public class KinesisDeserializationSchemaWrapper<T> implements KinesisDeserializ
 	@Override
 	public T deserialize(byte[] recordValue, String partitionKey, String seqNum, long approxArrivalTimestamp, String stream, String shardId)
 		throws IOException {
-		return deserializationSchema.deserialize(recordValue);
+		throw new UnsupportedOperationException("This method should never be called");
+	}
+
+	@Override
+	public void deserialize(KinesisRecord record, Collector<T> out) throws IOException {
+		deserializationSchema.deserialize(record.getData(), out);
 	}
 
 	/*

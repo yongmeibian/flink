@@ -18,13 +18,15 @@
 package org.apache.flink.streaming.connectors.kinesis.util;
 
 import org.apache.flink.annotation.Internal;
-import org.apache.flink.streaming.runtime.operators.windowing.TimestampedValue;
+import org.apache.flink.util.WrappingRuntimeException;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.ArrayDeque;
 import java.util.Map;
 import java.util.PriorityQueue;
+import java.util.Queue;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -39,7 +41,7 @@ import java.util.concurrent.ConcurrentHashMap;
  * @param <T>
  */
 @Internal
-public abstract class RecordEmitter<T extends TimestampedValue> implements Runnable {
+public abstract class RecordEmitter<T extends RecordWrapper<?>> implements Runnable {
 	private static final Logger LOG = LoggerFactory.getLogger(RecordEmitter.class);
 
 	/**
@@ -55,6 +57,7 @@ public abstract class RecordEmitter<T extends TimestampedValue> implements Runna
 
 	private final int queueCapacity;
 	private final ConcurrentHashMap<Integer, AsyncRecordQueue<T>> queues = new ConcurrentHashMap<>();
+	private final ConcurrentHashMap<Integer, Queue<T>> emitterQueues = new ConcurrentHashMap<>();
 	private final ConcurrentHashMap<AsyncRecordQueue<T>, Boolean> emptyQueues = new ConcurrentHashMap<>();
 	private final PriorityQueue<AsyncRecordQueue<T>> heads = new PriorityQueue<>(this::compareHeadElement);
 	private volatile boolean running = true;
@@ -67,7 +70,7 @@ public abstract class RecordEmitter<T extends TimestampedValue> implements Runna
 		this.queueCapacity = queueCapacity;
 	}
 
-	private int compareHeadElement(AsyncRecordQueue left, AsyncRecordQueue right) {
+	private int compareHeadElement(AsyncRecordQueue<?> left, AsyncRecordQueue<?> right) {
 		return Long.compare(left.headTimestamp, right.headTimestamp);
 	}
 
@@ -87,6 +90,7 @@ public abstract class RecordEmitter<T extends TimestampedValue> implements Runna
 	private class AsyncRecordQueue<T> implements RecordQueue<T> {
 		private final ArrayBlockingQueue<T> queue;
 		private final int queueId;
+
 		long headTimestamp;
 
 		private AsyncRecordQueue(int queueId) {
@@ -239,7 +243,8 @@ public abstract class RecordEmitter<T extends TimestampedValue> implements Runna
 			T record;
 			int emitCount = 0;
 			while ((record = min.queue.poll()) != null) {
-				emit(record, min);
+				Queue<T> emitterQueue = collectBatch(min, record);
+				emit(emitterQueue, min);
 				// track last record emitted, even when queue becomes empty
 				min.headTimestamp = record.getTimestamp();
 				// potentially switch to next queue
@@ -263,16 +268,35 @@ public abstract class RecordEmitter<T extends TimestampedValue> implements Runna
 		}
 	}
 
+	private Queue<T> collectBatch(AsyncRecordQueue<T> min, T record) {
+		try {
+			Queue<T> emitterQueue = emitterQueues.computeIfAbsent(
+				min.queueId,
+				(key) -> new ArrayDeque<>());
+			emitterQueue.add(record);
+			if (!record.isLastInBatch()) {
+				T recordInBatch;
+				while (!(recordInBatch = min.queue.take()).isLastInBatch()) {
+					emitterQueue.add(recordInBatch);
+				}
+				emitterQueue.add(recordInBatch);
+			}
+			return emitterQueue;
+		} catch (InterruptedException e) {
+			throw new WrappingRuntimeException(e);
+		}
+	}
+
 	/** Emit the record. This is specific to a connector, like the Kinesis data fetcher. */
-	protected abstract void emit(T record, RecordQueue<T> source);
+	protected abstract void emit(Queue<T> record, RecordQueue<T> source);
 
 	/** Summary of emit queues that can be used for logging. */
 	public String printInfo() {
-		StringBuffer sb = new StringBuffer();
+		StringBuilder sb = new StringBuilder();
 		sb.append(String.format("queues: %d, empty: %d",
 			queues.size(), emptyQueues.size()));
 		for (Map.Entry<Integer, AsyncRecordQueue<T>> e : queues.entrySet()) {
-			AsyncRecordQueue q = e.getValue();
+			AsyncRecordQueue<?> q = e.getValue();
 			sb.append(String.format("\n%d timestamp: %s size: %d",
 				e.getValue().queueId, q.headTimestamp, q.queue.size()));
 		}

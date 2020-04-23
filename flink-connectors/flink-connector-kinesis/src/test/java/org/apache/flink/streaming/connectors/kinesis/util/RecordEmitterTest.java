@@ -18,7 +18,6 @@
 package org.apache.flink.streaming.connectors.kinesis.util;
 
 import org.apache.flink.api.common.time.Deadline;
-import org.apache.flink.streaming.runtime.operators.windowing.TimestampedValue;
 
 import org.hamcrest.Matchers;
 import org.junit.Assert;
@@ -28,23 +27,25 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Queue;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 /** Test for {@link RecordEmitter}. */
 public class RecordEmitterTest {
 
-	private class TestRecordEmitter extends RecordEmitter<TimestampedValue> {
+	private static class TestRecordEmitter extends RecordEmitter<RecordWrapper<?>> {
 
-		private List<TimestampedValue> results = Collections.synchronizedList(new ArrayList<>());
+		private List<RecordWrapper<?>> results = Collections.synchronizedList(new ArrayList<>());
 
 		private TestRecordEmitter() {
 			super(DEFAULT_QUEUE_CAPACITY);
 		}
 
 		@Override
-		public void emit(TimestampedValue record, RecordQueue<TimestampedValue> queue) {
-			results.add(record);
+		public void emit(Queue<RecordWrapper<?>> record, RecordQueue<RecordWrapper<?>> queue) {
+			results.addAll(record);
+			record.clear();
 		}
 	}
 
@@ -53,13 +54,13 @@ public class RecordEmitterTest {
 
 		TestRecordEmitter emitter = new TestRecordEmitter();
 
-		final TimestampedValue<String> one = new TimestampedValue<>("one", 1);
-		final TimestampedValue<String> two = new TimestampedValue<>("two", 2);
-		final TimestampedValue<String> five = new TimestampedValue<>("five", 5);
-		final TimestampedValue<String> ten = new TimestampedValue<>("ten", 10);
+		final RecordWrapper<String> one  = wrapRecord("one", 1);
+		final RecordWrapper<String> two  = wrapRecord("two", 2);
+		final RecordWrapper<String> five = wrapRecord("five", 5);
+		final RecordWrapper<String> ten  = wrapRecord("ten", 10);
 
-		final RecordEmitter.RecordQueue<TimestampedValue> queue0 = emitter.getQueue(0);
-		final RecordEmitter.RecordQueue<TimestampedValue> queue1 = emitter.getQueue(1);
+		final RecordEmitter.RecordQueue<RecordWrapper<?>> queue0 = emitter.getQueue(0);
+		final RecordEmitter.RecordQueue<RecordWrapper<?>> queue1 = emitter.getQueue(1);
 
 		queue0.put(one);
 		queue0.put(five);
@@ -85,17 +86,17 @@ public class RecordEmitterTest {
 
 		TestRecordEmitter emitter = new TestRecordEmitter();
 
-		final TimestampedValue<String> one = new TimestampedValue<>("1", 1);
-		final TimestampedValue<String> two = new TimestampedValue<>("2", 2);
-		final TimestampedValue<String> three = new TimestampedValue<>("3", 3);
-		final TimestampedValue<String> ten = new TimestampedValue<>("10", 10);
-		final TimestampedValue<String> eleven = new TimestampedValue<>("11", 11);
+		final RecordWrapper<String> one    = wrapRecord("1", 1);
+		final RecordWrapper<String> two    = wrapRecord("2", 2);
+		final RecordWrapper<String> three  = wrapRecord("3", 3);
+		final RecordWrapper<String> ten    = wrapRecord("10", 10);
+		final RecordWrapper<String> eleven = wrapRecord("11", 11);
 
-		final TimestampedValue<String> twenty = new TimestampedValue<>("20", 20);
-		final TimestampedValue<String> thirty = new TimestampedValue<>("30", 30);
+		final RecordWrapper<String> twenty = wrapRecord("20", 20);
+		final RecordWrapper<String> thirty = wrapRecord("30", 30);
 
-		final RecordEmitter.RecordQueue<TimestampedValue> queue0 = emitter.getQueue(0);
-		final RecordEmitter.RecordQueue<TimestampedValue> queue1 = emitter.getQueue(1);
+		final RecordEmitter.RecordQueue<RecordWrapper<?>> queue0 = emitter.getQueue(0);
+		final RecordEmitter.RecordQueue<RecordWrapper<?>> queue1 = emitter.getQueue(1);
 
 		queue0.put(one);
 		queue0.put(two);
@@ -131,5 +132,16 @@ public class RecordEmitterTest {
 			emitter.stop();
 			executor.shutdownNow();
 		}
+	}
+
+	private static RecordWrapper<String> wrapRecord(String record, long timestamp) {
+		return new RecordWrapper<>(
+			record,
+			timestamp,
+			0,
+			null,
+			null,
+			true
+		);
 	}
 }
