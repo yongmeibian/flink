@@ -40,6 +40,7 @@ import org.apache.flink.streaming.connectors.kinesis.testutils.TestSourceContext
 import org.apache.flink.streaming.connectors.kinesis.testutils.TestUtils;
 import org.apache.flink.streaming.connectors.kinesis.testutils.TestableKinesisDataFetcher;
 import org.apache.flink.streaming.connectors.kinesis.testutils.TestableKinesisDataFetcherForShardConsumerException;
+import org.apache.flink.streaming.runtime.operators.windowing.TimestampedValue;
 import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
 import org.apache.flink.util.TestLogger;
 
@@ -67,6 +68,8 @@ import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static java.util.Collections.emptyList;
+import static java.util.Collections.singletonList;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNull;
@@ -114,7 +117,7 @@ public class KinesisDataFetcherTest extends TestLogger {
 		final TestSourceContext<String> sourceContext = new TestSourceContext<>();
 
 		final TestableKinesisDataFetcher<String> fetcher = new TestableKinesisDataFetcher<>(
-			Collections.singletonList(stream),
+			singletonList(stream),
 			sourceContext,
 			TestUtils.getStandardProperties(),
 			new KinesisDeserializationSchemaWrapper<>(new SimpleStringSchema()),
@@ -144,13 +147,14 @@ public class KinesisDataFetcherTest extends TestLogger {
 		assertEquals(numShards, testShardStates.size());
 
 		for (int i = 0; i < numShards; i++) {
-			fetcher.emitRecordAndUpdateState("record-" + i, 10L, i, new SequenceNumber("seq-num-1"));
-			assertEquals(new SequenceNumber("seq-num-1"), testShardStates.get(i).getLastProcessedSequenceNum());
+			SequenceNumber sequenceNumber = new SequenceNumber("seq-num-1");
+			emitRecordAndUpdateState(fetcher, sequenceNumber, i, "record-" + i, 10L);
+			assertEquals(sequenceNumber, testShardStates.get(i).getLastProcessedSequenceNum());
 			assertEquals(new StreamRecord<>("record-" + i, 10L), sourceContext.removeLatestOutput());
 		}
 
 		// emitting a null (i.e., a corrupt record) should not produce any output, but still have the shard state updated
-		fetcher.emitRecordAndUpdateState(null, 10L, 1, new SequenceNumber("seq-num-2"));
+		fetcher.emitRecordAndUpdateState(emptyList(), 10L, 1, new SequenceNumber("seq-num-2"));
 			assertEquals(new SequenceNumber("seq-num-2"), testShardStates.get(1).getLastProcessedSequenceNum());
 		assertEquals(null, sourceContext.removeLatestOutput()); // no output should have been collected
 	}
@@ -761,7 +765,7 @@ public class KinesisDataFetcherTest extends TestLogger {
 
 		final KinesisDataFetcher<String> fetcher =
 			new TestableKinesisDataFetcher<String>(
-				Collections.singletonList(fakeStream1),
+				singletonList(fakeStream1),
 				sourceContext,
 				new java.util.Properties(),
 				new KinesisDeserializationSchemaWrapper<>(new org.apache.flink.streaming.util.serialization.SimpleStringSchema()),
@@ -788,14 +792,14 @@ public class KinesisDataFetcherTest extends TestLogger {
 
 		StreamRecord<String> record1 =
 			new StreamRecord<>(String.valueOf(Long.MIN_VALUE), Long.MIN_VALUE);
-		fetcher.emitRecordAndUpdateState(record1.getValue(), record1.getTimestamp(), shardIndex, seq);
+		emitRecordAndUpdateState(fetcher, seq, shardIndex, record1.getValue(), record1.getTimestamp());
 		Assert.assertEquals(record1, sourceContext.getCollectedOutputs().poll());
 
 		fetcher.emitWatermark();
 		Assert.assertTrue("potential watermark equals previous watermark", watermarks.isEmpty());
 
 		StreamRecord<String> record2 = new StreamRecord<>(String.valueOf(1), 1);
-		fetcher.emitRecordAndUpdateState(record2.getValue(), record2.getTimestamp(), shardIndex, seq);
+		emitRecordAndUpdateState(fetcher, seq, shardIndex, record2.getValue(), record2.getTimestamp());
 		Assert.assertEquals(record2, sourceContext.getCollectedOutputs().poll());
 
 		fetcher.emitWatermark();
@@ -818,6 +822,20 @@ public class KinesisDataFetcherTest extends TestLogger {
 		Assert.assertTrue("idle, no watermark", watermarks.isEmpty());
 	}
 
+	private void emitRecordAndUpdateState(
+			KinesisDataFetcher<String> fetcher,
+			SequenceNumber seq,
+			int shardIndex,
+			String value,
+			long approxArrivalTime) {
+		long valueTimestamp = fetcher.assignValueTimestamp(value, approxArrivalTime, shardIndex);
+		fetcher.emitRecordAndUpdateState(
+			singletonList(new TimestampedValue<>(value, valueTimestamp)),
+			valueTimestamp,
+			shardIndex,
+			seq);
+	}
+
 	@Test
 	public void testOriginalExceptionIsPreservedWhenInterruptedDuringShutdown() throws Exception {
 		String stream = "fakeStream";
@@ -825,14 +843,14 @@ public class KinesisDataFetcherTest extends TestLogger {
 		Map<String, List<BlockingQueue<String>>> streamsToShardQueues = new HashMap<>();
 		LinkedBlockingQueue<String> queue = new LinkedBlockingQueue<>(10);
 		queue.put("item1");
-		streamsToShardQueues.put(stream, Collections.singletonList(queue));
+		streamsToShardQueues.put(stream, singletonList(queue));
 
 		AlwaysThrowsDeserializationSchema deserializationSchema = new AlwaysThrowsDeserializationSchema();
 		KinesisProxyInterface fakeKinesis =
 			FakeKinesisBehavioursFactory.blockingQueueGetRecords(streamsToShardQueues);
 
 		TestableKinesisDataFetcherForShardConsumerException<String> fetcher = new TestableKinesisDataFetcherForShardConsumerException<>(
-			Collections.singletonList(stream),
+			singletonList(stream),
 			new TestSourceContext<>(),
 			TestUtils.getStandardProperties(),
 			new KinesisDeserializationSchemaWrapper<>(deserializationSchema),

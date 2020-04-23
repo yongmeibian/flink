@@ -26,6 +26,8 @@ import org.apache.flink.streaming.connectors.kinesis.model.SequenceNumber;
 import org.apache.flink.streaming.connectors.kinesis.model.StreamShardHandle;
 import org.apache.flink.streaming.connectors.kinesis.proxy.KinesisProxyInterface;
 import org.apache.flink.streaming.connectors.kinesis.serialization.KinesisDeserializationSchema;
+import org.apache.flink.streaming.runtime.operators.windowing.TimestampedValue;
+import org.apache.flink.util.Collector;
 
 import com.amazonaws.services.kinesis.clientlibrary.types.UserRecord;
 import com.amazonaws.services.kinesis.model.ExpiredIteratorException;
@@ -40,6 +42,7 @@ import java.math.BigInteger;
 import java.nio.ByteBuffer;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
+import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
 import java.util.Properties;
@@ -356,21 +359,25 @@ public class ShardConsumer<T> implements Runnable {
 
 		final long approxArrivalTimestamp = record.getApproximateArrivalTimestamp().getTime();
 
-		final T value = deserializer.deserialize(
-			dataBytes,
-			record.getPartitionKey(),
-			record.getSequenceNumber(),
-			approxArrivalTimestamp,
-			subscribedShard.getStreamName(),
-			subscribedShard.getShard().getShardId());
+		KinesisCollector kinesisCollector = new KinesisCollector(approxArrivalTimestamp);
+		deserializer.deserialize(
+			new KinesisRecordImpl(
+				dataBytes,
+				subscribedShard.getStreamName(),
+				subscribedShard.getShard().getShardId(),
+				record.getPartitionKey(),
+				record.getSequenceNumber(),
+				approxArrivalTimestamp
+			),
+			kinesisCollector);
 
 		SequenceNumber collectedSequenceNumber = (record.isAggregated())
 			? new SequenceNumber(record.getSequenceNumber(), record.getSubSequenceNumber())
 			: new SequenceNumber(record.getSequenceNumber());
 
 		fetcherRef.emitRecordAndUpdateState(
-			value,
-			approxArrivalTimestamp,
+			kinesisCollector.getValues(),
+			kinesisCollector.getEarliestTimestamp(),
 			subscribedShardStateIndex,
 			collectedSequenceNumber);
 
@@ -422,5 +429,37 @@ public class ShardConsumer<T> implements Runnable {
 	@SuppressWarnings("unchecked")
 	protected static List<UserRecord> deaggregateRecords(List<Record> records, String startingHashKey, String endingHashKey) {
 		return UserRecord.deaggregate(records, new BigInteger(startingHashKey), new BigInteger(endingHashKey));
+	}
+
+	private class KinesisCollector implements Collector<T> {
+		private final List<TimestampedValue<T>> values = new ArrayList<>();
+		private final long kinesisRecordTimestamp;
+		private long earliestTimestamp = Long.MAX_VALUE;
+
+		private KinesisCollector(long kinesisRecordTimestamp) {
+			this.kinesisRecordTimestamp = kinesisRecordTimestamp;
+		}
+
+		@Override
+		public void collect(T record) {
+			long recordTimestamp = fetcherRef.assignValueTimestamp(
+				record,
+				kinesisRecordTimestamp,
+				subscribedShardStateIndex);
+			earliestTimestamp = Math.min(earliestTimestamp, recordTimestamp);
+			values.add(new TimestampedValue<>(record, recordTimestamp));
+		}
+
+		public List<TimestampedValue<T>> getValues() {
+			return values;
+		}
+
+		public long getEarliestTimestamp() {
+			return earliestTimestamp;
+		}
+
+		@Override
+		public void close() {
+		}
 	}
 }

@@ -57,6 +57,7 @@ import org.apache.flink.streaming.connectors.kinesis.util.RecordEmitter;
 import org.apache.flink.streaming.connectors.kinesis.util.WatermarkTracker;
 import org.apache.flink.streaming.util.AbstractStreamOperatorTestHarness;
 import org.apache.flink.streaming.util.CollectingSourceContext;
+import org.apache.flink.util.Collector;
 import org.apache.flink.util.TestLogger;
 
 import org.apache.flink.shaded.guava18.com.google.common.collect.Lists;
@@ -75,6 +76,7 @@ import org.powermock.api.mockito.PowerMockito;
 import org.powermock.core.classloader.annotations.PrepareForTest;
 import org.powermock.modules.junit4.PowerMockRunner;
 
+import java.io.IOException;
 import java.io.Serializable;
 import java.time.Duration;
 import java.util.ArrayList;
@@ -715,7 +717,7 @@ public class FlinkKinesisConsumerTest extends TestLogger {
 		subscribedStreamsToLastDiscoveredShardIds.put(streamName, null);
 
 		KinesisDeserializationSchema<String> deserializationSchema = new KinesisDeserializationSchemaWrapper<>(
-			new SimpleStringSchema());
+			new StringSplittingSchema());
 		Properties props = new Properties();
 		props.setProperty(ConsumerConfigConstants.AWS_REGION, "us-east-1");
 		props.setProperty(ConsumerConfigConstants.SHARD_GETRECORDS_INTERVAL_MILLIS, Long.toString(10L));
@@ -805,9 +807,9 @@ public class FlinkKinesisConsumerTest extends TestLogger {
 			.start();
 
 		shard1.put("1");
-		shard1.put("2");
+		shard1.put("2,3,4");
 		shard2.put("10");
-		int recordCount = 3;
+		int recordCount = 5;
 		int watermarkCount = 0;
 		awaitRecordCount(testHarness.getOutput(), recordCount);
 
@@ -829,7 +831,7 @@ public class FlinkKinesisConsumerTest extends TestLogger {
 
 		assertEquals("record count", recordCount, testHarness.getOutput().size());
 		assertEquals("watermark count", watermarkCount, watermarks.size());
-		assertThat(watermarks, org.hamcrest.Matchers.contains(new Watermark(-3), new Watermark(5)));
+		assertThat(watermarks, org.hamcrest.Matchers.contains(new Watermark(-1), new Watermark(5)));
 	}
 
 	@Test
@@ -1031,6 +1033,15 @@ public class FlinkKinesisConsumerTest extends TestLogger {
 		Deadline deadline  = Deadline.fromNow(Duration.ofSeconds(10));
 		while (deadline.hasTimeLeft() && queue.size() < count) {
 			Thread.sleep(10);
+		}
+	}
+
+	private static class StringSplittingSchema extends SimpleStringSchema {
+		@Override
+		public void deserialize(byte[] message, Collector<String> out) throws IOException {
+			for (String value : super.deserialize(message).split(",")) {
+				out.collect(value);
+			}
 		}
 	}
 

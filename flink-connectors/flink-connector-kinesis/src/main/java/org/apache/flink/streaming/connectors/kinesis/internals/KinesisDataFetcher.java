@@ -240,20 +240,21 @@ public class KinesisDataFetcher<T> {
 	 *
 	 * @param <T>
 	 */
-	private static class RecordWrapper<T> extends TimestampedValue<T> {
-		int shardStateIndex;
-		SequenceNumber lastSequenceNumber;
-		long timestamp;
-		Watermark watermark;
+	private static class RecordWrapper<T> extends TimestampedValue<List<TimestampedValue<T>>> {
+		final int shardStateIndex;
+		final SequenceNumber lastSequenceNumber;
+		final Watermark watermark;
 
-		private RecordWrapper(T record, long timestamp) {
+		private RecordWrapper(
+				List<TimestampedValue<T>> record,
+				long timestamp,
+				int shardStateIndex,
+				SequenceNumber lastSequenceNumber,
+				Watermark watermark) {
 			super(record, timestamp);
-			this.timestamp = timestamp;
-		}
-
-		@Override
-		public long getTimestamp() {
-			return timestamp;
+			this.shardStateIndex = shardStateIndex;
+			this.lastSequenceNumber = lastSequenceNumber;
+			this.watermark = watermark;
 		}
 	}
 
@@ -728,36 +729,49 @@ public class KinesisDataFetcher<T> {
 	//  that assure atomicity with respect to the checkpoint lock
 	// ------------------------------------------------------------------------
 
+	protected long assignValueTimestamp(T record, long kinesisRecordTimestamp, int shardStateIndex) {
+		ShardWatermarkState sws = shardWatermarks.get(shardStateIndex);
+		Preconditions.checkNotNull(
+			sws, "shard watermark state initialized in registerNewSubscribedShardState");
+		sws.lastRecordTimestamp = kinesisRecordTimestamp;
+		if (sws.periodicWatermarkAssigner != null) {
+			sws.lastRecordTimestamp = sws.periodicWatermarkAssigner.extractTimestamp(record, sws.lastRecordTimestamp);
+		}
+		sws.lastUpdated = getCurrentTimeMillis();
+		return sws.lastRecordTimestamp;
+	}
+
 	/**
 	 * Prepare a record and hand it over to the {@link RecordEmitter}, which may collect it asynchronously.
 	 * This method is called by {@link ShardConsumer}s.
 	 *
-	 * @param record the record to collect
-	 * @param recordTimestamp timestamp to attach to the collected record
+	 * @param records the records to collect
+	 * @param earliestTimestamp timestamp to attach to the collected record
 	 * @param shardStateIndex index of the shard to update in subscribedShardsState;
 	 *                        this index should be the returned value from
 	 *                        {@link KinesisDataFetcher#registerNewSubscribedShardState(KinesisStreamShardState)}, called
 	 *                        when the shard state was registered.
 	 * @param lastSequenceNumber the last sequence number value to update
 	 */
-	protected void emitRecordAndUpdateState(T record, long recordTimestamp, int shardStateIndex, SequenceNumber lastSequenceNumber) {
+	protected void emitRecordAndUpdateState(
+			List<TimestampedValue<T>> records,
+			long earliestTimestamp,
+			int shardStateIndex,
+			SequenceNumber lastSequenceNumber) {
 		ShardWatermarkState sws = shardWatermarks.get(shardStateIndex);
 		Preconditions.checkNotNull(
 			sws, "shard watermark state initialized in registerNewSubscribedShardState");
 		Watermark watermark = null;
 		if (sws.periodicWatermarkAssigner != null) {
-			recordTimestamp =
-				sws.periodicWatermarkAssigner.extractTimestamp(record, sws.lastRecordTimestamp);
 			// track watermark per record since extractTimestamp has side effect
 			watermark = sws.periodicWatermarkAssigner.getCurrentWatermark();
 		}
-		sws.lastRecordTimestamp = recordTimestamp;
-		sws.lastUpdated = getCurrentTimeMillis();
-
-		RecordWrapper<T> recordWrapper = new RecordWrapper<>(record, recordTimestamp);
-		recordWrapper.shardStateIndex = shardStateIndex;
-		recordWrapper.lastSequenceNumber = lastSequenceNumber;
-		recordWrapper.watermark = watermark;
+		RecordWrapper<T> recordWrapper = new RecordWrapper<>(
+			records,
+			earliestTimestamp,
+			shardStateIndex,
+			lastSequenceNumber,
+			watermark);
 		try {
 			sws.emitQueue.put(recordWrapper);
 		} catch (InterruptedException e) {
@@ -774,14 +788,19 @@ public class KinesisDataFetcher<T> {
 	 */
 	private void emitRecordAndUpdateState(RecordWrapper<T> rw) {
 		synchronized (checkpointLock) {
-			if (rw.getValue() != null) {
-				sourceContext.collectWithTimestamp(rw.getValue(), rw.timestamp);
-				ShardWatermarkState<T> sws = shardWatermarks.get(rw.shardStateIndex);
-				sws.lastEmittedRecordWatermark = rw.watermark;
-			} else {
-				LOG.warn("Skipping non-deserializable record at sequence number {} of shard {}.",
+			List<TimestampedValue<T>> deserializedRecords = rw.getValue();
+			if (deserializedRecords.isEmpty()) {
+				LOG.warn("No records deserialized at sequence number {} of shard {}.",
 					rw.lastSequenceNumber,
 					subscribedShardsState.get(rw.shardStateIndex).getStreamShardHandle());
+			} else {
+				for (TimestampedValue<T> deserializedRecord : deserializedRecords) {
+					sourceContext.collectWithTimestamp(
+						deserializedRecord.getValue(),
+						deserializedRecord.getTimestamp());
+				}
+				ShardWatermarkState<T> sws = shardWatermarks.get(rw.shardStateIndex);
+				sws.lastEmittedRecordWatermark = rw.watermark;
 			}
 			updateState(rw.shardStateIndex, rw.lastSequenceNumber);
 		}
@@ -1023,7 +1042,7 @@ public class KinesisDataFetcher<T> {
 									nextWatermark,
 									e.getKey(),
 									nextRecord.watermark,
-									nextRecord.timestamp);
+									nextRecord.getTimestamp());
 							}
 						}
 					}
