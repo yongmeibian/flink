@@ -27,7 +27,9 @@ import org.apache.flink.streaming.connectors.kafka.internals.AbstractFetcher;
 import org.apache.flink.streaming.connectors.kafka.internals.KafkaCommitCallback;
 import org.apache.flink.streaming.connectors.kafka.internals.KafkaTopicPartition;
 import org.apache.flink.streaming.connectors.kafka.internals.KafkaTopicPartitionState;
+import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
 import org.apache.flink.streaming.runtime.tasks.ProcessingTimeService;
+import org.apache.flink.util.Collector;
 import org.apache.flink.util.SerializedValue;
 
 import org.apache.kafka.clients.consumer.ConsumerRecord;
@@ -39,10 +41,12 @@ import org.slf4j.LoggerFactory;
 
 import javax.annotation.Nonnull;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
+import java.util.function.Predicate;
 
 import static org.apache.flink.util.Preconditions.checkState;
 
@@ -137,17 +141,22 @@ public class KafkaFetcher<T> extends AbstractFetcher<T, TopicPartition> {
 						records.records(partition.getKafkaPartitionHandle());
 
 					for (ConsumerRecord<byte[], byte[]> record : partitionRecords) {
-						final T value = deserializer.deserialize(record);
 
-						if (deserializer.isEndOfStream(value)) {
+						KafkaCollector collector = new KafkaCollector(
+							partition,
+							record.timestamp(),
+							deserializer::isEndOfStream);
+						deserializer.deserialize(record, collector);
+
+						// emit the actual record. this also updates offset state atomically
+						// and deals with timestamps and watermark generation
+						emitRecordsWithTimestamps(collector.getRecordsWithTimestamp(), partition, record.offset());
+
+						if (collector.isEndOfStreamSignalled()) {
 							// end of stream signaled
 							running = false;
 							break;
 						}
-
-						// emit the actual record. this also updates offset state atomically
-						// and deals with timestamps and watermark generation
-						emitRecord(value, partition, record.offset(), record);
 					}
 				}
 			}
@@ -174,15 +183,6 @@ public class KafkaFetcher<T> extends AbstractFetcher<T, TopicPartition> {
 		running = false;
 		handover.close();
 		consumerThread.shutdown();
-	}
-
-	protected void emitRecord(
-		T record,
-		KafkaTopicPartitionState<TopicPartition> partition,
-		long offset,
-		ConsumerRecord<?, ?> consumerRecord) throws Exception {
-
-		emitRecordWithTimestamp(record, partition, offset, consumerRecord.timestamp());
 	}
 
 	/**
@@ -227,5 +227,45 @@ public class KafkaFetcher<T> extends AbstractFetcher<T, TopicPartition> {
 
 		// record the work to be committed by the main consumer thread and make sure the consumer notices that
 		consumerThread.setOffsetsToCommit(offsetsToCommit, commitCallback);
+	}
+
+	private class KafkaCollector implements Collector<T> {
+		private final List<StreamRecord<T>> recordsWithTimestamp = new ArrayList<>();
+		private final KafkaTopicPartitionState<TopicPartition> partitionState;
+		private final long kafkaRecordTimestamp;
+		private final Predicate<T> isEndOfStream;
+		private boolean endOfStreamSignalled = false;
+
+		private KafkaCollector(
+				KafkaTopicPartitionState<TopicPartition> partitionState,
+				long kafkaRecordTimestamp,
+				Predicate<T> isEndOfStream) {
+			this.partitionState = partitionState;
+			this.kafkaRecordTimestamp = kafkaRecordTimestamp;
+			this.isEndOfStream = isEndOfStream;
+		}
+
+		@Override
+		public void collect(T record) {
+			if (endOfStreamSignalled || isEndOfStream.test(record)) {
+				endOfStreamSignalled = true;
+				return;
+			}
+			long recordTimestamp = getTimestampForRecord(record, partitionState, kafkaRecordTimestamp);
+			recordsWithTimestamp.add(new StreamRecord<>(record, recordTimestamp));
+		}
+
+		public List<StreamRecord<T>> getRecordsWithTimestamp() {
+			return recordsWithTimestamp;
+		}
+
+		public boolean isEndOfStreamSignalled() {
+			return endOfStreamSignalled;
+		}
+
+		@Override
+		public void close() {
+
+		}
 	}
 }
