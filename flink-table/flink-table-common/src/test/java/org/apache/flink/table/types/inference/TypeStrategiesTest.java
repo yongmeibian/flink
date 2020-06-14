@@ -18,6 +18,7 @@
 
 package org.apache.flink.table.types.inference;
 
+import org.apache.flink.api.common.typeinfo.BasicArrayTypeInfo;
 import org.apache.flink.table.api.DataTypes;
 import org.apache.flink.table.api.ValidationException;
 import org.apache.flink.table.catalog.ObjectIdentifier;
@@ -29,6 +30,7 @@ import org.apache.flink.table.types.inference.utils.FunctionDefinitionMock;
 import org.apache.flink.table.types.logical.BigIntType;
 import org.apache.flink.table.types.logical.LogicalTypeFamily;
 import org.apache.flink.table.types.logical.StructuredType;
+import org.apache.flink.table.types.utils.TypeConversions;
 
 import org.junit.Assert;
 import org.junit.Rule;
@@ -333,7 +335,54 @@ public class TypeStrategiesTest {
 				.inputTypes(
 					DataTypes.ROW(DataTypes.FIELD("f0", DataTypes.BIGINT().notNull())).notNull(),
 					DataTypes.INT().notNull())
-				.expectErrorMessage("Could not infer an output type for the given arguments.")
+				.expectErrorMessage("Could not infer an output type for the given arguments."),
+
+			TestSpec
+				.forStrategy(
+					"Accessing element of an array",
+					TypeStrategies.AT
+				)
+				.inputTypes(DataTypes.ARRAY(DataTypes.STRING().notNull()).notNull(), DataTypes.INT().notNull())
+				.expectDataType(DataTypes.STRING().nullable()),
+
+			TestSpec
+				.forStrategy(
+					"Accessing element of a legacy array",
+					TypeStrategies.AT
+				)
+				.inputTypes(
+					TypeConversions.fromLegacyInfoToDataType(BasicArrayTypeInfo.LONG_ARRAY_TYPE_INFO),
+					DataTypes.INT().notNull())
+				.expectDataType(DataTypes.BIGINT().nullable()),
+
+			TestSpec
+				.forStrategy(
+					"Accessing element of a multiset",
+					TypeStrategies.AT
+				)
+				.inputTypes(DataTypes.MULTISET(DataTypes.STRING().notNull()).notNull(), DataTypes.INT().notNull())
+				.expectDataType(DataTypes.STRING().nullable()),
+
+			TestSpec
+				.forStrategy(
+					"Accessing element of a map",
+					TypeStrategies.AT
+				)
+				.inputTypes(
+					DataTypes.MAP(DataTypes.STRING().notNull(), DataTypes.BIGINT().notNull()).notNull(),
+					DataTypes.STRING().notNull())
+				.expectDataType(DataTypes.BIGINT().nullable()),
+
+			TestSpec
+				.forStrategy(
+					"Accessing element of a row",
+					TypeStrategies.AT
+				)
+				.inputTypes(
+					DataTypes.ROW(DataTypes.FIELD("f0", DataTypes.BIGINT().notNull())).notNull(),
+					DataTypes.STRING().notNull())
+				.calledWithLiteralAt(1, "f0")
+				.expectDataType(DataTypes.BIGINT().notNull())
 		);
 	}
 

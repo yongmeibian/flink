@@ -19,9 +19,14 @@
 package org.apache.flink.table.types.inference;
 
 import org.apache.flink.annotation.Internal;
+import org.apache.flink.api.common.typeinfo.BasicArrayTypeInfo;
+import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.table.api.DataTypes;
 import org.apache.flink.table.api.TableSchema;
+import org.apache.flink.table.functions.BuiltInFunctionDefinitions;
+import org.apache.flink.table.types.CollectionDataType;
 import org.apache.flink.table.types.DataType;
+import org.apache.flink.table.types.KeyValueDataType;
 import org.apache.flink.table.types.inference.strategies.CommonTypeStrategy;
 import org.apache.flink.table.types.inference.strategies.ExplicitTypeStrategy;
 import org.apache.flink.table.types.inference.strategies.FirstTypeStrategy;
@@ -37,6 +42,7 @@ import org.apache.flink.table.types.logical.LogicalTypeFamily;
 import org.apache.flink.table.types.logical.LogicalTypeRoot;
 import org.apache.flink.table.types.logical.utils.LogicalTypeMerging;
 import org.apache.flink.table.types.utils.DataTypeUtils;
+import org.apache.flink.table.types.utils.TypeConversions;
 
 import java.math.BigDecimal;
 import java.util.Arrays;
@@ -345,6 +351,38 @@ public final class TypeStrategies {
 				return type;
 			}
 		});
+	};
+
+	/**
+	 * Type strategy for {@link BuiltInFunctionDefinitions#AT}. For {@link LogicalTypeRoot#ARRAY},
+	 * {@link LogicalTypeRoot#MULTISET} and {@link LogicalTypeRoot#MAP} it returns a nullable component/value type.
+	 *
+	 * <p>For {@link LogicalTypeRoot#ROW} see {@link TypeStrategies#GET}.
+	 */
+	public static final TypeStrategy AT = callContext -> {
+		LogicalType compositeType = callContext.getArgumentDataTypes().get(0).getLogicalType();
+		switch (compositeType.getTypeRoot()) {
+			case ARRAY:
+			case MULTISET:
+				if (compositeType instanceof LegacyTypeInformationType) {
+					TypeInformation<?> componentInfo = ((BasicArrayTypeInfo<?, ?>) ((LegacyTypeInformationType<?>) compositeType)
+						.getTypeInformation()).getComponentInfo();
+					return Optional.of(TypeConversions.fromLegacyInfoToDataType(componentInfo).nullable());
+				} else {
+					CollectionDataType collectionDataType = (CollectionDataType) callContext.getArgumentDataTypes()
+						.get(0);
+					return Optional.of(collectionDataType.getElementDataType().nullable());
+				}
+			case MAP:
+				KeyValueDataType keyValueDataType = (KeyValueDataType) callContext.getArgumentDataTypes()
+					.get(0);
+				return Optional.of(keyValueDataType.getValueDataType().nullable());
+			case ROW:
+			case STRUCTURED_TYPE:
+				return TypeStrategies.GET.inferType(callContext);
+			default:
+				return Optional.empty();
+		}
 	};
 
 	// --------------------------------------------------------------------------------------------

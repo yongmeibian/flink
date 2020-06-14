@@ -1653,12 +1653,6 @@ object ScalarOperatorGens {
     val resultTypeTerm = primitiveTypeTermForType(componentInfo)
     val defaultTerm = primitiveDefaultValue(componentInfo)
 
-    index.literalValue match {
-      case Some(v: Int) if v < 1 =>
-        throw new ValidationException(
-          s"Array element access needs an index starting at 1 but was $v.")
-      case _ => //nothing
-    }
     val idxStr = s"${index.resultTerm} - 1"
     val arrayIsNull = s"${array.resultTerm}.isNullAt($idxStr)"
     val arrayGet =

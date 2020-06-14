@@ -22,6 +22,7 @@ import org.apache.flink.annotation.Internal;
 import org.apache.flink.table.functions.BuiltInFunctionDefinitions;
 import org.apache.flink.table.functions.FunctionDefinition;
 import org.apache.flink.table.types.DataType;
+import org.apache.flink.table.types.KeyValueDataType;
 import org.apache.flink.table.types.inference.strategies.AndArgumentTypeStrategy;
 import org.apache.flink.table.types.inference.strategies.AnyArgumentTypeStrategy;
 import org.apache.flink.table.types.inference.strategies.CastInputTypeStrategy;
@@ -40,9 +41,11 @@ import org.apache.flink.table.types.inference.strategies.SequenceInputTypeStrate
 import org.apache.flink.table.types.inference.strategies.SubsequenceInputTypeStrategy.SubsequenceStrategyBuilder;
 import org.apache.flink.table.types.inference.strategies.VaryingSequenceInputTypeStrategy;
 import org.apache.flink.table.types.inference.strategies.WildcardInputTypeStrategy;
+import org.apache.flink.table.types.logical.LogicalType;
 import org.apache.flink.table.types.logical.LogicalTypeFamily;
 import org.apache.flink.table.types.logical.LogicalTypeRoot;
 import org.apache.flink.table.types.logical.StructuredType.StructuredComparision;
+import org.apache.flink.table.types.logical.utils.LogicalTypeCasts;
 import org.apache.flink.table.types.logical.utils.LogicalTypeChecks;
 
 import java.util.Arrays;
@@ -342,6 +345,64 @@ public final class InputTypeStrategies {
 	 * All the keys and values must have a common super type respectively.
 	 */
 	public static final InputTypeStrategy SPECIFIC_FOR_MAP = new MapInputTypeStrategy();
+
+	/**
+	 * Strategy specific for {@link BuiltInFunctionDefinitions#GET} and {@link BuiltInFunctionDefinitions#AT}.
+	 */
+	public static final InputTypeStrategy SPECIFIC_FOR_GET = sequence(
+		InputTypeStrategies.COMPOSITE,
+		and(
+			InputTypeStrategies.LITERAL,
+			or(
+				logical(LogicalTypeRoot.INTEGER),
+				logical(LogicalTypeFamily.CHARACTER_STRING, false)
+			)
+		)
+	);
+
+	/**
+	 * Input type strategy for accessing element of an array.
+	 */
+	public static final InputTypeStrategy SPECIFIC_FOR_AT_ARRAY = sequence(
+		logical(LogicalTypeRoot.ARRAY),
+		logical(LogicalTypeRoot.INTEGER)
+	);
+
+	/**
+	 * Input type strategy for accessing element of a map.
+	 */
+	public static final InputTypeStrategy SPECIFIC_FOR_AT_MAP = sequence(
+		logical(LogicalTypeRoot.MAP),
+		new ArgumentTypeStrategy() {
+			@Override
+			public Optional<DataType> inferArgumentType(
+					CallContext callContext,
+					int argumentPos,
+					boolean throwOnFailure) {
+				KeyValueDataType keyValueDataType = (KeyValueDataType) callContext.getArgumentDataTypes().get(0);
+				DataType keyType = keyValueDataType.getKeyDataType().nullable();
+				LogicalType argumentType = callContext.getArgumentDataTypes().get(argumentPos).getLogicalType();
+				if (LogicalTypeCasts.supportsImplicitCast(
+						argumentType.copy(true),
+						keyType.getLogicalType().copy(true))) {
+
+					// cast but preserve nullability of the argument
+					if (argumentType.isNullable()) {
+						return Optional.of(keyType.nullable());
+					} else {
+						return Optional.of(keyType.notNull());
+					}
+				}
+
+				return Optional.empty();
+			}
+
+			@Override
+			public Signature.Argument getExpectedArgument(FunctionDefinition functionDefinition, int argumentPos) {
+				return Signature.Argument.of("<MAP KEY TYPE>");
+			}
+		}
+	);
 
 	/**
 	 * Strategy that checks all types are fully comparable with each other. Requires exactly two arguments.

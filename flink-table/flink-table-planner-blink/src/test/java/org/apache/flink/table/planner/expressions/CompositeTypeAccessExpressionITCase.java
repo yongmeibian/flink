@@ -44,6 +44,7 @@ import static java.util.Collections.singletonMap;
 import static org.apache.flink.table.api.DataTypes.ARRAY;
 import static org.apache.flink.table.api.DataTypes.BIGINT;
 import static org.apache.flink.table.api.DataTypes.FIELD;
+import static org.apache.flink.table.api.DataTypes.INT;
 import static org.apache.flink.table.api.DataTypes.MAP;
 import static org.apache.flink.table.api.DataTypes.ROW;
 import static org.apache.flink.table.api.DataTypes.STRING;
@@ -95,14 +96,50 @@ public class CompositeTypeAccessExpressionITCase {
 					// we do not know about the size or contents during the inference
 					// therefore the results are always nullable
 					.testSqlResult("f0[1]", null, BIGINT().nullable())
+					.testTableApiResult($("f0").at(1), null, BIGINT().nullable())
 					.testSqlResult("f1[1]", 1L, BIGINT().nullable())
+					.testTableApiResult($("f1").at(1), 1L, BIGINT().nullable())
 					.testSqlResult("f2['nested']", null, BIGINT().nullable())
+					.testTableApiResult($("f2").at("nested"), null, BIGINT().nullable())
 					.testSqlResult("f3['nested']", 1L, BIGINT().nullable())
+					.testTableApiResult($("f3").at("nested"), 1L, BIGINT().nullable())
 
 					// we know all the fields of a type up front, therefore we can
 					// derive more accurate types during the inference
 					.testSqlResult("f4['nested']", null, BIGINT().nullable())
+					.testTableApiResult($("f4").at("nested"), null, BIGINT().nullable())
 					.testSqlResult("f5['nested']", 1L, BIGINT().notNull())
+					.testTableApiResult($("f5").at("nested"), 1L, BIGINT().notNull()),
+
+				// In Calcite it maps to FlinkSqlOperatorTable.ITEM
+				TestSpec.forFunction(BuiltInFunctionDefinitions.AT)
+					.onFieldsWithData(
+						new String[]{"A", "B", "C"},
+						0,
+						2,
+						6,
+						singletonMap("nested", 1),
+						"nested",
+						"unknown")
+					.andDataTypes(
+						ARRAY(STRING().notNull()).notNull(),
+						INT().notNull(),
+						INT().notNull(),
+						INT().notNull(),
+						MAP(STRING(), BIGINT().notNull()).notNull(),
+						STRING().notNull(),
+						STRING().notNull()
+					)
+					.testSqlResult("f0[f1]", null, STRING().nullable())
+					.testTableApiResult($("f0").at($("f1")), null, STRING().nullable())
+					.testSqlResult("f0[f2]", "B", STRING().nullable())
+					.testTableApiResult($("f0").at($("f2")), "B", STRING().nullable())
+					.testSqlResult("f0[f3]", null, STRING().nullable())
+					.testTableApiResult($("f0").at($("f3")), null, STRING().nullable())
+					.testSqlResult("f4[f5]", 1L, BIGINT().nullable())
+					.testTableApiResult($("f4").at($("f5")), 1L, BIGINT().nullable())
+					.testSqlResult("f4[f6]", null, BIGINT().nullable())
+					.testTableApiResult($("f4").at($("f6")), null, BIGINT().nullable())
 			);
 		}
 	}

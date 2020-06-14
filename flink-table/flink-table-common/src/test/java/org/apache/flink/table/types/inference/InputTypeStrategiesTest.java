@@ -623,7 +623,21 @@ public class InputTypeStrategiesTest extends InputTypeStrategiesTestBase {
 					Collections.singletonList(
 						DataTypes.BIGINT().notNull()
 					)
-				).notNull())
+				).notNull()),
+
+			TestSpec
+				.forStrategy(
+					"Element of a MAP",
+					InputTypeStrategies.SPECIFIC_FOR_AT_MAP
+				)
+				.calledWithArgumentTypes(
+					DataTypes.MAP(DataTypes.BIGINT().notNull(), DataTypes.STRING()),
+					DataTypes.INT().nullable())
+				.expectSignature("f(<MAP>, <MAP KEY TYPE>)")
+				.expectArgumentTypes(
+					DataTypes.MAP(DataTypes.BIGINT().notNull(), DataTypes.STRING()),
+					DataTypes.BIGINT().nullable()
+				)
 		);
 	}
 }

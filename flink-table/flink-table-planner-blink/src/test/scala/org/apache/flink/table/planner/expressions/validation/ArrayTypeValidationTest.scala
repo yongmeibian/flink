@@ -31,11 +31,6 @@ class ArrayTypeValidationTest extends ArrayTypeTestBase {
   }
 
   @Test(expected = classOf[ValidationException])
-  def testObviousInvalidIndexTableApi(): Unit = {
-    testTableApi('f2.at(0), "FAIL", "FAIL")
-  }
-
-  @Test(expected = classOf[ValidationException])
   def testEmptyArraySql(): Unit = {
     testSqlApi("ARRAY[]", "FAIL")
   }

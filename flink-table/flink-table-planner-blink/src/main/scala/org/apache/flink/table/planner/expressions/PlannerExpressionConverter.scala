@@ -357,10 +357,6 @@ class PlannerExpressionConverter private extends ApiExpressionVisitor[PlannerExp
             assert(args.size == 3)
             TimestampDiff(args.head, args(1), args.last)
 
-          case AT =>
-            assert(args.size == 2)
-            ItemAt(args.head, args.last)
-
           case CARDINALITY =>
             assert(args.size == 1)
             Cardinality(args.head)
