@@ -100,7 +100,7 @@ public final class StructuredRelDataType extends ObjectSqlType {
 			// in case of inline structured type we are using a temporary identifier
 			else {
 				sb.append(structuredType.asSummaryString());
-				if (structuredType.isNullable()) {
+				if (!structuredType.isNullable()) {
 					sb.append(" NOT NULL");
 				}
 			}
