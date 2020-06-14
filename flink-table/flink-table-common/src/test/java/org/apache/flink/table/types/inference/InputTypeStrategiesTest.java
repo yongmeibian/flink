@@ -19,12 +19,17 @@
 package org.apache.flink.table.types.inference;
 
 import org.apache.flink.table.api.DataTypes;
+import org.apache.flink.table.catalog.ObjectIdentifier;
 import org.apache.flink.table.types.DataType;
+import org.apache.flink.table.types.FieldsDataType;
+import org.apache.flink.table.types.logical.BigIntType;
 import org.apache.flink.table.types.logical.LogicalTypeFamily;
 import org.apache.flink.table.types.logical.LogicalTypeRoot;
+import org.apache.flink.table.types.logical.StructuredType;
 
 import org.junit.runners.Parameterized.Parameters;
 
+import java.util.Collections;
 import java.util.List;
 
 import static java.util.Arrays.asList;
@@ -582,7 +587,43 @@ public class InputTypeStrategiesTest extends InputTypeStrategiesTestBase {
 								"My constraint says %s must be nullable.",
 								args -> args.get(0).getLogicalType().isNullable()))))
 				.calledWithArgumentTypes(DataTypes.BOOLEAN().notNull())
-				.expectErrorMessage("My constraint says BOOLEAN NOT NULL must be nullable.")
+				.expectErrorMessage("My constraint says BOOLEAN NOT NULL must be nullable."),
+
+			TestSpec
+				.forStrategy(
+					"Composite type strategy with ROW",
+					sequence(InputTypeStrategies.COMPOSITE)
+				)
+				.calledWithArgumentTypes(DataTypes.ROW(DataTypes.FIELD("f0", DataTypes.BIGINT())))
+				.expectSignature("f(<COMPOSITE>)")
+				.expectArgumentTypes(DataTypes.ROW(DataTypes.FIELD("f0", DataTypes.BIGINT()))),
+
+			TestSpec
+				.forStrategy(
+					"Composite type strategy with STRUCTURED type",
+					sequence(InputTypeStrategies.COMPOSITE)
+				)
+				.calledWithArgumentTypes(new FieldsDataType(
+					StructuredType.newBuilder(ObjectIdentifier.of("cat", "db", "type"))
+						.attributes(Collections.singletonList(
+							new StructuredType.StructuredAttribute("f0", new BigIntType(false))
+						))
+						.build(),
+					Collections.singletonList(
+						DataTypes.BIGINT().notNull()
+					)
+				).notNull())
+				.expectSignature("f(<COMPOSITE>)")
+				.expectArgumentTypes(new FieldsDataType(
+					StructuredType.newBuilder(ObjectIdentifier.of("cat", "db", "type"))
+						.attributes(Collections.singletonList(
+							new StructuredType.StructuredAttribute("f0", new BigIntType(false))
+						))
+						.build(),
+					Collections.singletonList(
+						DataTypes.BIGINT().notNull()
+					)
+				).notNull())
 		);
 	}
 }

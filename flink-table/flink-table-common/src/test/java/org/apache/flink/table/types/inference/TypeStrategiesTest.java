@@ -20,11 +20,15 @@ package org.apache.flink.table.types.inference;
 
 import org.apache.flink.table.api.DataTypes;
 import org.apache.flink.table.api.ValidationException;
+import org.apache.flink.table.catalog.ObjectIdentifier;
 import org.apache.flink.table.functions.FunctionKind;
 import org.apache.flink.table.types.DataType;
+import org.apache.flink.table.types.FieldsDataType;
 import org.apache.flink.table.types.inference.utils.CallContextMock;
 import org.apache.flink.table.types.inference.utils.FunctionDefinitionMock;
+import org.apache.flink.table.types.logical.BigIntType;
 import org.apache.flink.table.types.logical.LogicalTypeFamily;
+import org.apache.flink.table.types.logical.StructuredType;
 
 import org.junit.Assert;
 import org.junit.Rule;
@@ -38,10 +42,13 @@ import org.junit.runners.Parameterized.Parameters;
 import javax.annotation.Nullable;
 
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 import static org.apache.flink.core.testutils.FlinkMatchers.containsCause;
 import static org.apache.flink.table.types.inference.TypeStrategies.MISSING;
@@ -222,7 +229,111 @@ public class TypeStrategiesTest {
 					"Find a decimal modulo",
 					TypeStrategies.DECIMAL_MOD)
 				.inputTypes(DataTypes.DECIMAL(5, 4), DataTypes.DECIMAL(3, 2))
-				.expectDataType(DataTypes.DECIMAL(5, 4).notNull())
+				.expectDataType(DataTypes.DECIMAL(5, 4).notNull()),
+
+			TestSpec
+				.forStrategy(
+					"Access field of a row nullable type by name",
+					TypeStrategies.GET
+				)
+				.inputTypes(
+					DataTypes.ROW(DataTypes.FIELD("f0", DataTypes.BIGINT().notNull())),
+					DataTypes.STRING().notNull())
+				.calledWithLiteralAt(1, "f0")
+				.expectDataType(DataTypes.BIGINT().nullable()),
+
+			TestSpec
+				.forStrategy(
+					"Access field of a row not null type by name",
+					TypeStrategies.GET
+				)
+				.inputTypes(
+					DataTypes.ROW(DataTypes.FIELD("f0", DataTypes.BIGINT().notNull())).notNull(),
+					DataTypes.STRING().notNull())
+				.calledWithLiteralAt(1, "f0")
+				.expectDataType(DataTypes.BIGINT().notNull()),
+
+			TestSpec
+				.forStrategy(
+					"Access field of a structured nullable type by name",
+					TypeStrategies.GET
+				)
+				.inputTypes(
+					new FieldsDataType(
+						StructuredType.newBuilder(ObjectIdentifier.of("cat", "db", "type"))
+							.attributes(Collections.singletonList(
+								new StructuredType.StructuredAttribute("f0", new BigIntType(false))
+							))
+							.build(),
+						Collections.singletonList(
+							DataTypes.BIGINT().notNull()
+						)
+					).nullable(),
+					DataTypes.STRING().notNull())
+				.calledWithLiteralAt(1, "f0")
+				.expectDataType(DataTypes.BIGINT().nullable()),
+
+			TestSpec
+				.forStrategy(
+					"Access field of a structured not null type by name",
+					TypeStrategies.GET
+				)
+				.inputTypes(
+					new FieldsDataType(
+						StructuredType.newBuilder(ObjectIdentifier.of("cat", "db", "type"))
+						.attributes(Collections.singletonList(
+							new StructuredType.StructuredAttribute("f0", new BigIntType(false))
+						))
+						.build(),
+						Collections.singletonList(
+							DataTypes.BIGINT().notNull()
+						)
+					).notNull(),
+					DataTypes.STRING().notNull())
+				.calledWithLiteralAt(1, "f0")
+				.expectDataType(DataTypes.BIGINT().notNull()),
+
+			TestSpec
+				.forStrategy(
+					"Access field of a row nullable type by index",
+					TypeStrategies.GET
+				)
+				.inputTypes(
+					DataTypes.ROW(DataTypes.FIELD("f0", DataTypes.BIGINT().notNull())),
+					DataTypes.INT().notNull())
+				.calledWithLiteralAt(1, 0)
+				.expectDataType(DataTypes.BIGINT().nullable()),
+
+			TestSpec
+				.forStrategy(
+					"Access field of a row not null type by index",
+					TypeStrategies.GET
+				)
+				.inputTypes(
+					DataTypes.ROW(DataTypes.FIELD("f0", DataTypes.BIGINT().notNull())).notNull(),
+					DataTypes.INT().notNull())
+				.calledWithLiteralAt(1, 0)
+				.expectDataType(DataTypes.BIGINT().notNull()),
+
+			TestSpec
+				.forStrategy(
+					"Fields can be accessed only with a literal (name)",
+					TypeStrategies.GET
+				)
+				.inputTypes(
+					DataTypes.ROW(DataTypes.FIELD("f0", DataTypes.BIGINT().notNull())).notNull(),
+					DataTypes.STRING().notNull())
+				.expectErrorMessage("Could not infer an output type for the given arguments."),
+
+			TestSpec
+				.forStrategy(
+					"Fields can be accessed only with a literal (index)",
+					TypeStrategies.GET
+				)
+				.inputTypes(
+					DataTypes.ROW(DataTypes.FIELD("f0", DataTypes.BIGINT().notNull())).notNull(),
+					DataTypes.INT().notNull())
+				.expectErrorMessage("Could not infer an output type for the given arguments.")
 		);
 	}
 
@@ -255,6 +366,14 @@ public class TypeStrategiesTest {
 		callContextMock.name = "f";
 		callContextMock.outputDataType = Optional.empty();
 
+		callContextMock.argumentLiterals = IntStream.range(0, testSpec.inputTypes.size())
+			.mapToObj(i -> testSpec.literalPos != null && i == testSpec.literalPos)
+			.collect(Collectors.toList());
+		callContextMock.argumentValues = IntStream.range(0, testSpec.inputTypes.size())
+			.mapToObj(i -> (testSpec.literalPos != null && i == testSpec.literalPos) ?
+				Optional.ofNullable(testSpec.literalValue) : Optional.empty())
+			.collect(Collectors.toList());
+
 		final TypeInference typeInference = TypeInference.newBuilder()
 			.inputTypeStrategy(InputTypeStrategies.WILDCARD)
 			.outputTypeStrategy(testSpec.strategy)
@@ -276,6 +395,10 @@ public class TypeStrategiesTest {
 
 		private @Nullable String expectedErrorMessage;
 
+		private @Nullable Integer literalPos;
+
+		private @Nullable Object literalValue;
+
 		private TestSpec(@Nullable String description, TypeStrategy strategy) {
 			this.description = description;
 			this.strategy = strategy;
@@ -291,6 +414,12 @@ public class TypeStrategiesTest {
 
 		TestSpec inputTypes(DataType... dataTypes) {
 			this.inputTypes = Arrays.asList(dataTypes);
+			return this;
+		}
+
+		TestSpec calledWithLiteralAt(int pos, Object value) {
+			this.literalPos = pos;
+			this.literalValue = value;
 			return this;
 		}
 

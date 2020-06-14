@@ -21,12 +21,17 @@ package org.apache.flink.table.functions;
 import org.apache.flink.annotation.PublicEvolving;
 import org.apache.flink.table.api.DataTypes;
 import org.apache.flink.table.api.TableException;
+import org.apache.flink.table.api.TableSchema;
+import org.apache.flink.table.types.DataType;
+import org.apache.flink.table.types.inference.CallContext;
 import org.apache.flink.table.types.inference.ConstantArgumentCount;
 import org.apache.flink.table.types.inference.InputTypeStrategies;
 import org.apache.flink.table.types.inference.TypeStrategies;
+import org.apache.flink.table.types.inference.TypeStrategy;
 import org.apache.flink.table.types.logical.LogicalTypeFamily;
 import org.apache.flink.table.types.logical.LogicalTypeRoot;
 import org.apache.flink.table.types.logical.StructuredType.StructuredComparision;
+import org.apache.flink.table.types.utils.DataTypeUtils;
 import org.apache.flink.util.Preconditions;
 
 import java.lang.reflect.Field;
@@ -34,6 +39,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 
 import static org.apache.flink.table.functions.FunctionKind.AGGREGATE;
@@ -972,13 +978,28 @@ public final class BuiltInFunctionDefinitions {
 		new BuiltInFunctionDefinition.Builder()
 			.name("flatten")
 			.kind(OTHER)
-			.outputTypeStrategy(TypeStrategies.MISSING)
+			.inputTypeStrategy(sequence(InputTypeStrategies.COMPOSITE))
+			.outputTypeStrategy(callContext -> {
+				throw new UnsupportedOperationException("FLATTEN should be resolved to GET expressions");
+			})
 			.build();
 	public static final BuiltInFunctionDefinition GET =
 		new BuiltInFunctionDefinition.Builder()
 			.name("get")
 			.kind(OTHER)
-			.outputTypeStrategy(TypeStrategies.MISSING)
+			.inputTypeStrategy(
+				sequence(
+					InputTypeStrategies.COMPOSITE,
+					and(
+						InputTypeStrategies.LITERAL,
+						or(
+							logical(LogicalTypeRoot.INTEGER),
+							logical(LogicalTypeFamily.CHARACTER_STRING, false)
+						)
+					)
+				)
+			)
+			.outputTypeStrategy(TypeStrategies.GET)
 			.build();
 
 	// window properties

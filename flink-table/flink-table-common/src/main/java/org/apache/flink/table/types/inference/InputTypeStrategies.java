@@ -20,6 +20,7 @@ package org.apache.flink.table.types.inference;
 
 import org.apache.flink.annotation.Internal;
 import org.apache.flink.table.functions.BuiltInFunctionDefinitions;
+import org.apache.flink.table.functions.FunctionDefinition;
 import org.apache.flink.table.types.DataType;
 import org.apache.flink.table.types.inference.strategies.AndArgumentTypeStrategy;
 import org.apache.flink.table.types.inference.strategies.AnyArgumentTypeStrategy;
@@ -42,9 +43,11 @@ import org.apache.flink.table.types.inference.strategies.WildcardInputTypeStrate
 import org.apache.flink.table.types.logical.LogicalTypeFamily;
 import org.apache.flink.table.types.logical.LogicalTypeRoot;
 import org.apache.flink.table.types.logical.StructuredType.StructuredComparision;
+import org.apache.flink.table.types.logical.utils.LogicalTypeChecks;
 
 import java.util.Arrays;
 import java.util.List;
+import java.util.Optional;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -197,6 +200,36 @@ public final class InputTypeStrategies {
 	 * Strategy that checks if an argument is a literal or NULL.
 	 */
 	public static final LiteralArgumentTypeStrategy LITERAL_OR_NULL = new LiteralArgumentTypeStrategy(true);
+
+	/**
+	 * Strategy that checks that the argument has a composite type.
+	 */
+	public static final ArgumentTypeStrategy COMPOSITE = new ArgumentTypeStrategy() {
+		@Override
+		public Optional<DataType> inferArgumentType(
+				CallContext callContext,
+				int argumentPos,
+				boolean throwOnFailure) {
+				DataType dataType = callContext.getArgumentDataTypes().get(argumentPos);
+			if (!LogicalTypeChecks.isCompositeType(dataType.getLogicalType())) {
+				if (throwOnFailure) {
+					throw callContext.newValidationError(
+						"A composite type expected. Got: %s",
+						dataType);
+				}
+				return Optional.empty();
+			}
+
+			return Optional.of(dataType);
+		}
+
+		@Override
+		public Signature.Argument getExpectedArgument(
+				FunctionDefinition functionDefinition,
+				int argumentPos) {
+			return Signature.Argument.of("<COMPOSITE>");
+		}
+	};
 
 	/**
 	 * Strategy for an argument that corresponds to an explicitly defined type casting.
