@@ -19,23 +19,18 @@
 package org.apache.flink.table.client.gateway.local.result;
 
 import org.apache.flink.api.common.ExecutionConfig;
-import org.apache.flink.api.common.JobExecutionResult;
-import org.apache.flink.api.common.accumulators.SerializedListAccumulator;
-import org.apache.flink.api.common.typeutils.TypeSerializer;
 import org.apache.flink.core.execution.JobClient;
 import org.apache.flink.table.api.TableSchema;
 import org.apache.flink.table.client.gateway.SqlExecutionException;
 import org.apache.flink.table.client.gateway.TypedResult;
-import org.apache.flink.table.client.gateway.local.CollectBatchTableSink;
+import org.apache.flink.table.planner.sinks.BatchSelectTableSink;
 import org.apache.flink.table.sinks.TableSink;
 import org.apache.flink.types.Row;
 import org.apache.flink.util.AbstractID;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Consumer;
 
 import static org.apache.flink.util.Preconditions.checkNotNull;
 
@@ -45,7 +40,7 @@ import static org.apache.flink.util.Preconditions.checkNotNull;
 public class MaterializedCollectBatchResult<C> extends BasicResult<C> implements MaterializedResult<C> {
 
 	private final String accumulatorName;
-	private final CollectBatchTableSink tableSink;
+	private final BatchSelectTableSink tableSink;
 	private final Object resultLock;
 	private final ClassLoader classLoader;
 
@@ -62,8 +57,7 @@ public class MaterializedCollectBatchResult<C> extends BasicResult<C> implements
 			ClassLoader classLoader) {
 
 		accumulatorName = new AbstractID().toString();
-		TypeSerializer<Row> serializer = tableSchema.toRowType().createSerializer(config);
-		tableSink = new CollectBatchTableSink(accumulatorName, serializer, tableSchema);
+		tableSink = new BatchSelectTableSink(tableSchema);
 		resultLock = new Object();
 		this.classLoader = checkNotNull(classLoader);
 
@@ -77,16 +71,22 @@ public class MaterializedCollectBatchResult<C> extends BasicResult<C> implements
 
 	@Override
 	public void startRetrieval(JobClient jobClient) {
-		jobClient.getJobExecutionResult(classLoader)
-				.thenAccept(new ResultRetrievalHandler())
-				.whenComplete((unused, throwable) -> {
-					if (throwable != null) {
-						executionException.compareAndSet(null,
-								new SqlExecutionException(
-										"Error while retrieving result.",
-										throwable));
-					}
-				});
+		tableSink.setJobClient(jobClient);
+		List<Row> rows = new ArrayList<>();
+		tableSink.getResultIterator().forEachRemaining(rows::add);
+		synchronized (resultLock) {
+			MaterializedCollectBatchResult.this.resultTable = rows;
+		}
+//		jobClient.getJobExecutionResult(classLoader)
+//				.thenAccept(new ResultRetrievalHandler())
+//				.whenComplete((unused, throwable) -> {
+//					if (throwable != null) {
+//						executionException.compareAndSet(null,
+//								new SqlExecutionException(
+//										"Error while retrieving result.",
+//										throwable));
+//					}
+//				});
 	}
 
 	@Override
@@ -129,28 +129,6 @@ public class MaterializedCollectBatchResult<C> extends BasicResult<C> implements
 				return TypedResult.payload(pageCount);
 			} else {
 				return TypedResult.endOfStream();
-			}
-		}
-	}
-
-	// --------------------------------------------------------------------------------------------
-
-	private class ResultRetrievalHandler implements Consumer<JobExecutionResult> {
-
-		@Override
-		public void accept(JobExecutionResult jobExecutionResult) {
-			try {
-				final ArrayList<byte[]> accResult = jobExecutionResult.getAccumulatorResult(accumulatorName);
-				if (accResult == null) {
-					throw new SqlExecutionException("The accumulator could not retrieve the result.");
-				}
-				final List<Row> resultTable = SerializedListAccumulator.deserializeList(accResult, tableSink.getSerializer());
-				// sets the result table all at once
-				synchronized (resultLock) {
-					MaterializedCollectBatchResult.this.resultTable = resultTable;
-				}
-			} catch (ClassNotFoundException | IOException e) {
-				throw new SqlExecutionException("Serialization error while deserializing collected data.", e);
 			}
 		}
 	}
